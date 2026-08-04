@@ -1,0 +1,309 @@
+// ═══════════════════════════════════════════════════════════════
+// FormImageField – Renders an image upload field with drag‑and‑drop,
+// preview, and file validation.
+//
+// The field value is stored as a raw File object (or a URL string
+// when pre‑filled from the backend). This allows the submit
+// handler to send the actual binary file as multipart/form-data.
+// ═══════════════════════════════════════════════════════════════
+"use client";
+
+import {
+  useRef,
+  useState,
+  useMemo,
+  useCallback,
+  useEffect,
+  type ReactElement,
+  type ChangeEvent,
+  type DragEvent,
+} from "react";
+import { useField } from "formik";
+
+import { Stack, Typography, Box, IconButton } from "@mui/material";
+import { Unicon } from "../../components/common/icon/Unicon";
+import type { ImageField } from "../types";
+
+// ─────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────
+
+const DEFAULT_ACCEPT = "image/*";
+const DEFAULT_MAX_SIZE = 5 * 1024 * 1024; // 5 MB
+
+/**
+ * Format byte size into a human‑readable string.
+ */
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Component
+// ─────────────────────────────────────────────────────────────
+
+export function FormImageField({ field }: { field: ImageField }): ReactElement {
+  // Value can be:
+  //   - File   → user selected a new file (binary)
+  //   - string → URL from backend (pre‑filled, read‑only)
+  //   - null   → nothing selected
+  const [{ value }, , { setValue, setTouched }] = useField<
+    File | string | null
+  >(field.name);
+
+  const inputRef = useRef<HTMLInputElement>(null);
+  const objectUrlRef = useRef<string | null>(null);
+
+  const [dragOver, setDragOver] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const accept = field.uiOverrides?.behavior?.accept ?? DEFAULT_ACCEPT;
+  const maxSize = field.uiOverrides?.behavior?.maxSize ?? DEFAULT_MAX_SIZE;
+
+  // ── Preview source ─────────────────────────────────────────
+  // Derived directly from value on every render.
+  // File → ObjectURL; string → use as-is.
+  const previewSrc: string | null = useMemo(
+    () =>
+      value instanceof File ? URL.createObjectURL(value) : (value ?? null),
+    [value],
+  );
+
+  // ── Revoke stale ObjectURL when value changes ──────────────
+  useEffect(() => {
+    const prevUrl = objectUrlRef.current;
+    const currentUrl =
+      value instanceof File ? URL.createObjectURL(value) : null;
+
+    // If we switched from a File to something else, revoke the old URL
+    if (prevUrl && prevUrl !== currentUrl) {
+      URL.revokeObjectURL(prevUrl);
+    }
+
+    objectUrlRef.current = currentUrl;
+
+    return () => {
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+      }
+    };
+  }, [value]);
+
+  // ── Validate and process a single file ──────────────────────
+  const processFile = useCallback(
+    async (file: File) => {
+      if (!file.type.startsWith("image/")) {
+        setError("Selected file is not an image.");
+        return;
+      }
+
+      if (file.size > maxSize) {
+        setError(
+          `Image exceeds maximum size of ${formatFileSize(maxSize)} ` +
+            `(selected: ${formatFileSize(file.size)}).`,
+        );
+        return;
+      }
+
+      // Revoke previous ObjectURL
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+
+      setError(null);
+      await setValue(file);
+    },
+    [maxSize, setValue],
+  );
+
+  // ── Handle file input change ───────────────────────────────
+  const handleFileChange = useCallback(
+    async (e: ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files;
+      if (!files || files.length === 0) return;
+
+      await processFile(files[0]);
+      e.target.value = "";
+    },
+    [processFile],
+  );
+
+  // ── Drag & drop handlers ───────────────────────────────────
+  const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    async (e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDragOver(false);
+
+      const files = e.dataTransfer.files;
+      if (!files || files.length === 0) return;
+
+      await processFile(files[0]);
+    },
+    [processFile],
+  );
+
+  // ── Remove / clear ─────────────────────────────────────────
+  const handleRemove = useCallback(async () => {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+
+    setError(null);
+    await setValue(null);
+    await setTouched(true);
+  }, [setValue, setTouched]);
+
+  // ── Click to open file picker ──────────────────────────────
+  const handleClick = useCallback(() => {
+    inputRef.current?.click();
+  }, []);
+
+  // ── Render ─────────────────────────────────────────────────
+  return (
+    <Stack spacing={0.2}>
+      {/* Label */}
+      <Typography variant="body1" component="label" className="font-medium">
+        {field.label}
+        {field.isRequired && <span className="text-error ml-0.5">*</span>}
+      </Typography>
+
+      {/* Hidden file input */}
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        multiple={false}
+        disabled={field.isReadOnly}
+        style={{ display: "none" }}
+        onChange={handleFileChange}
+        onBlur={() => setTouched(true)}
+      />
+
+      {/* Drop zone or preview */}
+      {previewSrc ? (
+        <Box
+          className="p-4 relative w-full max-w-[320px] rounded-lg overflow-hidden border border-divider"
+          style={{
+            opacity: field.isReadOnly ? 0.7 : 1,
+            pointerEvents: field.isReadOnly ? "none" : undefined,
+          }}
+        >
+          {!field.isReadOnly && (
+            <IconButton
+              onClick={handleRemove}
+              size="small"
+              color="error"
+              className="!absolute !top-1 !right-1"
+              aria-label="Remove image"
+            >
+              <Unicon name="CloseOutlined" size={20} />
+            </IconButton>
+          )}
+          <Box className="relative w-full h-60">
+            <img
+              src={previewSrc ?? ""}
+              alt="Uploaded preview"
+              style={{
+                display: "block",
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+              }}
+              onError={(e) => {
+                console.error(
+                  "[FormImageField] Failed to load image:",
+                  previewSrc,
+                  e,
+                );
+              }}
+              onLoad={() => {
+                console.log(
+                  "[FormImageField] Image loaded successfully:",
+                  previewSrc,
+                );
+              }}
+            />
+          </Box>
+        </Box>
+      ) : field.isReadOnly ? (
+        <Box className="flex flex-col items-center justify-center gap-1 w-full max-w-[320px] min-h-[160px] border-2 border-dashed rounded-lg opacity-60">
+          <Unicon
+            name="CloudUploadOutlined"
+            size={40}
+            className="!text-text-secondary"
+          />
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            className="text-center"
+          >
+            No image uploaded
+          </Typography>
+        </Box>
+      ) : (
+        <Box
+          onClick={handleClick}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className="flex flex-col items-center justify-center gap-1 w-full max-w-[320px] min-h-[160px] border-2 border-dashed rounded-lg cursor-pointer transition-[border-color,background-color] duration-200"
+          style={{
+            borderColor: dragOver
+              ? "var(--mui-palette-primary-main)"
+              : undefined,
+            backgroundColor: dragOver
+              ? "var(--mui-palette-action-hover)"
+              : undefined,
+          }}
+        >
+          <Unicon
+            name="CloudUploadOutlined"
+            size={40}
+            className="!text-text-secondary"
+          />
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            className="text-center"
+          >
+            Drag & drop an image here, or click to browse
+          </Typography>
+          <Typography variant="caption" color="text.disabled">
+            Accepted: {accept} &middot; Max: {formatFileSize(maxSize)}
+          </Typography>
+        </Box>
+      )}
+
+      {/* Error message */}
+      {error && (
+        <Typography variant="caption" color="error">
+          {error}
+        </Typography>
+      )}
+
+      {/* Description */}
+      {field.fieldOverrides?.description ? (
+        <Typography variant="caption" color="text.secondary">
+          {field.fieldOverrides.description}
+        </Typography>
+      ) : null}
+    </Stack>
+  );
+}
