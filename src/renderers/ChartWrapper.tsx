@@ -1,16 +1,16 @@
 "use client";
 
-import { useMemo, type ReactElement, type ReactNode } from "react";
-import useSWR from "swr";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
-import CircularProgress from "@mui/material/CircularProgress";
-import Alert from "@mui/material/Alert";
-import { getApiClient } from "../deps";
-import { useDateRange } from "./DateRangeContext";
-import { EmptyChart } from "../components/common/emptyChart/EmptyChart";
-import type { RenderedComponent } from "../types";
 import { Stack } from "@mui/material";
+import Alert from "@mui/material/Alert";
+import Box from "@mui/material/Box";
+import CircularProgress from "@mui/material/CircularProgress";
+import Typography from "@mui/material/Typography";
+import { type ReactElement, type ReactNode, useMemo } from "react";
+import useSWR from "swr";
+import { EmptyChart } from "../components/common/emptyChart/EmptyChart";
+import { getApiClient } from "../deps";
+import type { RenderedComponent } from "../types";
+import { useDateRange } from "./DateRangeContext";
 
 // ──────────────────────────────────────────────────────────────────
 // Types

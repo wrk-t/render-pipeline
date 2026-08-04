@@ -1,6 +1,6 @@
 import { Stack, Typography } from "@mui/material";
-import type { FC } from "react";
 import Image from "next/image";
+import type { FC } from "react";
 
 export const EmptyChart: FC = () => {
 	return (

@@ -9,172 +9,163 @@
 // startup (see deps.ts).
 // ──────────────────────────────────────────────────────────────────
 
-// ── Dependency seam ──────────────────────────────────────────
+export { AbilityProvider, useAbility, useCan } from "./ability/AbilityContext";
 export {
-  configureRenderPipeline,
-  getApiClient,
-  useRenderUser,
-  getUserSnapshot,
-} from "./deps";
-export type { RenderPipelineDeps, RenderUser } from "./deps";
-
+	type AppAbility,
+	type AppAction,
+	type AppSubject,
+	buildAbility,
+	type RawPermission,
+} from "./ability/buildAbility";
+export {
+	checkComponentPermission,
+	type PermissionRequirement,
+	type UserPermission,
+} from "./ability/checkComponentPermission";
+export type { ComponentRendererProps } from "./ComponentRenderer";
 // ── Pipeline core ────────────────────────────────────────────
 export { AutoComponent, ComponentRenderer } from "./ComponentRenderer";
-export type { ComponentRendererProps } from "./ComponentRenderer";
-export { rendererRegistry, registerRenderer } from "./registry";
-export { RenderBoundary, UnknownRenderer } from "./RenderBoundary";
-export {
-  ParentBindingsContext,
-  getQueryParams,
-  resolveParamBindings,
-  useParamScope,
-  useParentBindings,
-} from "./resolveParams";
-export type { ParamResolveContext, ParamScope } from "./resolveParams";
-export { useComponentRender } from "./useComponentRender";
-
-export type {
-  RenderedComponent,
-  RenderedElement,
-  RendererProps,
-  RendererComponent,
-  AutoComponentProps,
-  FormReadyApi,
-  ParamBinding,
-  ParamBindingSource,
-} from "./types";
-
-// ── Renderers ────────────────────────────────────────────────
-export { ScreenLayoutRenderer } from "./renderers/ScreenLayoutRenderer";
-export { PageRenderer } from "./renderers/PageRenderer";
-export { TableRenderer } from "./renderers/TableRenderer";
-export { FormRenderer } from "./renderers/FormRenderer";
-export { FormFieldRenderer } from "./renderers/FormFieldRenderer";
-export { InfoRenderer } from "./renderers/InfoRenderer";
-export { TabsRenderer } from "./renderers/TabsRenderer";
-export { SectionRenderer } from "./renderers/SectionRenderer";
-export { AvatarRenderer } from "./renderers/AvatarRenderer";
-export { RawJsonRenderer } from "./renderers/RawJsonRenderer";
-export { PieRenderer } from "./renderers/PieRenderer";
-export { BarRenderer } from "./renderers/BarRenderer";
-export { LineRenderer } from "./renderers/LineRenderer";
-export { MetricRenderer } from "./renderers/MetricRenderer";
-export { GaugeRenderer } from "./renderers/GaugeRenderer";
-export { DateRangeRenderer } from "./renderers/DateRangeRenderer";
-export { StageActionsRenderer } from "./renderers/StageActionsRenderer";
-export { StateContextRenderer } from "./renderers/StateContextRenderer";
-export { useDateRange, DateRangeProvider } from "./renderers/DateRangeContext";
-export { useVersion, VersionProvider } from "./renderers/VersionContext";
-export type { VersionInfo } from "./renderers/VersionContext";
-
-export { BadgeCell } from "./renderers/BadgeCell";
-export { ReferenceCell } from "./renderers/ReferenceCell";
-export { DateCell } from "./renderers/DateCell";
-export { LineChartCell } from "./renderers/LineChartCell";
-export { CellChartWrapper } from "./renderers/CellChartWrapper";
-export { columnCellRenderers } from "./renderers/columnCellRenderers";
-
-// ── Screens (routing) ────────────────────────────────────────
-export { ScreenPage } from "./screens/ScreenPage";
-export { resolveScreen } from "./screens/resolveScreen";
-export { matchPattern } from "./screens/matchPattern";
-export {
-  useScreen,
-  useScreenPreloader,
-  screenKey,
-} from "./screens/useScreenPreloader";
-export { ScreenStateProvider, useScreenState } from "./screens/ScreenState";
-export type {
-  Screen,
-  Widget,
-  ResolvedScreen,
-  ScreenPageProps,
-} from "./screens/types";
-
-// ── Dynamic form / table engines ─────────────────────────────
-export { DynamicTable } from "./dynamic-table";
-export type {
-  DynamicTableProps,
-  DynamicTableColumn,
-} from "./dynamic-table";
-export {
-  buildFieldSchema,
-  buildFormSchema,
-  registerCustomValidator,
-} from "./dynamic-form/buildValidationSchema";
-export { evaluateFieldConditions } from "./dynamic-form/fieldHelpers";
-export type {
-  RenderField,
-  FieldType,
-  FieldDatasource,
-  EntityMeta,
-  SelectOption,
-  ValidationRule,
-  FormAction,
-  FormRenderSection,
-  FormRenderSettings,
-  FormRenderForm,
-  FormRenderResponse,
-  TableAction,
-  TableMetadata,
-  TableColumnInstance,
-  TableSubTable,
-} from "./dynamic-form/types";
-export {
-  FormTextField,
-  FormTextareaField,
-  FormNumberField,
-  FormPasswordField,
-  FormSelectField,
-  FormMultiSelectField,
-  FormSwitchField,
-  FormDateField,
-  FormEmailField,
-  FormJsonField,
-  FormImageField,
-  FormColorField,
-  FormReferenceField,
-  FormAutocompleteField,
-} from "./dynamic-form/fields";
-
-// ── Shared UI / helpers ──────────────────────────────────────
-export { BaseDialog } from "./components/dialog/BaseDialog";
-export { BaseDialogHeader } from "./components/dialog/BaseDialogHeader";
-export { BaseDialogActions } from "./components/dialog/BaseDialogActions";
-export type {
-  IBaseDialogProps,
-  IBaseDialogActionsProps,
-} from "./components/dialog/types";
-export { Unicon, ICON_EXPORT } from "./components/common/icon/Unicon";
 export { EmptyChart } from "./components/common/emptyChart/EmptyChart";
 export { RangeDatePicker } from "./components/common/fields/dateRangePicker";
 export {
-  Past24Hours,
-  type TDatePickerValue,
+	Past24Hours,
+	type TDatePickerValue,
 } from "./components/common/fields/dateRangePicker/config";
-
+export { ICON_EXPORT, Unicon } from "./components/common/icon/Unicon";
+// ── Shared UI / helpers ──────────────────────────────────────
+export { BaseDialog } from "./components/dialog/BaseDialog";
+export { BaseDialogActions } from "./components/dialog/BaseDialogActions";
+export { BaseDialogHeader } from "./components/dialog/BaseDialogHeader";
+export type {
+	IBaseDialogActionsProps,
+	IBaseDialogProps,
+} from "./components/dialog/types";
+export type { RenderPipelineDeps, RenderUser } from "./deps";
+// ── Dependency seam ──────────────────────────────────────────
 export {
-  buildAbility,
-  type RawPermission,
-  type AppAction,
-  type AppSubject,
-  type AppAbility,
-} from "./ability/buildAbility";
-export { AbilityProvider, useAbility, useCan } from "./ability/AbilityContext";
+	configureRenderPipeline,
+	getApiClient,
+	getUserSnapshot,
+	useRenderUser,
+} from "./deps";
 export {
-  checkComponentPermission,
-  type PermissionRequirement,
-  type UserPermission,
-} from "./ability/checkComponentPermission";
-
-export { useSnack } from "./hooks/useSnack";
-export { useFeatures, DEFAULT_FEATURES } from "./hooks/useFeatures";
+	buildFieldSchema,
+	buildFormSchema,
+	registerCustomValidator,
+} from "./dynamic-form/buildValidationSchema";
+export { evaluateFieldConditions } from "./dynamic-form/fieldHelpers";
+export {
+	FormAutocompleteField,
+	FormColorField,
+	FormDateField,
+	FormEmailField,
+	FormImageField,
+	FormJsonField,
+	FormMultiSelectField,
+	FormNumberField,
+	FormPasswordField,
+	FormReferenceField,
+	FormSelectField,
+	FormSwitchField,
+	FormTextareaField,
+	FormTextField,
+} from "./dynamic-form/fields";
+export type {
+	EntityMeta,
+	FieldDatasource,
+	FieldType,
+	FormAction,
+	FormRenderForm,
+	FormRenderResponse,
+	FormRenderSection,
+	FormRenderSettings,
+	RenderField,
+	SelectOption,
+	TableAction,
+	TableColumnInstance,
+	TableMetadata,
+	TableSubTable,
+	ValidationRule,
+} from "./dynamic-form/types";
+export type {
+	DynamicTableColumn,
+	DynamicTableProps,
+} from "./dynamic-table";
+// ── Dynamic form / table engines ─────────────────────────────
+export { DynamicTable } from "./dynamic-table";
 export type { FeatureFlags } from "./hooks/useFeatures";
+export { DEFAULT_FEATURES, useFeatures } from "./hooks/useFeatures";
 export { useResolvedParams } from "./hooks/useResolvedParams";
+export { useSnack } from "./hooks/useSnack";
+export type { PageQueryParams, QueryParams } from "./query-builder";
 export {
-  resolveUrlTemplate,
-  hasUnresolvedParams,
-  extractPlaceholders,
-  usePageQueryParams,
+	extractPlaceholders,
+	hasUnresolvedParams,
+	resolveUrlTemplate,
+	usePageQueryParams,
 } from "./query-builder";
-export type { QueryParams, PageQueryParams } from "./query-builder";
+export { RenderBoundary, UnknownRenderer } from "./RenderBoundary";
+export { registerRenderer, rendererRegistry } from "./registry";
+export { AvatarRenderer } from "./renderers/AvatarRenderer";
+export { BadgeCell } from "./renderers/BadgeCell";
+export { BarRenderer } from "./renderers/BarRenderer";
+export { CellChartWrapper } from "./renderers/CellChartWrapper";
+export { columnCellRenderers } from "./renderers/columnCellRenderers";
+export { DateCell } from "./renderers/DateCell";
+export { DateRangeProvider, useDateRange } from "./renderers/DateRangeContext";
+export { DateRangeRenderer } from "./renderers/DateRangeRenderer";
+export { FormFieldRenderer } from "./renderers/FormFieldRenderer";
+export { FormRenderer } from "./renderers/FormRenderer";
+export { GaugeRenderer } from "./renderers/GaugeRenderer";
+export { InfoRenderer } from "./renderers/InfoRenderer";
+export { LineChartCell } from "./renderers/LineChartCell";
+export { LineRenderer } from "./renderers/LineRenderer";
+export { MetricRenderer } from "./renderers/MetricRenderer";
+export { PageRenderer } from "./renderers/PageRenderer";
+export { PieRenderer } from "./renderers/PieRenderer";
+export { RawJsonRenderer } from "./renderers/RawJsonRenderer";
+export { ReferenceCell } from "./renderers/ReferenceCell";
+// ── Renderers ────────────────────────────────────────────────
+export { ScreenLayoutRenderer } from "./renderers/ScreenLayoutRenderer";
+export { SectionRenderer } from "./renderers/SectionRenderer";
+export { StageActionsRenderer } from "./renderers/StageActionsRenderer";
+export { StateContextRenderer } from "./renderers/StateContextRenderer";
+export { TableRenderer } from "./renderers/TableRenderer";
+export { TabsRenderer } from "./renderers/TabsRenderer";
+export type { VersionInfo } from "./renderers/VersionContext";
+export { useVersion, VersionProvider } from "./renderers/VersionContext";
+export type { ParamResolveContext, ParamScope } from "./resolveParams";
+export {
+	getQueryParams,
+	ParentBindingsContext,
+	resolveParamBindings,
+	useParamScope,
+	useParentBindings,
+} from "./resolveParams";
+export { matchPattern } from "./screens/matchPattern";
+export { resolveScreen } from "./screens/resolveScreen";
+// ── Screens (routing) ────────────────────────────────────────
+export { ScreenPage } from "./screens/ScreenPage";
+export { ScreenStateProvider, useScreenState } from "./screens/ScreenState";
+export type {
+	ResolvedScreen,
+	Screen,
+	ScreenPageProps,
+	Widget,
+} from "./screens/types";
+export {
+	screenKey,
+	useScreen,
+	useScreenPreloader,
+} from "./screens/useScreenPreloader";
+export type {
+	AutoComponentProps,
+	FormReadyApi,
+	ParamBinding,
+	ParamBindingSource,
+	RenderedComponent,
+	RenderedElement,
+	RendererComponent,
+	RendererProps,
+} from "./types";
+export { useComponentRender } from "./useComponentRender";

@@ -1,7 +1,7 @@
-import type { FC } from "react";
-import { useRef, useEffect, useCallback } from "react";
+import { Button, DialogActions, Tooltip } from "@mui/material";
 import { useTranslations } from "next-intl";
-import { DialogActions, Button, Tooltip } from "@mui/material";
+import type { FC } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { IBaseDialogActionsProps } from "./types";
 
 export const BaseDialogActions: FC<IBaseDialogActionsProps> = ({
@@ -29,11 +29,9 @@ export const BaseDialogActions: FC<IBaseDialogActionsProps> = ({
 					e.preventDefault();
 					submitButtonRef.current?.click();
 				}
-			} else {
-				if (e.key === "Enter") {
-					e.preventDefault();
-					submitButtonRef.current?.click();
-				}
+			} else if (e.key === "Enter") {
+				e.preventDefault();
+				submitButtonRef.current?.click();
 			}
 		},
 		[disabled],
@@ -47,7 +45,7 @@ export const BaseDialogActions: FC<IBaseDialogActionsProps> = ({
 
 	return (
 		<DialogActions className="p-4!">
-			{slotProps?.closeButton?.show !== false ? (
+			{slotProps?.closeButton?.show === false ? null : (
 				<Tooltip title={slotProps?.closeButton?.tooltip}>
 					<span>
 						<Button
@@ -63,9 +61,9 @@ export const BaseDialogActions: FC<IBaseDialogActionsProps> = ({
 						</Button>
 					</span>
 				</Tooltip>
-			) : null}
+			)}
 
-			{slotProps?.submitButton?.show !== false ? (
+			{slotProps?.submitButton?.show === false ? null : (
 				<Tooltip title={slotProps?.submitButton?.tooltip}>
 					<span>
 						<Button
@@ -84,7 +82,7 @@ export const BaseDialogActions: FC<IBaseDialogActionsProps> = ({
 						</Button>
 					</span>
 				</Tooltip>
-			) : null}
+			)}
 		</DialogActions>
 	);
 };

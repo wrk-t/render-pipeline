@@ -1,76 +1,83 @@
 {
-  "name": "@wrk-t/render-pipeline",
-  "version": "0.1.0",
-  "description": "Metadata-driven client-side rendering pipeline for React/Next.js — blueprint registry, renderers, screen routing, dynamic forms and tables.",
-  "license": "MIT",
-  "author": "emadi68moh@gmail.com",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/wrk-t/render-pipeline"
-  },
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
-  "exports": {
-    ".": {
-      "import": "./src/index.ts",
-      "types": "./src/index.ts"
-    },
-    "./*": "./src/*"
-  },
-  "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "clean": "rm -rf dist",
-    "format": "npx @biomejs/biome format --write .",
-    "lint": "npx @biomejs/biome lint --write .",
-    "check": "npx @biomejs/biome check --write ."
-  },
-  "dependencies": {
-    "@casl/ability": "^6.8.1",
-    "@casl/react": "^6.0.0",
-    "@iconscout/unicons": "^4.2.0",
-    "@monaco-editor/react": "^4.7.0",
-    "@mui/lab": "9.0.0-beta.2",
-    "@mui/material": "^9.0.0",
-    "@mui/x-date-pickers": "^9.3.0",
-    "@nivo/bar": "^0.99.0",
-    "@nivo/line": "^0.99.0",
-    "@nivo/pie": "^0.99.0",
-    "@smartpath/typed-formik-mui": "^0.0.3",
-    "@tooni/iconscout-unicons-react": "^1.0.3",
-    "axios": "^1.15.2",
-    "formik": "^2.4.9",
-    "formik-mui": "5.0.0-alpha.1",
-    "material-react-table": "^3.2.1",
-    "next": "^16.2.4",
-    "next-intl": "^4.11.0",
-    "notistack": "^3.0.2",
-    "react-avatar-editor": "^15.1.0",
-    "react-date-object": "^2.1.9",
-    "react-multi-date-picker": "~4.4.1",
-    "swr": "^2.4.1",
-    "ts-pattern": "^5.9.0",
-    "yup": "^1.7.1"
-  },
-  "peerDependencies": {
-    "react": ">=18",
-    "react-dom": ">=18"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.4.15",
-    "@types/react": "^19",
-    "react": "^19.2.5",
-    "react-dom": "^19.2.5",
-    "typescript": "^6.0.3"
-  },
-  "keywords": [
-    "metadata",
-    "render",
-    "pipeline",
-    "forms",
-    "tables",
-    "screens",
-    "react",
-    "nextjs"
-  ]
+	"name": "@wrk-t/render-pipeline",
+	"version": "0.1.0",
+	"description": "Metadata-driven client-side rendering pipeline for React/Next.js — blueprint registry, renderers, screen routing, dynamic forms and tables.",
+	"license": "MIT",
+	"author": "emadi68moh@gmail.com",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/wrk-t/render-pipeline"
+	},
+	  "main": "./dist/index.js",
+	  "types": "./dist/index.d.ts",
+	  "type": "module",
+	  "exports": {
+		    ".": {
+		      "import": "./dist/index.js",
+		      "types": "./dist/index.d.ts"
+		    },
+		"./*": "./dist/*"
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"clean": "rm -rf dist",
+		"format": "npx @biomejs/biome format --write .",
+		"lint": "npx @biomejs/biome lint --write .",
+		"check": "npx @biomejs/biome check --write .",
+		"hooks:install": "npx lefthook install",
+		"prepublishOnly": "pnpm build"
+	},
+	"dependencies": {
+		"@casl/ability": "^6.8.1",
+		"@casl/react": "^6.0.0",
+		"@iconscout/unicons": "^4.2.0",
+		"@monaco-editor/react": "^4.7.0",
+		"@mui/lab": "9.0.0-beta.2",
+		"@mui/material": "^9.0.0",
+		"@mui/x-date-pickers": "^9.3.0",
+		"@nivo/bar": "^0.99.0",
+		"@nivo/line": "^0.99.0",
+		"@nivo/pie": "^0.99.0",
+		"@smartpath/typed-formik-mui": "^0.0.3",
+		"@tooni/iconscout-unicons-react": "^1.0.3",
+		"axios": "^1.15.2",
+		"formik": "^2.4.9",
+		"formik-mui": "5.0.0-alpha.1",
+		"material-react-table": "^3.2.1",
+		"next": "^16.2.4",
+		"next-intl": "^4.11.0",
+		"notistack": "^3.0.2",
+		"react-avatar-editor": "^15.1.0",
+		"react-date-object": "^2.1.9",
+		"react-multi-date-picker": "~4.4.1",
+		"swr": "^2.4.1",
+		"ts-pattern": "^5.9.0",
+		"yup": "^1.7.1"
+	},
+	"peerDependencies": {
+		"react": ">=18",
+		"react-dom": ">=18"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.15",
+		"@types/node": "^25.9.1",
+		"@types/react": "^19",
+		"react": "^19.2.5",
+		"react-dom": "^19.2.5",
+		"typescript": "^6.0.3"
+	},
+	"keywords": [
+		"metadata",
+		"render",
+		"pipeline",
+		"forms",
+		"tables",
+		"screens",
+		"react",
+		"nextjs"
+	]
 }

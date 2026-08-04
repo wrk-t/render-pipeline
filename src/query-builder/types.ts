@@ -13,27 +13,27 @@
  * - `bodyParams`   → merged into the request body (create/update payloads)
  */
 export interface QueryParams {
-  pathParams?: Record<string, string>;
-  queryParams?: Record<string, string>;
-  bodyParams?: Record<string, unknown>;
+	pathParams?: Record<string, string>;
+	queryParams?: Record<string, string>;
+	bodyParams?: Record<string, unknown>;
 }
 
 /**
  * Shape returned by the usePageQueryParams hook.
  */
 export interface PageQueryParams {
-  /** Resolved params ready to be passed to DynamicTable / table renderer. */
-  params: QueryParams;
+	/** Resolved params ready to be passed to DynamicTable / table renderer. */
+	params: QueryParams;
 
-  /** The raw URL path params from the Next.js route. */
-  routeParams: Record<string, string>;
+	/** The raw URL path params from the Next.js route. */
+	routeParams: Record<string, string>;
 
-  /** The raw URL search params from the page. */
-  searchParams: URLSearchParams;
+	/** The raw URL search params from the page. */
+	searchParams: URLSearchParams;
 
-  /**
-   * Merge additional params at the call site.
-   * Useful when a page needs to add something on top of what the hook already built.
-   */
-  merge: (extra: QueryParams) => QueryParams;
+	/**
+	 * Merge additional params at the call site.
+	 * Useful when a page needs to add something on top of what the hook already built.
+	 */
+	merge: (extra: QueryParams) => QueryParams;
 }

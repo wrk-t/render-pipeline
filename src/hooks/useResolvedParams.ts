@@ -12,14 +12,14 @@ import { useRenderUser } from "../deps";
  * x-workspace context). Super admins have no tenant, so nothing is injected.
  */
 export function useResolvedParams(
-  pathParams?: Record<string, string>,
+	pathParams?: Record<string, string>,
 ): Record<string, string> {
-  const { data: user } = useRenderUser();
-  const tenantId = (user as any)?.tenant?.id as string | undefined;
+	const { data: user } = useRenderUser();
+	const tenantId = (user as any)?.tenant?.id as string | undefined;
 
-  return useMemo(() => {
-    const base = pathParams ?? {};
-    if (!tenantId) return base;
-    return { ...base, tenantId };
-  }, [pathParams, tenantId]);
+	return useMemo(() => {
+		const base = pathParams ?? {};
+		if (!tenantId) return base;
+		return { ...base, tenantId };
+	}, [pathParams, tenantId]);
 }

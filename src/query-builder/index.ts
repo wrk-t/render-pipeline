@@ -2,6 +2,10 @@
 // Query Builder — public API
 // ═══════════════════════════════════════════════════════════════
 
-export { usePageQueryParams, paramsToQueryString } from "./usePageQueryParams";
-export { resolveUrlTemplate, hasUnresolvedParams, extractPlaceholders } from "./templateResolver";
-export type { QueryParams, PageQueryParams } from "./types";
+export {
+	extractPlaceholders,
+	hasUnresolvedParams,
+	resolveUrlTemplate,
+} from "./templateResolver";
+export type { PageQueryParams, QueryParams } from "./types";
+export { paramsToQueryString, usePageQueryParams } from "./usePageQueryParams";

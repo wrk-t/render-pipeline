@@ -4,18 +4,18 @@
 // ──────────────────────────────────────────────────────────────────
 
 import { BadgeCell } from "./BadgeCell";
-import { ReferenceCell } from "./ReferenceCell";
+import { BooleanCell } from "./BooleanCell";
 import { DateCell } from "./DateCell";
 import { LineChartCell } from "./LineChartCell";
-import { BooleanCell } from "./BooleanCell";
+import { ReferenceCell } from "./ReferenceCell";
 
 export const columnCellRenderers: Record<string, React.ComponentType<any>> = {
-  badge: BadgeCell,
-  reference: ReferenceCell,
-  date: DateCell,
-  "line-chart": LineChartCell,
-  boolean: BooleanCell,
-  // More format types can be added here as they're created:
-  // "bar-chart": BarChartCell,
-  // "pie-chart": PieChartCell,
+	badge: BadgeCell,
+	reference: ReferenceCell,
+	date: DateCell,
+	"line-chart": LineChartCell,
+	boolean: BooleanCell,
+	// More format types can be added here as they're created:
+	// "bar-chart": BarChartCell,
+	// "pie-chart": PieChartCell,
 };

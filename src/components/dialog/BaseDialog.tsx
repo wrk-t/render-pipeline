@@ -1,10 +1,10 @@
-import type { FC } from "react";
-import DialogContent from "@mui/material/DialogContent";
 import Dialog from "@mui/material/Dialog";
-import { BaseDialogHeader } from "./BaseDialogHeader";
-import { BaseDialogActions } from "./BaseDialogActions";
-import type { IBaseDialogProps } from "./types";
+import DialogContent from "@mui/material/DialogContent";
 import Stack from "@mui/material/Stack";
+import type { FC } from "react";
+import { BaseDialogActions } from "./BaseDialogActions";
+import { BaseDialogHeader } from "./BaseDialogHeader";
+import type { IBaseDialogProps } from "./types";
 
 export const BaseDialog: FC<IBaseDialogProps> = ({
 	title,

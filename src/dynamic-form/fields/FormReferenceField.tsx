@@ -13,25 +13,25 @@
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
+import { Stack, Typography } from "@mui/material";
+import Autocomplete from "@mui/material/Autocomplete";
+import TextField from "@mui/material/TextField";
+import { useField, useFormikContext } from "formik";
 import {
-	useState,
+	type ReactElement,
+	type SyntheticEvent,
 	useCallback,
 	useEffect,
 	useRef,
-	type ReactElement,
-	type SyntheticEvent,
+	useState,
 } from "react";
-import { useField, useFormikContext } from "formik";
-import Autocomplete from "@mui/material/Autocomplete";
-import TextField from "@mui/material/TextField";
-import { Stack, Typography } from "@mui/material";
 import useSWR from "swr";
 import { getApiClient } from "../../deps";
 import type {
-	ReferenceField,
-	FieldDatasource,
-	SelectOption,
 	EntityMeta,
+	FieldDatasource,
+	ReferenceField,
+	SelectOption,
 } from "../types";
 
 // ─────────────────────────────────────────────────────────────

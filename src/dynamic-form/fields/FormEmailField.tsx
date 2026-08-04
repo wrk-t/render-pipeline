@@ -4,10 +4,10 @@
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
-import type { ReactElement } from "react";
+import { Stack, Typography } from "@mui/material";
 import { FastTextField } from "@smartpath/typed-formik-mui";
 import { useField } from "formik";
-import { Stack, Typography } from "@mui/material";
+import type { ReactElement } from "react";
 import type { EmailField } from "../types";
 
 export function FormEmailField({ field }: { field: EmailField }): ReactElement {

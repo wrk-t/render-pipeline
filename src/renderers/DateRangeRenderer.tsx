@@ -7,26 +7,26 @@ import type { RenderedComponent } from "../types";
 import { useDateRange } from "./DateRangeContext";
 
 export function DateRangeRenderer({
-  component,
-  pathParams: _pathParams,
+	component,
+	pathParams: _pathParams,
 }: {
-  component: RenderedComponent;
-  pathParams?: Record<string, string>;
+	component: RenderedComponent;
+	pathParams?: Record<string, string>;
 }): ReactElement {
-  const { setRange, pickerValue, setPickerValue } = useDateRange();
+	const { setRange, pickerValue, setPickerValue } = useDateRange();
 
-  const handleSubmit = useCallback(
-    (draftValue: TDatePickerValue | null) => {
-      if (draftValue) {
-        setPickerValue(draftValue);
-        const resolved = draftValue.resolve();
-        if (resolved?.from && resolved?.to) {
-          setRange({ from: resolved.from, to: resolved.to });
-        }
-      }
-    },
-    [setRange, setPickerValue],
-  );
+	const handleSubmit = useCallback(
+		(draftValue: TDatePickerValue | null) => {
+			if (draftValue) {
+				setPickerValue(draftValue);
+				const resolved = draftValue.resolve();
+				if (resolved?.from && resolved?.to) {
+					setRange({ from: resolved.from, to: resolved.to });
+				}
+			}
+		},
+		[setRange, setPickerValue],
+	);
 
-  return <RangeDatePicker value={pickerValue} onSubmit={handleSubmit} />;
+	return <RangeDatePicker value={pickerValue} onSubmit={handleSubmit} />;
 }

@@ -1,13 +1,13 @@
-import { AbilityBuilder, PureAbility, mongoQueryMatcher } from "@casl/ability";
 import type { MongoQuery, Subject } from "@casl/ability";
+import { AbilityBuilder, mongoQueryMatcher, PureAbility } from "@casl/ability";
 
 /**
  * The shape of a permission coming from the backend.
  */
 export interface RawPermission {
-  resource: string;
-  action: "create" | "read" | "update" | "delete";
-  scope?: "own" | "tenant" | "all";
+	resource: string;
+	action: "create" | "read" | "update" | "delete";
+	scope?: "own" | "tenant" | "all";
 }
 
 /**
@@ -16,35 +16,34 @@ export interface RawPermission {
  */
 export type AppAction = "create" | "read" | "update" | "delete";
 export type AppSubject =
-  | "permissions"
-  | "rolePermissions"
-  | "roles"
-  | "users"
-  | "tenants"
-  | "userProfile"
-  | "userSessions"
-  | "userSettings"
-  | "tenantSettings"
-  | "tenantContacts"
-  | "tenantBranding"
-  | "systems"
-  | "services"
-  | "serviceVersions"
-  | "operations"
-  | "serviceDocuments"
-  | "serviceTemplates"
-  | "membership"
-  | "locales"
-  | "translations"
-  | "forms"
-  | "tables"
-  | "fieldDefinitions"
-  | "uiComponents"
-  | "modules"
-  
-  | "screens"
-  | "screenWidgets"
-  | "all";
+	| "permissions"
+	| "rolePermissions"
+	| "roles"
+	| "users"
+	| "tenants"
+	| "userProfile"
+	| "userSessions"
+	| "userSettings"
+	| "tenantSettings"
+	| "tenantContacts"
+	| "tenantBranding"
+	| "systems"
+	| "services"
+	| "serviceVersions"
+	| "operations"
+	| "serviceDocuments"
+	| "serviceTemplates"
+	| "membership"
+	| "locales"
+	| "translations"
+	| "forms"
+	| "tables"
+	| "fieldDefinitions"
+	| "uiComponents"
+	| "modules"
+	| "screens"
+	| "screenWidgets"
+	| "all";
 
 /**
  * The CASL Ability type used throughout the app.
@@ -72,30 +71,30 @@ export type AppAbility = PureAbility<[AppAction, AppSubject], MongoQuery>;
  *   ability.can("delete", "reports") // → false
  */
 export function buildAbility(
-  permissions: RawPermission[] | null | undefined,
-  tenantId?: string | null,
+	permissions: RawPermission[] | null | undefined,
+	tenantId?: string | null,
 ): AppAbility {
-  const { can, build } = new AbilityBuilder<AppAbility>(PureAbility);
+	const { can, build } = new AbilityBuilder<AppAbility>(PureAbility);
 
-  if (!permissions) {
-    return build({ conditionsMatcher: mongoQueryMatcher });
-  }
+	if (!permissions) {
+		return build({ conditionsMatcher: mongoQueryMatcher });
+	}
 
-  for (const perm of permissions) {
-    // Always register the base permission (works with string subjects)
-    can(perm.action, perm.resource as AppSubject);
+	for (const perm of permissions) {
+		// Always register the base permission (works with string subjects)
+		can(perm.action, perm.resource as AppSubject);
 
-    // Tenant-scoped: also register with condition for object-subject checks
-    if (perm.scope === "tenant" && tenantId) {
-      can(
-        perm.action,
-        perm.resource as AppSubject,
-        {
-          tenantId,
-        } as any,
-      );
-    }
-  }
+		// Tenant-scoped: also register with condition for object-subject checks
+		if (perm.scope === "tenant" && tenantId) {
+			can(
+				perm.action,
+				perm.resource as AppSubject,
+				{
+					tenantId,
+				} as any,
+			);
+		}
+	}
 
-  return build({ conditionsMatcher: mongoQueryMatcher });
+	return build({ conditionsMatcher: mongoQueryMatcher });
 }

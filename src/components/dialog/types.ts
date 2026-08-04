@@ -1,6 +1,6 @@
-import type { DialogHTMLAttributes, PropsWithChildren } from "react";
-import type { ButtonProps } from "@mui/material";
 import type { LoadingButtonProps } from "@mui/lab/LoadingButton";
+import type { ButtonProps } from "@mui/material";
+import type { DialogHTMLAttributes, PropsWithChildren } from "react";
 
 export interface IBaseDialogActionsProps {
 	disabled?: boolean;

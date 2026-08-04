@@ -1,13 +1,13 @@
 "use client";
 
-import { useMemo, type ReactElement } from "react";
-import useSWR from "swr";
 import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
-import Typography from "@mui/material/Typography";
 import Stack from "@mui/material/Stack";
-import { getApiClient } from "../deps";
+import Typography from "@mui/material/Typography";
+import { type ReactElement, useMemo } from "react";
+import useSWR from "swr";
 import { ComponentRenderer } from "../ComponentRenderer";
+import { getApiClient } from "../deps";
 import type { RenderedComponent } from "../types";
 
 function getNestedValue(obj: any, path: string): any {
@@ -78,13 +78,13 @@ export function InfoRenderer({
 				{contentElements.map((el) => {
 					if (el.elementType === "component_ref" && el.referencedComponent) {
 						return (
-							                <Box key={el.id}>
-							                  <ComponentRenderer
-							                    component={el.referencedComponent}
-							                    pathParams={pathParams}
-							                    paramBindings={el.paramBindings}
-							                  />
-							                </Box>
+							<Box key={el.id}>
+								<ComponentRenderer
+									component={el.referencedComponent}
+									pathParams={pathParams}
+									paramBindings={el.paramBindings}
+								/>
+							</Box>
 						);
 					}
 					if (el.elementType === "field") {
@@ -108,7 +108,7 @@ export function InfoRenderer({
 										{displayName}
 									</Typography>
 									<Typography variant="body1">
-										{value != null ? String(value) : "\u2014"}
+										{value == null ? "\u2014" : String(value)}
 									</Typography>
 								</Stack>
 							</Box>

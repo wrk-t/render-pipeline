@@ -1,34 +1,34 @@
 "use client";
 
-import { useState, type FC } from "react";
-import { Calendar, type DateObject } from "react-multi-date-picker";
-import persian from "react-date-object/calendars/persian";
-import persian_fa from "react-date-object/locales/persian_fa";
 import {
-	Button,
 	Box,
-	Stack,
+	Button,
 	Divider,
-	Typography,
 	Popover,
-	Tabs,
+	Stack,
 	Tab,
+	Tabs,
+	Typography,
 	useMediaQuery,
 	useTheme,
 } from "@mui/material";
 import { useLocale, useTranslations } from "next-intl";
+import { type FC, useState } from "react";
+import persian from "react-date-object/calendars/persian";
+import persian_fa from "react-date-object/locales/persian_fa";
+import { Calendar, type DateObject } from "react-multi-date-picker";
 import { Unicon } from "../../icon/Unicon";
-import { DatePickerConfigProvider, useDatePickerConfig } from "./context";
-import { QuickSelectPanel } from "./panels/QuickSelectPanel";
-import { CustomQuickPanel } from "./panels/CustomQuickPanel";
-import Times from "./times/Times";
 import {
 	AbsoluteDateValue,
-	type TDatePickerValue,
-	type TDatePickerConfig,
-	QuickSelectValue,
 	CustomQuickValue,
+	QuickSelectValue,
+	type TDatePickerConfig,
+	type TDatePickerValue,
 } from "./config";
+import { DatePickerConfigProvider, useDatePickerConfig } from "./context";
+import { CustomQuickPanel } from "./panels/CustomQuickPanel";
+import { QuickSelectPanel } from "./panels/QuickSelectPanel";
+import Times from "./times/Times";
 
 // ─── Public props ─────────────────────────────────────────────
 
@@ -94,7 +94,7 @@ const RangeDatePickerInner: FC<Omit<RangeDatePickerProps, "config">> = ({
 	const open = Boolean(anchorEl);
 	const id = open ? "date-range-picker-popover" : undefined;
 	const currentValue = draftValue ?? value ?? null;
-	const showTabs = !config.hideQuickSelectsTab || !config.hideDateRangeTab;
+	const showTabs = !(config.hideQuickSelectsTab && config.hideDateRangeTab);
 
 	return (
 		<Box className="flex h-full w-full cursor-pointer items-stretch border bg-white rounded-lg max-w-xs">

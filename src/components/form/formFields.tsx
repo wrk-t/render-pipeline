@@ -1,4 +1,4 @@
-import { TextField, FastTextField } from "@smartpath/typed-formik-mui";
+import { FastTextField, TextField } from "@smartpath/typed-formik-mui";
 import { PassowrdField } from "./components/Password";
 
 // custom field

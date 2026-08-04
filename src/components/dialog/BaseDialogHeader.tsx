@@ -1,6 +1,6 @@
+import { Box, DialogTitle, IconButton, Stack, Typography } from "@mui/material";
 import type { FC } from "react";
 import { Unicon } from "../common/icon/Unicon";
-import { Box, DialogTitle, IconButton, Stack, Typography } from "@mui/material";
 
 interface IDialogHeaderProps {
 	title?: string;

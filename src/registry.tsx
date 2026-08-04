@@ -7,7 +7,6 @@
 //   2. Import it here and add one entry below
 // ──────────────────────────────────────────────────────────────────
 
-import type { RendererComponent } from "./types";
 import { AvatarRenderer } from "./renderers/AvatarRenderer";
 import { BarRenderer } from "./renderers/BarRenderer";
 import { DateRangeRenderer } from "./renderers/DateRangeRenderer";
@@ -25,6 +24,7 @@ import { StageActionsRenderer } from "./renderers/StageActionsRenderer";
 import { StateContextRenderer } from "./renderers/StateContextRenderer";
 import { TableRenderer } from "./renderers/TableRenderer";
 import { TabsRenderer } from "./renderers/TabsRenderer";
+import type { RendererComponent } from "./types";
 
 export const rendererRegistry: Record<string, RendererComponent> = {
 	// ── Blueprint-driven ──

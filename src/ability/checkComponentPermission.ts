@@ -3,14 +3,14 @@
 // ──────────────────────────────────────────────────────────────────
 
 export interface PermissionRequirement {
-  resource: string;
-  action: string;
-  scope?: "own" | "tenant" | "all";
+	resource: string;
+	action: string;
+	scope?: "own" | "tenant" | "all";
 }
 
 export interface UserPermission {
-  resource: string;
-  scope?: string;
+	resource: string;
+	scope?: string;
 }
 
 /**
@@ -19,14 +19,14 @@ export interface UserPermission {
  * A missing requirement scope means any scope is accepted.
  */
 export function scopeSatisfies(
-  userScope: string | undefined,
-  required: string | undefined,
+	userScope: string | undefined,
+	required: string | undefined,
 ): boolean {
-  if (!required) return true;
-  if (userScope === "all") return true;
-  if (required === "own") return true;
-  if (required === "tenant") return userScope === "tenant";
-  return userScope === required;
+	if (!required) return true;
+	if (userScope === "all") return true;
+	if (required === "own") return true;
+	if (required === "tenant") return userScope === "tenant";
+	return userScope === required;
 }
 
 /**
@@ -37,15 +37,14 @@ export function scopeSatisfies(
  * ComponentRenderer / FormRenderer for component/element visibility.
  */
 export function checkComponentPermission(
-  userPermissions: UserPermission[] | null | undefined,
-  required: PermissionRequirement[] | null | undefined,
+	userPermissions: UserPermission[] | null | undefined,
+	required: PermissionRequirement[] | null | undefined,
 ): boolean {
-  if (!required || required.length === 0) return true;
-  if (!userPermissions || userPermissions.length === 0) return false;
-  return required.every((req) =>
-    userPermissions.some(
-      (p) =>
-        p.resource === req.resource && scopeSatisfies(p.scope, req.scope),
-    ),
-  );
+	if (!required || required.length === 0) return true;
+	if (!userPermissions || userPermissions.length === 0) return false;
+	return required.every((req) =>
+		userPermissions.some(
+			(p) => p.resource === req.resource && scopeSatisfies(p.scope, req.scope),
+		),
+	);
 }

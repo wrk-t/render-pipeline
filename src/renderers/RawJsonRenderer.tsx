@@ -1,23 +1,23 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import Stack from "@mui/material/Stack";
-import Button from "@mui/material/Button";
-import Typography from "@mui/material/Typography";
-import CircularProgress from "@mui/material/CircularProgress";
 import Box from "@mui/material/Box";
-import TextField from "@mui/material/TextField";
+import Button from "@mui/material/Button";
+import CircularProgress from "@mui/material/CircularProgress";
+import Paper from "@mui/material/Paper";
+import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import Paper from "@mui/material/Paper";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { getApiClient } from "../deps";
-import { useDateRange } from "./DateRangeContext";
 import type { RenderedComponent } from "../types";
+import { useDateRange } from "./DateRangeContext";
 
 // Preferred column order and formatters for stats tables
 const STATS_COLUMNS: Record<
@@ -352,7 +352,7 @@ export function RawJsonRenderer({
 					{resultMeta && (
 						<Box sx={{ p: 1, textAlign: "right" }}>
 							<Typography variant="caption" color="text.secondary">
-								{resultMeta.total} row{resultMeta.total !== 1 ? "s" : ""}
+								{resultMeta.total} row{resultMeta.total === 1 ? "" : "s"}
 							</Typography>
 						</Box>
 					)}

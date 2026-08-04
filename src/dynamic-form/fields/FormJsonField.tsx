@@ -3,13 +3,13 @@
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
-import { useField } from "formik";
-import { useMemo, type ReactElement } from "react";
 import Editor from "@monaco-editor/react";
+import Box from "@mui/material/Box";
 import FormControl from "@mui/material/FormControl";
 import FormHelperText from "@mui/material/FormHelperText";
 import Typography from "@mui/material/Typography";
-import Box from "@mui/material/Box";
+import { useField } from "formik";
+import { type ReactElement, useMemo } from "react";
 
 interface FormJsonFieldProps {
 	field: {
@@ -19,14 +19,14 @@ interface FormJsonFieldProps {
 		isReadOnly?: boolean;
 		placeholder?: string;
 		colSpan?: number | null;
-		    /** Extra Monaco options merged over the defaults (see DEFAULT_EDITOR_OPTIONS). */
-		    editorOptions?: Record<string, unknown>;
-		    /** Monaco editor height. */
-		    height?: string | number;
-		    /** Whether to draw the divider border around the editor (default true). */
-		    bordered?: boolean;
-		  };
-		}
+		/** Extra Monaco options merged over the defaults (see DEFAULT_EDITOR_OPTIONS). */
+		editorOptions?: Record<string, unknown>;
+		/** Monaco editor height. */
+		height?: string | number;
+		/** Whether to draw the divider border around the editor (default true). */
+		bordered?: boolean;
+	};
+}
 
 const DEFAULT_EDITOR_OPTIONS: Record<string, unknown> = {
 	minimap: { enabled: false },
@@ -62,12 +62,12 @@ export function FormJsonField({ field }: FormJsonFieldProps): ReactElement {
 					)}
 				</Typography>
 			)}
-			      <Box
-			        className={`overflow-hidden rounded-[10px] ${field.bordered === false ? "" : "border border-divider"}`}
-			        sx={{
-			          borderColor: meta.touched && meta.error ? "error.main" : "divider",
-			        }}
-			      >
+			<Box
+				className={`overflow-hidden rounded-[10px] ${field.bordered === false ? "" : "border border-divider"}`}
+				sx={{
+					borderColor: meta.touched && meta.error ? "error.main" : "divider",
+				}}
+			>
 				<Editor
 					height={field.height ?? "300px"}
 					defaultLanguage="json"

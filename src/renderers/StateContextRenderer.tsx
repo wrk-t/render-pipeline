@@ -1,8 +1,14 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, type ReactElement } from "react";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
+import {
+	createContext,
+	type ReactElement,
+	useCallback,
+	useContext,
+	useState,
+} from "react";
 import { ComponentRenderer } from "../ComponentRenderer";
 import type { RenderedComponent } from "../types";
 
@@ -36,17 +42,11 @@ export function StateContextRenderer({
 	const name = (component.config as any)?.name ?? "default";
 	const [values, setValues] = useState<Record<string, unknown>>({});
 
-	const setValue = useCallback(
-		(key: string, value: unknown) => {
-			setValues((prev) => ({ ...prev, [key]: value }));
-		},
-		[],
-	);
+	const setValue = useCallback((key: string, value: unknown) => {
+		setValues((prev) => ({ ...prev, [key]: value }));
+	}, []);
 
-	const getValue = useCallback(
-		(key: string) => values[key],
-		[values],
-	);
+	const getValue = useCallback((key: string) => values[key], [values]);
 
 	const ctxValue: StateContextValue = { values, setValue, getValue };
 
@@ -60,13 +60,13 @@ export function StateContextRenderer({
 				{contentElements.map((el) => {
 					if (el.elementType === "component_ref" && el.referencedComponent) {
 						return (
-							              <Box key={el.id}>
-							                <ComponentRenderer
-							                  component={el.referencedComponent}
-							                  pathParams={pathParams}
-							                  paramBindings={el.paramBindings}
-							                />
-							              </Box>
+							<Box key={el.id}>
+								<ComponentRenderer
+									component={el.referencedComponent}
+									pathParams={pathParams}
+									paramBindings={el.paramBindings}
+								/>
+							</Box>
 						);
 					}
 					return null;

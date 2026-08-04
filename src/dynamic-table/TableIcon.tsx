@@ -15,31 +15,39 @@
 "use client";
 
 import type { ReactElement } from "react";
-import { Unicon, ICON_EXPORT } from "../components/common/icon/Unicon";
+import { ICON_EXPORT, Unicon } from "../components/common/icon/Unicon";
 
 // ── Props ─────────────────────────────────────────────────────
 
 export interface TableIconProps {
-  /** Icon name matching the backend contract. */
-  name: string;
-  /** Optional size in px. Defaults to 24. */
-  size?: number | string;
-  /** Optional className. */
-  className?: string;
+	/** Icon name matching the backend contract. */
+	name: string;
+	/** Optional size in px. Defaults to 24. */
+	size?: number | string;
+	/** Optional className. */
+	className?: string;
 }
 
 // ── Component ─────────────────────────────────────────────────
 
 export function TableIcon({
-  name,
-  size,
-  className,
+	name,
+	size,
+	className,
 }: TableIconProps): ReactElement {
-  if (process.env.NODE_ENV === "development" && !ICON_EXPORT[name]) {
-    console.warn(
-      `[TableIcon] Unknown icon "${name}". Add it to ICON_EXPORT in Unicon.tsx.`,
-    );
-  }
+	const isValid = name in ICON_EXPORT;
 
-  return <Unicon name={name} size={size} className={className} />;
+	if (process.env.NODE_ENV === "development" && !isValid) {
+		console.warn(
+			`[TableIcon] Unknown icon "${name}". Add it to ICON_EXPORT in Unicon.tsx.`,
+		);
+	}
+
+	return (
+		<Unicon
+			name={isValid ? (name as keyof typeof ICON_EXPORT) : null}
+			size={size}
+			className={className}
+		/>
+	);
 }

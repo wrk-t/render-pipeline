@@ -1,9 +1,9 @@
 "use client";
 
-import type { ReactElement } from "react";
 import { ResponsiveLine } from "@nivo/line";
-import { ChartWrapper } from "./ChartWrapper";
+import type { ReactElement } from "react";
 import type { RenderedComponent } from "../types";
+import { ChartWrapper } from "./ChartWrapper";
 
 // ──────────────────────────────────────────────────────────────────
 // Default Nivo line options
