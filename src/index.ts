@@ -32,7 +32,6 @@ export {
 	type TDatePickerValue,
 } from "./components/common/fields/dateRangePicker/config";
 export { ICON_EXPORT, Unicon } from "./components/common/icon/Unicon";
-// ── Shared UI / helpers ──────────────────────────────────────
 export { BaseDialog } from "./components/dialog/BaseDialog";
 export { BaseDialogActions } from "./components/dialog/BaseDialogActions";
 export { BaseDialogHeader } from "./components/dialog/BaseDialogHeader";
@@ -168,4 +167,8 @@ export type {
 	RendererComponent,
 	RendererProps,
 } from "./types";
+export type { UiComponentSeed } from "./ui-components";
+// ── Shared UI / helpers ──────────────────────────────────────
+// ── UI components (canonical seed contract) ──────────────────
+export { UI_COMPONENT_CUIDS, UI_COMPONENTS_SEED } from "./ui-components";
 export { useComponentRender } from "./useComponentRender";
