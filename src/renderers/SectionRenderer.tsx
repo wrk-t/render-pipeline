@@ -11,6 +11,7 @@ import { checkComponentPermission } from "../ability/checkComponentPermission";
 import { ComponentRenderer } from "../ComponentRenderer";
 import { Unicon } from "../components/common/icon/Unicon";
 import { useRenderUser } from "../deps";
+import { useFeatures } from "../hooks/useFeatures";
 import type { RenderedComponent } from "../types";
 import { FormFieldRenderer } from "./FormFieldRenderer";
 
@@ -45,6 +46,7 @@ export function SectionRenderer({
 	const { data: user } = useRenderUser();
 	const userPermissions: Array<{ resource: string; scope?: string }> =
 		(user as any)?.permissions?.data ?? [];
+	const { features } = useFeatures();
 
 	const contentElements = (component.slotsFilled["content"] ?? [])
 		.filter((e) => e.isActive)
@@ -52,6 +54,17 @@ export function SectionRenderer({
 			const vp = (e.overrides as any)?.visibleToPermissions;
 			if (!vp || vp.length === 0) return true;
 			return checkComponentPermission(userPermissions, vp);
+		})
+		// Feature-gated fields — same semantics as FormRenderer:
+		// `requiresFeature` shows only when the flag is ON;
+		// `hiddenWhenFeature` hides when the flag is ON (e.g. version-level
+		// fields on the package form, which belong to the versions screen).
+		.filter((e) => {
+			const rf = (e.overrides as any)?.requiresFeature;
+			if (rf && !features[rf]) return false;
+			const hwf = (e.overrides as any)?.hiddenWhenFeature;
+			if (hwf && features[hwf]) return false;
+			return true;
 		})
 		.sort((a, b) => a.displayOrder - b.displayOrder);
 

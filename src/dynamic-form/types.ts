@@ -96,6 +96,16 @@ export interface SelectOption {
 	label: string;
 	value: unknown;
 	disabled?: boolean;
+	/**
+	 * When set, the option is only offered to users whose permissions
+	 * satisfy every requirement (e.g. hide the scope "all" option from
+	 * tenant admins: [{ resource: "rolePermissions", action: "create", scope: "all" }]).
+	 */
+	visibleToPermissions?: Array<{
+		resource: string;
+		action?: string;
+		scope?: "own" | "tenant" | "all";
+	}>;
 }
 
 // ── 6. FIELD TYPE ENUM ──
@@ -120,7 +130,8 @@ export type FieldType =
 	| "json"
 	| "reference"
 	| "autocomplete"
-	| "color";
+	| "color"
+	| "settingValue";
 
 // ── 7. DATASOURCE TYPES ──
 
@@ -752,6 +763,21 @@ export interface AutocompleteField extends FieldBase {
 
 // ── The full discriminated union ──
 
+export interface SettingValueField extends FieldBase {
+	type: "settingValue";
+	fieldOverrides?: FieldOverrides | null;
+	uiOverrides: {
+		layout?: FieldLayout;
+		behavior?: {
+			placeholder?: string;
+			defaultValue?: string;
+			maxLength?: number;
+			minLength?: number;
+			pattern?: string;
+		};
+	};
+}
+
 export type RenderField =
 	| TextField
 	| ColorField
@@ -772,7 +798,9 @@ export type RenderField =
 	| RichtextField
 	| JsonField
 	| ReferenceField
-	| AutocompleteField;
+	| AutocompleteField
+	| SettingValueField;
+
 // ── 16. RENDER RESPONSE SHAPES ──
 
 export interface FormRenderSettings extends FormSettings {
@@ -909,6 +937,15 @@ export interface TableActionCondition {
 	value?: unknown;
 }
 
+/**
+ * A single condition or a list of conditions (all must pass).
+ * Lists let an action target specific rows on two dimensions at once,
+ * e.g. tenant-owned rows that aren't soft-deleted:
+ *   [{ field: "tenantId", operator: "notEmpty" },
+ *    { field: "deletedAt", operator: "isEmpty" }]
+ */
+export type TableActionConditions = TableActionCondition | TableActionCondition[];
+
 export interface TableActionConfirm {
 	title: string;
 	message: string;
@@ -924,11 +961,23 @@ interface TableActionBase {
 	iconOff?: string;
 	color?: string;
 	type?: "button" | "dropdown" | "link";
-	condition?: TableActionCondition;
+	condition?: TableActionConditions;
 	confirm?: TableActionConfirm;
 	placement?: "top-toolbar" | "toolbar-actions";
 	permissions?: string[];
 	roles?: string[];
+	/** When set, the action is hidden unless this feature flag is enabled. */
+	requiresFeature?: string;
+	/**
+	 * Permission-based visibility (scope-aware) — e.g. super-admin-only
+	 * actions use `[{ resource: "tenants", action: "read", scope: "all" }]`.
+	 * Unlike `permissions` (plain ability check), this respects scopes.
+	 */
+	visibleToPermissions?: Array<{
+		resource: string;
+		action: string;
+		scope?: "own" | "tenant" | "all";
+	}>;
 }
 
 /** New format: open a dialog (form) from a table row or toolbar. */
@@ -948,7 +997,9 @@ interface TableActionApiCall extends TableActionBase {
 	action: "apiCall";
 	endpoint: string;
 	method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-	onSuccess?: "refreshTable" | "closeDialog" | "navigate";
+	/** Static request body — overrides the default (whole row) payload. */
+	body?: Record<string, unknown>;
+	onSuccess?: "refreshTable" | "refreshAll" | "closeDialog" | "navigate";
 	successRedirect?: string;
 	onError?: "showSnackbar";
 }
@@ -985,6 +1036,19 @@ export type TableAction =
 	| TableActionLinkSelected
 	| TableActionLegacy;
 
+export interface TableRowCondition {
+	/** Row data field to test. */
+	field: string;
+	/** Comparison operator (default: "equals"). */
+	operator?: "equals" | "notEquals" | "notEmpty" | "isEmpty";
+	/** Value compared against for equals/notEquals. */
+	value?: unknown;
+	/** Optional Tailwind class applied to matching rows. */
+	className?: string;
+	/** Optional raw background color applied to matching rows. */
+	backgroundColor?: string;
+}
+
 export interface TableSettings {
 	density: TableDensity;
 	striped: boolean;
@@ -997,6 +1061,8 @@ export interface TableSettings {
 	searchable: boolean;
 	searchableFields?: string[];
 	columnToggle: boolean;
+	/** Conditional row styling (e.g. red background for failed entries). */
+	rowConditions?: TableRowCondition[];
 }
 
 export interface TableEmptyState {

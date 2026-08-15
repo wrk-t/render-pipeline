@@ -11,8 +11,16 @@ function filterScreensByPermissions(screens: Screen[]): Screen[] {
 	// Don't filter until user data is loaded
 	if (!user) return screens;
 
-	return screens.filter((s) =>
-		checkComponentPermission(permissions, s.visibleToPermissions as any),
+	// Users with the `tenants` permission at scope "all" are platform super
+	// admins — tenant-specific screens marked hideForSuperAdmin are hidden.
+	const isTenantScopeAll = permissions.some(
+		(p) => p.resource === "tenants" && p.scope === "all",
+	);
+
+	return screens.filter(
+		(s) =>
+			!((s.meta as any)?.hideForSuperAdmin && isTenantScopeAll) &&
+			checkComponentPermission(permissions, s.visibleToPermissions as any),
 	);
 }
 

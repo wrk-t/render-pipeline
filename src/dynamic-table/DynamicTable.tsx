@@ -30,10 +30,11 @@ import {
 } from "material-react-table";
 import { useRouter } from "next/navigation";
 import { type ReactElement, useCallback, useMemo, useState } from "react";
-import useSWR from "swr";
+import useSWR, { useSWRConfig } from "swr";
 import { useCan } from "../ability";
-import { getApiClient } from "../deps";
-import type { TableAction, TableMetadata } from "../dynamic-form/types";
+import { checkComponentPermission } from "../ability/checkComponentPermission";
+import { getApiClient, useRenderUser } from "../deps";
+import type { TableAction, TableMetadata, TableRowCondition } from "../dynamic-form/types";
 import { useFeatures } from "../hooks/useFeatures";
 import { useResolvedParams } from "../hooks/useResolvedParams";
 import type { QueryParams } from "../query-builder";
@@ -182,8 +183,25 @@ function buildColumnDef(
 	// Alignment — default to center
 	const align =
 		config?.align && config.align !== "justify" ? config.align : "center";
-	def.muiTableBodyCellProps = { align };
 	def.muiTableHeadCellProps = { align };
+
+	// Fixed-length columns: MRT's maxSize only limits manual resizing, it
+	// does not clip content during layout. Apply cell-level truncation so
+	// width/maxWidth columns always render at their configured length.
+	const fixedWidth = numOrUndefined(config?.maxWidth ?? config?.width);
+	def.muiTableBodyCellProps = {
+		align,
+		...(fixedWidth
+			? {
+					sx: {
+						maxWidth: fixedWidth,
+						whiteSpace: "nowrap",
+						overflow: "hidden",
+						textOverflow: "ellipsis",
+					},
+				}
+			: {}),
+	};
 
 	return def;
 }
@@ -195,6 +213,29 @@ function numOrUndefined(
 	if (typeof v === "number") return v;
 	const n = Number(v);
 	return Number.isFinite(n) ? n : undefined;
+}
+
+/**
+ * Evaluate a row condition against a data row. Used by `rowConditions`
+ * in table settings (e.g. failed activity rows get a reddish background).
+ */
+function matchRowCondition(
+	row: Record<string, unknown>,
+	condition: TableRowCondition,
+): boolean {
+	const value = row[condition.field];
+	switch (condition.operator ?? "equals") {
+		case "equals":
+			return value === condition.value;
+		case "notEquals":
+			return value !== condition.value;
+		case "notEmpty":
+			return value !== null && value !== undefined && value !== "";
+		case "isEmpty":
+			return value === null || value === undefined || value === "";
+		default:
+			return false;
+	}
 }
 
 /**
@@ -226,6 +267,29 @@ interface FetchParams {
 	includeDeleted: boolean;
 	searchableFields?: string[];
 	datasourceParams?: Record<string, string>;
+	pathParams?: Record<string, string>;
+}
+
+/**
+ * Resolve `{param}` placeholders in a datasource param value against the
+ * current path/query context. Values whose placeholders cannot be
+ * resolved are DROPPED (returned as undefined) so filters only apply
+ * when their context is present (e.g. actorId on a filtered view).
+ */
+function resolveParamValue(
+	value: string,
+	pathParams?: Record<string, string>,
+): string | undefined {
+	let resolved = value;
+	if (pathParams) {
+		for (const [key, v] of Object.entries(pathParams)) {
+			resolved = resolved.replaceAll(`{${key}}`, encodeURIComponent(v));
+		}
+	}
+	if (resolved.includes("{") && resolved.includes("}")) {
+		return undefined; // unresolved placeholder → drop the param
+	}
+	return resolved;
 }
 
 function buildSearchParams({
@@ -236,8 +300,20 @@ function buildSearchParams({
 	includeDeleted,
 	searchableFields,
 	datasourceParams,
+	pathParams,
 }: FetchParams): URLSearchParams {
-	const params = new URLSearchParams(datasourceParams);
+	const params = new URLSearchParams();
+
+	// Static datasource params — `{param}` placeholders are resolved
+	// against the path/query context; unresolved ones are dropped.
+	if (datasourceParams) {
+		for (const [key, value] of Object.entries(datasourceParams)) {
+			const resolved = resolveParamValue(value, pathParams);
+			if (resolved !== undefined) {
+				params.set(key, resolved);
+			}
+		}
+	}
 
 	// Pagination
 	params.set("page", String(pagination.pageIndex + 1)); // 1-based
@@ -261,8 +337,17 @@ function buildSearchParams({
 		}
 	}
 
-	// Column-level filters — applied client-side by MRT (backend doesn't support per-column filters yet)
-	// Column filters are included in state for MRT but not sent to backend
+	// Column-level filters — forwarded to the backend so filtering works
+	// across pages (server-side). Endpoints without a matching filter
+	// param ignore the extra query keys. Complex values (date ranges,
+	// filterFn objects) are skipped — only scalar values are sent.
+	for (const f of columnFilters) {
+		const v = f.value;
+		if (v === undefined || v === null || v === "") continue;
+		if (typeof v === "string" || typeof v === "number") {
+			params.set(f.id, String(v));
+		}
+	}
 
 	return params;
 }
@@ -304,6 +389,7 @@ export function DynamicTable({
 	}, [datasource.endpoint, resolvedPathParams, range]);
 	const hasExternalData = externalData !== undefined;
 	const { push } = useRouter();
+	const { mutate: globalMutate } = useSWRConfig();
 
 	// ── Server-side state ──────────────────────────────────────
 	const [pagination, setPagination] = useState<MRT_PaginationState>({
@@ -350,6 +436,7 @@ export function DynamicTable({
 			includeDeleted,
 			searchableFields: settings.searchableFields,
 			datasourceParams: datasource.params,
+			pathParams: resolvedPathParams,
 		});
 		const suffix = otherQueryString ? `&${otherQueryString}` : "";
 		return `table-data:${resolvedEndpoint}?${qs.toString()}${suffix}`;
@@ -360,6 +447,7 @@ export function DynamicTable({
 		columnFilters,
 		includeDeleted,
 		resolvedEndpoint,
+		resolvedPathParams,
 		settings.searchableFields,
 		otherQueryString,
 	]);
@@ -412,6 +500,9 @@ export function DynamicTable({
 
 	// ── Permission check ──────────────────────────────────────
 	const can = useCan();
+	const { data: user } = useRenderUser();
+	const userPermissions: Array<{ resource: string; scope?: string }> =
+		(user as any)?.permissions?.data ?? [];
 
 	const checkPermission = useCallback(
 		(p: string) => {
@@ -437,9 +528,14 @@ export function DynamicTable({
 					a.placement !== "toolbar-actions" &&
 					a.action !== "linkSelected" &&
 					a.action !== "unlinkSelected" &&
-					(!a.permissions?.length || a.permissions.some(checkPermission)),
+					(!a.permissions?.length || a.permissions.some(checkPermission)) &&
+					(!(a as any).visibleToPermissions?.length ||
+						checkComponentPermission(
+							userPermissions,
+							(a as any).visibleToPermissions,
+						)),
 			),
-		[tableMetadata.toolbarActions ?? [], checkPermission],
+		[tableMetadata.toolbarActions ?? [], checkPermission, userPermissions],
 	);
 
 	const internalActions: TableAction[] = useMemo(
@@ -449,9 +545,14 @@ export function DynamicTable({
 					a.placement === "toolbar-actions" &&
 					a.action !== "linkSelected" &&
 					a.action !== "unlinkSelected" &&
-					(!a.permissions?.length || a.permissions.some(checkPermission)),
+					(!a.permissions?.length || a.permissions.some(checkPermission)) &&
+					(!(a as any).visibleToPermissions?.length ||
+						checkComponentPermission(
+							userPermissions,
+							(a as any).visibleToPermissions,
+						)),
 			),
-		[tableMetadata.toolbarActions, checkPermission],
+		[tableMetadata.toolbarActions, checkPermission, userPermissions],
 	);
 
 	// ── In-memory dialog state (reported upward via onDialogChange) ──
@@ -477,7 +578,7 @@ export function DynamicTable({
 						.split(/(\.|\[\d+\])/)
 						.reduce<unknown>((acc, part) => {
 							if (part === "." || part === "") return acc;
-							const idx = part.match(/^(\[(\d+)\])$/);
+							const idx = part.match(/^\[(\d+)\]$/);
 							if (idx) {
 								return Array.isArray(acc) ? acc[Number(idx[1])] : undefined;
 							}
@@ -620,13 +721,19 @@ export function DynamicTable({
 					.request({
 						url: `${baseUrl}${endpoint}`,
 						method: action.method,
-						data: row,
+						data: action.body ?? row,
 					})
 					.then(() => {
 						// onSuccess behaviour – refreshTable and closeDialog are
 						// explicit opt-in. successRedirect alone is sufficient to navigate.
 						if (action.onSuccess === "refreshTable") {
 							mutate();
+						}
+						if (action.onSuccess === "refreshAll") {
+							// Revalidate every SWR key — e.g. toggling a tenant
+							// feature must refresh the feature flags consumed by
+							// useFeatures (forms, tables, screen layouts).
+							globalMutate(() => true);
 						}
 						if (action.onSuccess === "closeDialog") {
 							setDialogState(null, "", "", "");
@@ -659,6 +766,7 @@ export function DynamicTable({
 			push,
 			resolveRowPlaceholders,
 			mutate,
+			globalMutate,
 			handleRedirect,
 			resolvedPathParams,
 		],
@@ -775,6 +883,13 @@ export function DynamicTable({
 		renderRowActionMenuItems: ({ closeMenu, row, table }) =>
 			(tableMetadata.rowActions ?? [])
 				.filter((action) => {
+					// Feature-flag gating (e.g. staging actions only when enabled)
+					if (
+						action.requiresFeature &&
+						!features[action.requiresFeature]
+					) {
+						return false;
+					}
 					// Permission check
 					if (
 						action.permissions?.length &&
@@ -782,30 +897,44 @@ export function DynamicTable({
 					) {
 						return false;
 					}
+					// Scope-aware visibility (e.g. super-admin-only actions)
+					if (
+						(action as any).visibleToPermissions?.length &&
+						!checkComponentPermission(
+							userPermissions,
+							(action as any).visibleToPermissions,
+						)
+					) {
+						return false;
+					}
 					// If the action has a condition, evaluate it against the row data
 					if (!action.condition) return true;
-					const { field, operator, value } = action.condition;
-					const fieldValue = row.original[field];
-					switch (operator) {
-						case "eq":
-							return fieldValue === value;
-						case "ne":
-							return fieldValue !== value;
-						case "isEmpty":
-							return (
-								fieldValue === undefined ||
-								fieldValue === null ||
-								fieldValue === ""
-							);
-						case "notEmpty":
-							return (
-								fieldValue !== undefined &&
-								fieldValue !== null &&
-								fieldValue !== ""
-							);
-						default:
-							return true;
-					}
+					const conditions = Array.isArray(action.condition)
+						? action.condition
+						: [action.condition];
+					return conditions.every(({ field, operator, value }) => {
+						const fieldValue = row.original[field];
+						switch (operator) {
+							case "eq":
+								return fieldValue === value;
+							case "ne":
+								return fieldValue !== value;
+							case "isEmpty":
+								return (
+									fieldValue === undefined ||
+									fieldValue === null ||
+									fieldValue === ""
+								);
+							case "notEmpty":
+								return (
+									fieldValue !== undefined &&
+									fieldValue !== null &&
+									fieldValue !== ""
+								);
+							default:
+								return true;
+						}
+					});
 				})
 				.map((action) => (
 					<MRT_ActionMenuItem
@@ -813,7 +942,7 @@ export function DynamicTable({
 						label={action.label}
 						icon={
 							action.icon ? (
-								<TableIcon name={action.icon} size="small" />
+								<TableIcon name={action.icon} size={18} />
 							) : undefined
 						}
 						table={table}
@@ -1068,15 +1197,17 @@ export function DynamicTable({
 				if (onClick.redirect) {
 					let redirect = onClick.redirect;
 					// Feature-gated navigation: when the flag is OFF and the row
-					// carries a default version, jump straight to its operations.
-					const svcVersions = row.original.serviceVersions as
+					// carries a default version, jump to the fallback target.
+					// Packages include `versions`, services include `serviceVersions`.
+					const rowVersions = row.original.versions ?? row.original.serviceVersions;
+					const versions = rowVersions as
 						| Array<{ id?: string }>
 						| undefined;
 					if (
 						onClick.fallbackFeature &&
 						onClick.fallbackRedirect &&
 						!features[onClick.fallbackFeature] &&
-						svcVersions?.length
+						versions?.length
 					) {
 						redirect = onClick.fallbackRedirect;
 					}
@@ -1098,12 +1229,20 @@ export function DynamicTable({
 				}
 			};
 
+			// First matching row condition wins (e.g. failed rows get a
+			// reddish background).
+			const matchedCondition = (settings.rowConditions ?? []).find(
+				(c) => matchRowCondition(row.original, c),
+			);
+
 			return {
 				sx: {
 					cursor: onClick ? "pointer" : undefined,
 					backgroundColor:
-						settings.striped && row.index % 2 === 1 ? "grey.100" : undefined,
+						matchedCondition?.backgroundColor ??
+						(settings.striped && row.index % 2 === 1 ? "grey.100" : undefined),
 				},
+				className: matchedCondition?.className,
 				onClick: onClick ? handleRowClick : undefined,
 			};
 		},

@@ -37,6 +37,7 @@ export interface Screen {
 		action: string;
 		scope?: "own" | "tenant" | "all";
 	}> | null;
+	meta?: Record<string, unknown> | null;
 }
 
 export interface ResolvedScreen {

@@ -9,15 +9,20 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { getUserSnapshot } from "../deps";
 import { resolveScreen } from "./resolveScreen";
 import type { ResolvedScreen } from "./types";
 
 // ── Module-level cache (shared across all instances) ───────────
+// Keyed by user identity + URL so results from one account never
+// leak into another (e.g. a super-admin's empty resolution must not
+// be reused after switching to a tenant admin in the same SPA session).
 
 const screenCache = new Map<string, ResolvedScreen>();
 
 export function screenKey(module: string, segments: string[]): string {
-	return `screen-resolve:${module}/${segments.join("/")}`;
+	const userId = getUserSnapshot()?.id ?? "anon";
+	return `screen-resolve:${userId}:${module}/${segments.join("/")}`;
 }
 
 // ── Preloader: call on hover to seed the cache ────────────────
@@ -70,7 +75,7 @@ export function useScreen(module: string, segments: string[]) {
 				setResolved(data);
 			})
 			.finally(() => setLoading(false));
-	}, [module, segments.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [module, segments.join(","), screenKey(module, segments)]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	return { resolved, loading };
 }

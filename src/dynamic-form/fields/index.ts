@@ -9,6 +9,7 @@ export { FormNumberField } from "./FormNumberField";
 export { FormPasswordField } from "./FormPasswordField";
 export { FormReferenceField } from "./FormReferenceField";
 export { FormSelectField } from "./FormSelectField";
+export { FormSettingValueField } from "./FormSettingValueField";
 export { FormSwitchField } from "./FormSwitchField";
 export { FormTextareaField } from "./FormTextareaField";
 export { FormTextField } from "./FormTextField";

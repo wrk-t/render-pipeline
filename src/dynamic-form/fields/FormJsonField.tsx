@@ -3,13 +3,13 @@
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
-import Editor from "@monaco-editor/react";
 import Box from "@mui/material/Box";
 import FormControl from "@mui/material/FormControl";
 import FormHelperText from "@mui/material/FormHelperText";
 import Typography from "@mui/material/Typography";
 import { useField } from "formik";
 import { type ReactElement, useMemo } from "react";
+import { LocalMonacoEditor } from "../../components/common/LocalMonacoEditor";
 
 interface FormJsonFieldProps {
 	field: {
@@ -68,7 +68,7 @@ export function FormJsonField({ field }: FormJsonFieldProps): ReactElement {
 					borderColor: meta.touched && meta.error ? "error.main" : "divider",
 				}}
 			>
-				<Editor
+				<LocalMonacoEditor
 					height={field.height ?? "300px"}
 					defaultLanguage="json"
 					value={value}

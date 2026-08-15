@@ -8,14 +8,14 @@
 		"type": "git",
 		"url": "https://github.com/wrk-t/render-pipeline"
 	},
-	  "main": "./dist/index.js",
-	  "types": "./dist/index.d.ts",
-	  "type": "module",
-	  "exports": {
-		    ".": {
-		      "import": "./dist/index.js",
-		      "types": "./dist/index.d.ts"
-		    },
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"type": "module",
+	"exports": {
+		".": {
+			"import": "./dist/index.js",
+			"types": "./dist/index.d.ts"
+		},
 		"./*": "./dist/*"
 	},
 	"files": [
@@ -48,6 +48,7 @@
 		"formik": "^2.4.9",
 		"formik-mui": "5.0.0-alpha.1",
 		"material-react-table": "^3.2.1",
+		"monaco-editor": "^0.56.0",
 		"next": "^16.2.4",
 		"next-intl": "^4.11.0",
 		"notistack": "^3.0.2",

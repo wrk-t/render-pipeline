@@ -11,7 +11,8 @@ import { MenuItem, Stack, Typography } from "@mui/material";
 import { FastSelect } from "@smartpath/typed-formik-mui";
 import type { ReactElement } from "react";
 import useSWR from "swr";
-import { getApiClient } from "../../deps";
+import { checkComponentPermission } from "../../ability/checkComponentPermission";
+import { getApiClient, useRenderUser } from "../../deps";
 import type {
 	EntityMeta,
 	FieldDatasource,
@@ -47,11 +48,15 @@ function toSelectOption(item: unknown, entityMeta?: EntityMeta): SelectOption {
 // Component
 // ─────────────────────────────────────────────────────────────
 
-export function FormSelectField({
+	export function FormSelectField({
 	field,
 }: {
 	field: SelectField;
 }): ReactElement {
+	const { data: user } = useRenderUser();
+	const userPermissions: Array<{ resource: string; scope?: string }> =
+		(user as any)?.permissions?.data ?? [];
+
 	// ── Resolve datasource ─────────────────────────────────────
 	const ds = field.fieldOverrides?.datasource as FieldDatasource | undefined;
 	const isService = ds?.type === "service";
@@ -110,6 +115,18 @@ export function FormSelectField({
 			: []
 		: staticOptions;
 
+	// Filter out options gated by visibleToPermissions (e.g. the scope
+	// "all" option is only offered to users whose own create ceiling
+	// is "all").
+	const visibleOptions = options.filter(
+		(opt) =>
+			!opt.visibleToPermissions?.length ||
+			checkComponentPermission(
+				userPermissions as any,
+				opt.visibleToPermissions as any,
+			),
+	);
+
 	return (
 		<Stack spacing={0.2}>
 			<FastSelect
@@ -118,7 +135,7 @@ export function FormSelectField({
 				required={field.isRequired}
 				disabled={field.isReadOnly}
 			>
-				{options.map((opt) => (
+				{visibleOptions.map((opt) => (
 					<MenuItem key={String(opt.value)} value={opt.value as string}>
 						{opt.label}
 					</MenuItem>

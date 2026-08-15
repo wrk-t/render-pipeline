@@ -8,17 +8,21 @@
 // ──────────────────────────────────────────────────────────────────
 
 import { AvatarRenderer } from "./renderers/AvatarRenderer";
+import { AuditHistoryRenderer } from "./renderers/AuditHistoryRenderer";
 import { BarRenderer } from "./renderers/BarRenderer";
 import { DateRangeRenderer } from "./renderers/DateRangeRenderer";
 import { FormRenderer } from "./renderers/FormRenderer";
 import { GaugeRenderer } from "./renderers/GaugeRenderer";
 import { InfoRenderer } from "./renderers/InfoRenderer";
 import { LineRenderer } from "./renderers/LineRenderer";
+import { ListRenderer } from "./renderers/ListRenderer";
+import { LogoUploaderRenderer } from "./renderers/LogoUploaderRenderer";
 import { MetricRenderer } from "./renderers/MetricRenderer";
 import { PageRenderer } from "./renderers/PageRenderer";
 import { PieRenderer } from "./renderers/PieRenderer";
 import { RawJsonRenderer } from "./renderers/RawJsonRenderer";
 import { ScreenLayoutRenderer } from "./renderers/ScreenLayoutRenderer";
+import { ScreenTreeRenderer } from "./renderers/ScreenTreeRenderer";
 import { SectionRenderer } from "./renderers/SectionRenderer";
 import { StageActionsRenderer } from "./renderers/StageActionsRenderer";
 import { StateContextRenderer } from "./renderers/StateContextRenderer";
@@ -35,8 +39,12 @@ export const rendererRegistry: Record<string, RendererComponent> = {
 	info: InfoRenderer,
 	tabs: TabsRenderer,
 	section: SectionRenderer,
+	list: ListRenderer,
+	"screen-tree": ScreenTreeRenderer,
 	avatar: AvatarRenderer,
+	"logo-uploader": LogoUploaderRenderer,
 	"raw-json": RawJsonRenderer,
+	"audit-history": AuditHistoryRenderer,
 	"pie-chart": PieRenderer,
 	"bar-chart": BarRenderer,
 	"line-chart": LineRenderer,

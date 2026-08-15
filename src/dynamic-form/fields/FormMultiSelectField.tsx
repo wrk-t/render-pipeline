@@ -4,7 +4,7 @@
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
-import { Stack, Typography } from "@mui/material";
+import { Box, Chip, Stack, Typography } from "@mui/material";
 import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 import { useField, useFormikContext } from "formik";
@@ -13,7 +13,6 @@ import {
 	type SyntheticEvent,
 	useCallback,
 	useEffect,
-	useRef,
 	useState,
 } from "react";
 import useSWR from "swr";
@@ -44,7 +43,7 @@ function toSelectOption(item: unknown, entityMeta?: EntityMeta): SelectOption {
 
 // ── Component ────────────────────────────────────────────────
 
-export function FormMultiSelectField({
+	export function FormMultiSelectField({
 	field,
 }: {
 	field: MultiselectField;
@@ -58,7 +57,9 @@ export function FormMultiSelectField({
 	const [loading, setLoading] = useState(false);
 	const [inputValue, setInputValue] = useState("");
 
-	const datasource = field.datasource;
+	// Arch elements carry the datasource in fieldOverrides; legacy forms
+	// set it on the field itself.
+	const datasource = field.fieldOverrides?.datasource ?? field.datasource;
 	const entityMeta =
 		datasource?.type === "service" ? datasource.entityMeta : undefined;
 
@@ -87,7 +88,8 @@ export function FormMultiSelectField({
 				);
 			} else if (datasource.type === "service") {
 				const res = await getApiClient().get(datasource.endpoint);
-				const items = res.data?.data?.data ?? res.data?.data ?? res.data ?? [];
+				const items =
+					res.data?.data?.data ?? res.data?.data ?? res.data ?? [];
 				const arr = Array.isArray(items) ? items : [items];
 				setOptions(
 					arr.map((item: unknown) => toSelectOption(item, entityMeta)),
@@ -113,6 +115,14 @@ export function FormMultiSelectField({
 		[setValue, setTouched],
 	);
 
+	const handleRemove = useCallback(
+		(removed: SelectOption) => {
+			setValue(selectedValues.filter((v) => v !== String(removed.value)));
+			setTimeout(() => setTouched(true), 0);
+		},
+		[selectedValues, setValue, setTouched],
+	);
+
 	return (
 		<Stack spacing={0.5}>
 			<Autocomplete
@@ -126,16 +136,38 @@ export function FormMultiSelectField({
 				disabled={isSubmitting || field.isReadOnly}
 				getOptionLabel={(o) => o.label}
 				isOptionEqualToValue={(o, v) => String(o.value) === String(v.value)}
+				renderValue={() => null}
 				renderInput={(params) => (
 					<TextField
 						{...params}
 						label={field.label}
 						error={meta.touched && !!meta.error}
-						helperText={meta.touched && meta.error ? meta.error : undefined}
-						size="small"
-					/>
+					helperText={meta.touched && meta.error ? meta.error : undefined}
+					size="small"
+				/>
 				)}
 			/>
+			{/* Selected options displayed as chips below the input */}
+			{selectedOptions.length > 0 && (
+				<Box
+					sx={{
+						display: "flex",
+						flexWrap: "wrap",
+						gap: 0.5,
+					}}
+				>
+					{selectedOptions.map((opt) => (
+						<Chip
+							key={String(opt.value)}
+							label={opt.label}
+							size="small"
+							color="primary"
+							variant="outlined"
+							onDelete={field.isReadOnly ? undefined : () => handleRemove(opt)}
+						/>
+					))}
+				</Box>
+			)}
 			{field.description && (
 				<Typography variant="caption" color="text.secondary">
 					{field.description}

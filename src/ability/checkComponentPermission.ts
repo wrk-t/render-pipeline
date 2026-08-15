@@ -4,7 +4,8 @@
 
 export interface PermissionRequirement {
 	resource: string;
-	action: string;
+	/** When set, the user must have this action on the resource (e.g. "create"). */
+	action?: string;
 	scope?: "own" | "tenant" | "all";
 }
 
@@ -44,7 +45,10 @@ export function checkComponentPermission(
 	if (!userPermissions || userPermissions.length === 0) return false;
 	return required.every((req) =>
 		userPermissions.some(
-			(p) => p.resource === req.resource && scopeSatisfies(p.scope, req.scope),
+			(p) =>
+				p.resource === req.resource &&
+				(!req.action || (p as any).action === req.action) &&
+				scopeSatisfies(p.scope, req.scope),
 		),
 	);
 }

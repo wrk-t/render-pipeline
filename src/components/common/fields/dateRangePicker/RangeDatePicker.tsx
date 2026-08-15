@@ -97,7 +97,7 @@ const RangeDatePickerInner: FC<Omit<RangeDatePickerProps, "config">> = ({
 	const showTabs = !(config.hideQuickSelectsTab && config.hideDateRangeTab);
 
 	return (
-		<Box className="flex h-full w-full cursor-pointer items-stretch border bg-white rounded-lg max-w-xs">
+		<Box className="flex h-full w-full cursor-pointer items-stretch bg-white rounded-lg max-w-xs">
 			<Button
 				aria-describedby={id}
 				type="button"

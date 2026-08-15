@@ -32,6 +32,8 @@ export {
 	type TDatePickerValue,
 } from "./components/common/fields/dateRangePicker/config";
 export { ICON_EXPORT, Unicon } from "./components/common/icon/Unicon";
+export { LocalMonacoEditor } from "./components/common/LocalMonacoEditor";
+export type { LocalMonacoEditorProps } from "./components/common/LocalMonacoEditor";
 // ── Shared UI / helpers ──────────────────────────────────────
 export { BaseDialog } from "./components/dialog/BaseDialog";
 export { BaseDialogActions } from "./components/dialog/BaseDialogActions";

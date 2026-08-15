@@ -123,7 +123,7 @@ export function TableRenderer({
 		try {
 			const baseUrl = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
 			const endpoint = resolveUrlTemplate(
-				"/api/v1/packages/{id}/operations",
+				"/api/v1/packages/{packageId}/versions/{versionId}/operations",
 				pathParams,
 			);
 			await getApiClient().request({
