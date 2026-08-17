@@ -13,6 +13,8 @@ import useSWR, { useSWRConfig } from "swr";
 import { checkComponentPermission } from "../ability/checkComponentPermission";
 import { AutoComponent } from "../ComponentRenderer";
 import { BaseDialog } from "../components/dialog/BaseDialog";
+import { QrPreviewDialog } from "../components/qr/QrPreviewDialog";
+import { QrStyleDialog } from "../components/qr/QrStyleDialog";
 import { getApiClient, useRenderUser } from "../deps";
 import type { TableAction } from "../dynamic-form/types";
 import type { DynamicTableColumn } from "../dynamic-table";
@@ -104,6 +106,39 @@ export function TableRenderer({
 		await mutate(() => true);
 		handleFormClose();
 	}, [mutate, handleFormClose]);
+
+	// ── QR preview dialog (custom row action: viewQr) ──
+	const [showQrDialog, setShowQrDialog] = useState(false);
+	const [qrInfo, setQrInfo] = useState<{ id: string; label: string } | null>(
+		null,
+	);
+
+	const handleQrClose = useCallback(() => {
+		setShowQrDialog(false);
+		setQrInfo(null);
+	}, []);
+
+	const handleRowAction = useCallback(
+		(actionId: string, row: Record<string, unknown>) => {
+			if (actionId === "viewQr") {
+				setQrInfo({
+					id: String(row.id ?? ""),
+					label: String(row.label ?? "QR Code"),
+				});
+				setShowQrDialog(true);
+			}
+		},
+		[],
+	);
+
+	// ── QR style customization dialog (toolbar custom action) ──
+	const [showStyleDialog, setShowStyleDialog] = useState(false);
+
+	const handleToolbarAction = useCallback((actionId: string) => {
+		if (actionId === "customizeQrStyle") {
+			setShowStyleDialog(true);
+		}
+	}, []);
 
 	// ── New link-operations dialog (state-context + submit button) ──
 	const [showLinkOpsDialog, setShowLinkOpsDialog] = useState(false);
@@ -332,6 +367,8 @@ export function TableRenderer({
 				tableMetadata={tableMetadata}
 				columns={columns}
 				onDialogChange={handleDialogChange}
+				onRowAction={handleRowAction}
+				onToolbarAction={handleToolbarAction}
 				onClose={onClose}
 				otherParams={{ pathParams }}
 			/>
@@ -524,6 +561,22 @@ export function TableRenderer({
 						);
 					})()}
 				</>
+			)}
+			{/* QR preview dialog (viewQr custom row action) */}
+			{showQrDialog && qrInfo && (
+				<QrPreviewDialog
+					open
+					id={qrInfo.id}
+					label={qrInfo.label}
+					onClose={handleQrClose}
+				/>
+			)}
+			{/* QR style customization dialog (customizeQrStyle toolbar action) */}
+			{showStyleDialog && (
+				<QrStyleDialog
+					open
+					onClose={() => setShowStyleDialog(false)}
+				/>
 			)}
 			{/* New link-operations dialog */}
 			{showLinkOpsDialog && stateCtxComp && (

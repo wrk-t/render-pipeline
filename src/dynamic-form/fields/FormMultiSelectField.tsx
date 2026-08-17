@@ -1,6 +1,12 @@
 // ═══════════════════════════════════════════════════════════════
 // FormMultiSelectField — Autocomplete with multiple selection.
 // Uses the same datasource pattern as FormAutocompleteField.
+//
+// When `creatable` is set the field behaves as a free-solo autocomplete:
+// the user can pick an existing option OR type a brand-new value and add
+// it on the spot (Enter or the "Add …" suggestion). New values are stored
+// as plain strings alongside existing ids and resolved/created by the
+// backend on submit.
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
@@ -9,6 +15,7 @@ import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 import { useField, useFormikContext } from "formik";
 import {
+	type KeyboardEvent,
 	type ReactElement,
 	type SyntheticEvent,
 	useCallback,
@@ -42,6 +49,14 @@ function toSelectOption(item: unknown, entityMeta?: EntityMeta): SelectOption {
 	};
 }
 
+function optionLabel(o: string | SelectOption): string {
+	return typeof o === "string" ? o : o.label;
+}
+
+function optionValue(o: string | SelectOption): string {
+	return typeof o === "string" ? o : String(o.value ?? "");
+}
+
 // ── Component ────────────────────────────────────────────────
 
 export function FormMultiSelectField({
@@ -61,6 +76,7 @@ export function FormMultiSelectField({
 	const datasource = field.datasource;
 	const entityMeta =
 		datasource?.type === "service" ? datasource.entityMeta : undefined;
+	const creatable = field.creatable === true;
 
 	// Normalise value to an array
 	const selectedValues: string[] = Array.isArray(rawValue)
@@ -69,8 +85,57 @@ export function FormMultiSelectField({
 			? [rawValue]
 			: [];
 
-	const selectedOptions = options.filter((o) =>
-		selectedValues.includes(String(o.value)),
+	// Resolve selected values to options — synthesize an option for values
+	// that aren't in the loaded list yet (newly created / prefill ids).
+	const selectedOptions: SelectOption[] = selectedValues.map((v) => {
+		const found = options.find((o) => String(o.value) === v);
+		return found ?? { label: v, value: v };
+	});
+
+	// Append an "Add …" suggestion for input that matches no existing option.
+	const filterOptions = useCallback(
+		(
+			optionList: SelectOption[],
+			state: { inputValue: string },
+		): SelectOption[] => {
+			const input = state.inputValue.trim().toLowerCase();
+			const filtered = optionList.filter((o) =>
+				o.label.toLowerCase().includes(input),
+			);
+			if (
+				creatable &&
+				input &&
+				!optionList.some((o) => o.label.toLowerCase() === input)
+			) {
+				filtered.push({
+					label: `Add "${state.inputValue.trim()}"`,
+					value: state.inputValue.trim(),
+				});
+			}
+			return filtered;
+		},
+		[creatable],
+	);
+
+	// Free-solo Enter: commit the typed value directly (unless it exactly
+	// matches an existing option, in which case default selection applies).
+	const handleKeyDown = useCallback(
+		(e: KeyboardEvent<HTMLDivElement>) => {
+			if (!creatable || e.key !== "Enter") return;
+			const value = inputValue.trim();
+			if (!value) return;
+			const exists = options.some(
+				(o) => o.label.toLowerCase() === value.toLowerCase(),
+			);
+			if (exists) return; // default behaviour: select the highlighted option
+			e.preventDefault();
+			e.stopPropagation();
+			setOptions((prev) => [...prev, { label: value, value }]);
+			setValue([...selectedValues, value]);
+			setInputValue("");
+			setTimeout(() => setTouched(true), 0);
+		},
+		[creatable, inputValue, options, selectedValues, setValue, setTouched],
 	);
 
 	// Load options
@@ -105,8 +170,8 @@ export function FormMultiSelectField({
 	}, [loadOptions]);
 
 	const handleChange = useCallback(
-		(_: SyntheticEvent, newValue: SelectOption[]) => {
-			const ids = newValue.map((o) => o.value as string);
+		(_: SyntheticEvent, newValue: (string | SelectOption)[]) => {
+			const ids = newValue.map(optionValue);
 			setValue(ids);
 			setTimeout(() => setTouched(true), 0);
 		},
@@ -117,21 +182,30 @@ export function FormMultiSelectField({
 		<Stack spacing={0.5}>
 			<Autocomplete
 				multiple
+				freeSolo={creatable}
 				options={options}
 				loading={loading}
 				value={selectedOptions}
 				onChange={handleChange}
 				inputValue={inputValue}
 				onInputChange={(_, v) => setInputValue(v)}
+				onKeyDown={handleKeyDown}
+				filterOptions={filterOptions}
 				disabled={isSubmitting || field.isReadOnly}
-				getOptionLabel={(o) => o.label}
-				isOptionEqualToValue={(o, v) => String(o.value) === String(v.value)}
+				getOptionLabel={optionLabel}
+				isOptionEqualToValue={(o, v) => optionValue(o) === optionValue(v)}
 				renderInput={(params) => (
 					<TextField
 						{...params}
 						label={field.label}
 						error={meta.touched && !!meta.error}
-						helperText={meta.touched && meta.error ? meta.error : undefined}
+						helperText={
+							meta.touched && meta.error
+								? meta.error
+								: creatable
+									? "Type a new option and press Enter to add it"
+									: undefined
+						}
 						size="small"
 					/>
 				)}

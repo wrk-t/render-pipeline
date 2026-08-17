@@ -12,3 +12,5 @@ export { FormSelectField } from "./FormSelectField";
 export { FormSwitchField } from "./FormSwitchField";
 export { FormTextareaField } from "./FormTextareaField";
 export { FormTextField } from "./FormTextField";
+export { IconPickerField } from "./IconPickerField";
+export { VariantEditorField } from "./VariantEditorField";

@@ -21,6 +21,7 @@ import {
 	useState,
 } from "react";
 import { Unicon } from "../../components/common/icon/Unicon";
+import { getApiClient } from "../../deps";
 import type { ImageField } from "../types";
 
 // ─────────────────────────────────────────────────────────────
@@ -57,9 +58,16 @@ export function FormImageField({ field }: { field: ImageField }): ReactElement {
 
 	const [dragOver, setDragOver] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [uploading, setUploading] = useState(false);
 
 	const accept = field.uiOverrides?.behavior?.accept ?? DEFAULT_ACCEPT;
 	const maxSize = field.uiOverrides?.behavior?.maxSize ?? DEFAULT_MAX_SIZE;
+
+	// When configured (e.g. `overrides.behavior.uploadEndpoint` on the
+	// element), the file is uploaded to the backend on selection and the
+	// returned URL becomes the field value (so the form can submit JSON).
+	const uploadEndpoint = (field.fieldOverrides as any)?.behavior
+		?.uploadEndpoint as string | undefined;
 
 	// ── Preview source ─────────────────────────────────────────
 	// Derived directly from value on every render.
@@ -118,16 +126,49 @@ export function FormImageField({ field }: { field: ImageField }): ReactElement {
 		[maxSize, setValue],
 	);
 
+	/**
+	 * Upload a File to the configured endpoint and store the returned
+	 * URL as the field value.
+	 */
+	const uploadAndSetValue = useCallback(
+		async (file: File) => {
+			setUploading(true);
+			setError(null);
+			try {
+				const fd = new FormData();
+				fd.append("file", file);
+				const base = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
+				const res = await getApiClient().post(
+					`${base}${uploadEndpoint}`,
+					fd,
+				);
+				const url = res.data?.data?.url as string | undefined;
+				if (!url) throw new Error("Upload response missing url");
+				await setValue(url);
+			} catch (err) {
+				setError("Upload failed. Please try again.");
+				console.error("[FormImageField] upload failed:", err);
+			} finally {
+				setUploading(false);
+			}
+		},
+		[uploadEndpoint, setValue],
+	);
+
 	// ── Handle file input change ───────────────────────────────
 	const handleFileChange = useCallback(
 		async (e: ChangeEvent<HTMLInputElement>) => {
 			const files = e.target.files;
 			if (!files || files.length === 0) return;
 
-			await processFile(files[0]);
+			if (uploadEndpoint) {
+				await uploadAndSetValue(files[0]);
+			} else {
+				await processFile(files[0]);
+			}
 			e.target.value = "";
 		},
-		[processFile],
+		[processFile, uploadAndSetValue, uploadEndpoint],
 	);
 
 	// ── Drag & drop handlers ───────────────────────────────────
@@ -152,9 +193,13 @@ export function FormImageField({ field }: { field: ImageField }): ReactElement {
 			const files = e.dataTransfer.files;
 			if (!files || files.length === 0) return;
 
-			await processFile(files[0]);
+			if (uploadEndpoint) {
+				await uploadAndSetValue(files[0]);
+			} else {
+				await processFile(files[0]);
+			}
 		},
-		[processFile],
+		[processFile, uploadAndSetValue, uploadEndpoint],
 	);
 
 	// ── Remove / clear ─────────────────────────────────────────
@@ -282,7 +327,9 @@ export function FormImageField({ field }: { field: ImageField }): ReactElement {
 						color="text.secondary"
 						className="text-center"
 					>
-						Drag & drop an image here, or click to browse
+						{uploading
+							? "Uploading…"
+							: "Drag & drop an image here, or click to browse"}
 					</Typography>
 					<Typography variant="caption" color="text.disabled">
 						Accepted: {accept} &middot; Max: {formatFileSize(maxSize)}

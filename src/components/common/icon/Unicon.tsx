@@ -46,6 +46,14 @@ export const ICON_EXPORT = {
 	Circuit: "UilCircuit",
 	Globe: "UilGlobe",
 
+	// ── Restaurant / menu builder ──
+	RestaurantMenu: "UilRestaurant",
+	LocalDining: "UilUtensils",
+	Folder: "UilFolder",
+	Qrcode: "UilQrcodeScan",
+	Languages: "UilLanguage",
+	Sliders: "UilSlidersV",
+
 	// ── Table action icons ──
 	Add: "UilPlus",
 	Delete: "UilTrashAlt",
@@ -294,6 +302,7 @@ import {
 	UilFileUpload,
 	UilFilter,
 	UilFlask,
+	UilFolder,
 	UilGlobe,
 	UilHeart,
 	UilHistory,
@@ -323,7 +332,9 @@ import {
 	UilPower,
 	UilPrint,
 	UilQuestionCircle,
+	UilQrcodeScan,
 	UilRefresh,
+	UilRestaurant,
 	UilSave,
 	UilSearch,
 	UilServer,
@@ -354,6 +365,7 @@ import {
 	UilUser,
 	UilUserCircle,
 	UilUsersAlt,
+	UilUtensils,
 	UilWifi,
 	UilWifiSlash,
 	UilWrench,
@@ -385,6 +397,7 @@ const EAGER_ICONS: Record<string, UniconComponent> = {
 	UilEyeSlash,
 	UilFilter,
 	UilColumns,
+	UilFolder,
 	UilHistory,
 	UilSearch,
 	UilCheckCircle,
@@ -406,6 +419,8 @@ const EAGER_ICONS: Record<string, UniconComponent> = {
 	UilUser,
 	UilBell,
 	UilQuestionCircle,
+	UilQrcodeScan,
+	UilRestaurant,
 	UilPrint,
 	UilSave,
 	UilFileUpload,
@@ -433,6 +448,7 @@ const EAGER_ICONS: Record<string, UniconComponent> = {
 	UilWrench,
 	UilUserCircle,
 	UilSmile,
+	UilUtensils,
 	UilTag,
 	UilTagAlt,
 	UilLayerGroup,
@@ -506,6 +522,20 @@ export interface UniconProps {
 
 // ── Component ─────────────────────────────────────────────────
 
+/**
+ * Resolve the icon size to a pixel number.
+ *
+ * Accepts numeric px values, plus MUI-style string sizes for
+ * convenience. Passing a raw string (e.g. "small") straight into
+ * the SVG component produces an invalid `width` attribute and
+ * renders the icon at a huge intrinsic size.
+ */
+const resolveIconSize = (size: number | string | undefined): number => {
+	if (typeof size === "number") return size;
+	const SIZES: Record<string, number> = { small: 16, medium: 24, large: 32 };
+	return (size && SIZES[size]) || 24;
+};
+
 export const Unicon: FC<UniconProps> = ({
 	name,
 	size = 24,
@@ -513,13 +543,15 @@ export const Unicon: FC<UniconProps> = ({
 	style,
 	color = "currentColor",
 }) => {
+	const pxSize = resolveIconSize(size);
+
 	if (!name) {
 		return (
 			<span
 				className={className}
 				style={{
-					width: typeof size === "number" ? size : 24,
-					height: typeof size === "number" ? size : 24,
+					width: pxSize,
+					height: pxSize,
 					display: "inline-block",
 					...style,
 				}}
@@ -536,8 +568,8 @@ export const Unicon: FC<UniconProps> = ({
 			<span
 				className={className}
 				style={{
-					width: typeof size === "number" ? size : 24,
-					height: typeof size === "number" ? size : 24,
+					width: pxSize,
+					height: pxSize,
 					display: "inline-block",
 					...style,
 				}}
@@ -556,8 +588,8 @@ export const Unicon: FC<UniconProps> = ({
 			<span
 				className={className}
 				style={{
-					width: typeof size === "number" ? size : 24,
-					height: typeof size === "number" ? size : 24,
+					width: pxSize,
+					height: pxSize,
 					display: "inline-block",
 					...style,
 				}}
@@ -569,7 +601,7 @@ export const Unicon: FC<UniconProps> = ({
 
 	return (
 		<span style={spanStyle} className={className}>
-			<IconComponent size={size} style={style} />
+			<IconComponent size={pxSize} style={style} />
 		</span>
 	);
 };

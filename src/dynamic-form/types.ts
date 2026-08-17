@@ -120,7 +120,9 @@ export type FieldType =
 	| "json"
 	| "reference"
 	| "autocomplete"
-	| "color";
+	| "color"
+	| "variants"
+	| "icon";
 
 // ── 7. DATASOURCE TYPES ──
 
@@ -596,6 +598,8 @@ export interface MultiselectField extends FieldBase {
 	options: SelectOption[];
 	/** Remote datasource for dynamically-fetched options. */
 	datasource?: FieldDatasource | null;
+	/** When true, users can type brand-new options that get resolved/created server-side. */
+	creatable?: boolean;
 	description?: string;
 	uiOverrides: {
 		layout?: FieldLayout;
@@ -750,6 +754,24 @@ export interface AutocompleteField extends FieldBase {
 	};
 }
 
+export interface VariantField extends FieldBase {
+	type: "variants";
+	fieldOverrides?: FieldOverrides | null;
+	uiOverrides: {
+		layout?: FieldLayout;
+		behavior?: { placeholder?: string };
+	};
+}
+
+export interface IconField extends FieldBase {
+	type: "icon";
+	fieldOverrides?: FieldOverrides | null;
+	uiOverrides: {
+		layout?: FieldLayout;
+		behavior?: { placeholder?: string };
+	};
+}
+
 // ── The full discriminated union ──
 
 export type RenderField =
@@ -772,7 +794,9 @@ export type RenderField =
 	| RichtextField
 	| JsonField
 	| ReferenceField
-	| AutocompleteField;
+	| AutocompleteField
+	| VariantField
+	| IconField;
 // ── 16. RENDER RESPONSE SHAPES ──
 
 export interface FormRenderSettings extends FormSettings {

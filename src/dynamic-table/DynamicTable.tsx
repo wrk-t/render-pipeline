@@ -648,6 +648,10 @@ export function DynamicTable({
 					mutate();
 				} else if ("redirect" in action && action.redirect) {
 					handleRedirect(action.redirect, row);
+				} else if (row) {
+					// Row-level custom actions carry the row so the host (TableRenderer)
+					// can open app-specific dialogs (e.g. view QR code).
+					onRowAction?.(action.customAction ?? action.id, row);
 				} else {
 					onToolbarAction?.(action.customAction ?? action.id);
 				}
@@ -813,7 +817,7 @@ export function DynamicTable({
 						label={action.label}
 						icon={
 							action.icon ? (
-								<TableIcon name={action.icon} size="small" />
+								<TableIcon name={action.icon} size={20} />
 							) : undefined
 						}
 						table={table}

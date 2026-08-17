@@ -17,7 +17,7 @@ export const BaseDialogHeader: FC<IDialogHeaderProps> = ({
 }) => (
 	<Box className="rounded-tl-sm rounded-tr-sm pl-6 pr-4 py-3">
 		<Stack direction="row" className="justify-between p-0 items-center">
-			<DialogTitle id="customized-dialog-title" className="!p-0">
+			<DialogTitle id="customized-dialog-title" className="p-0!">
 				<Typography className="capitalize">{title}</Typography>
 			</DialogTitle>
 
@@ -26,10 +26,7 @@ export const BaseDialogHeader: FC<IDialogHeaderProps> = ({
 					aria-label="close"
 					disabled={disabled}
 					onClick={onClose ?? onClose}
-					// sx={{
-					// 	color: (theme) => theme.palette.grey[500],
-					// 	padding: 0,
-					// }}
+					sx={{margin: "0px 24px"}}
 					size="small"
 				>
 					<Unicon name="CloseRounded" />

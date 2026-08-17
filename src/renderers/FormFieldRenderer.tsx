@@ -27,6 +27,8 @@ import {
 	FormSwitchField,
 	FormTextareaField,
 	FormTextField,
+	IconPickerField,
+	VariantEditorField,
 } from "../dynamic-form/fields";
 import type { RenderField } from "../dynamic-form/types";
 import type { RenderedElement } from "../types";
@@ -73,6 +75,8 @@ export function adaptField(
 		formId: "",
 		validations: (ov as any)?.validations ?? [],
 		fieldOverrides: ov,
+		datasource: (ov as any)?.datasource ?? null,
+		creatable: (ov as any)?.creatable ?? false,
 		uiOverrides: {
 			behavior: { placeholder: (ov as any)?.placeholder, autoFocus: false },
 			layout: {},
@@ -275,6 +279,28 @@ function FormFieldRendererInner({
 				))
 				.with({ type: "multiselect" }, (f) => (
 					<FormMultiSelectField
+						field={
+							{
+								...f,
+								isRequired: conditions.isRequired,
+								isReadOnly: conditions.isDisabled,
+							} as any
+						}
+					/>
+				))
+				.with({ type: "variants" }, (f) => (
+					<VariantEditorField
+						field={
+							{
+								...f,
+								isRequired: conditions.isRequired,
+								isReadOnly: conditions.isDisabled,
+							} as any
+						}
+					/>
+				))
+				.with({ type: "icon" }, (f) => (
+					<IconPickerField
 						field={
 							{
 								...f,
