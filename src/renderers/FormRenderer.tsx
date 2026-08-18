@@ -17,7 +17,7 @@ import type { FormAction, FormRenderSection } from "../dynamic-form/types";
 import { useResolvedParams } from "../hooks/useResolvedParams";
 import { useSnack } from "../hooks/useSnack";
 import type { RenderedComponent, RenderedElement } from "../types";
-import { adaptField } from "./FormFieldRenderer";
+import { adaptField, UI_TYPE_MAP } from "./FormFieldRenderer";
 import { useStateContext } from "./StateContextRenderer";
 import { AxiosError } from "axios";
 
@@ -25,38 +25,67 @@ import { AxiosError } from "axios";
 // Field adapter imported from FormFieldRenderer (shared location)
 // ──────────────────────────────────────────────────────────────────
 
+/**
+ * Type-appropriate Formik initial value, used when a field element
+ * declares no explicit `defaultValue` override. Untouched fields are
+ * submitted as-is, so array/boolean fields must not default to `""`
+ * (the backend DTOs validate them as arrays/booleans).
+ */
+function defaultInitialValue(el: RenderedElement): unknown {
+	const resolvedType = el.uiComponentId
+		? (UI_TYPE_MAP[el.uiComponentId] ?? el.type ?? "text")
+		: (el.type ?? "text");
+	switch (resolvedType) {
+		case "variants":
+		case "multiselect":
+			return [];
+		case "switch":
+			return false;
+		default:
+			return "";
+	}
+}
+
 // ──────────────────────────────────────────────────────────────────
 // FormRenderer
 // ──────────────────────────────────────────────────────────────────
 
-export function FormRenderer({
-  component,
-  onSuccess,
-  onError,
-  context,
-  onClose,
-  recordId,
-  onFormReady,
-  pathParams,
+	export function FormRenderer({
+	component,
+	onSuccess,
+	onError,
+	context,
+	onClose,
+	recordId,
+	onFormReady,
+	pathParams,
 }: {
-  component: RenderedComponent;
-  onSuccess?: (res: any) => void;
-  onError?: (err: unknown) => void;
-  context?: string;
-  onClose?: () => void;
-  recordId?: string;
-  onFormReady?: (api: {
-    submitForm: () => Promise<void>;
-    submitLabel: string;
-    closeLabel: string;
-  }) => void;
-  pathParams?: Record<string, string>;
+	component: RenderedComponent;
+	onSuccess?: (res: any) => void;
+	onError?: (err: unknown) => void;
+	context?: string;
+	onClose?: () => void;
+	recordId?: string;
+	onFormReady?: (api: {
+		submitForm: () => Promise<void>;
+		submitLabel: string;
+		closeLabel: string;
+	}) => void;
+	pathParams?: Record<string, string>;
 }): ReactElement {
-  const snack = useSnack();
-  const router = useRouter();
-  const { data: user } = useRenderUser();
-  const userPermissions: Array<{ resource: string; scope?: string }> =
-    (user as any)?.permissions?.data ?? [];
+	const snack = useSnack();
+	const router = useRouter();
+	const { data: user } = useRenderUser();
+	const userPermissions: Array<{ resource: string; scope?: string }> =
+		(user as any)?.permissions?.data ?? [];
+	// Feature-gated UI (e.g. `meta.requiredFeature` on a field element) —
+	// hidden unless the active tenant has the feature.
+	const userFeatures: string[] = (user as any)?.features ?? [];
+	const hasFeature = (el: RenderedElement): boolean => {
+		const required = (el.meta as any)?.requiredFeature;
+		if (!required) return true;
+		return userFeatures.includes(required);
+	};
   // Route params + the current user's tenant (for {tenantId} templates).
   const resolvedPathParams = useResolvedParams(pathParams);
 
@@ -109,9 +138,11 @@ export function FormRenderer({
     const fields: RenderedElement[] = [];
     const secs: FormRenderSection[] = [];
 
-    const walkElements = (els: RenderedElement[]) => {
-      for (const el of els) {
-        if (!isVisible(el)) continue;
+    	const walkElements = (els: RenderedElement[]) => {
+    		for (const el of els) {
+    			if (!isVisible(el)) continue;
+    			// Skip elements gated behind a tenant feature the user lacks.
+    			if (!hasFeature(el)) continue;
 
         // ── Check referenced component's visibleToPermissions ──
         if (
@@ -161,9 +192,9 @@ export function FormRenderer({
       }
     };
 
-    walkElements(Object.values(component.slotsFilled).flat());
-    return { allFields: fields, sections: secs };
-  }, [component, context, userPermissions]);
+    		walkElements(Object.values(component.slotsFilled).flat());
+    		return { allFields: fields, sections: secs };
+    	}, [component, context, userPermissions, userFeatures]);
 
   const actions: FormAction[] =
     (component.config?.actions as FormAction[]) ?? [];
@@ -236,13 +267,18 @@ export function FormRenderer({
     },
   );
 
-  const initialValues = useMemo(() => {
-    const values: Record<string, unknown> = {};
-    // First, apply default values from overrides
-    for (const field of allFields) {
-      const name = field.name ?? "";
-      if (name) values[name] = (field.overrides as any)?.defaultValue ?? "";
-    }
+	const initialValues = useMemo(() => {
+		const values: Record<string, unknown> = {};
+		// First, apply default values from overrides — falling back to a
+		// type-appropriate default (arrays for list fields, booleans for
+		// switches, empty string otherwise).
+		for (const field of allFields) {
+			const name = field.name ?? "";
+			if (!name) continue;
+			const ov = (field.overrides as any) ?? {};
+			values[name] =
+				ov.defaultValue !== undefined ? ov.defaultValue : defaultInitialValue(field);
+		}
     // Then, overlay pathParams for matching field names
     if (pathParams) {
       for (const [key, value] of Object.entries(pathParams)) {

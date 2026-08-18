@@ -21,6 +21,7 @@ export interface RenderUser {
 	tenant?: { id?: string } | null;
 	role?: string;
 	roleName?: string;
+	features?: string[];
 	permissions?: {
 		data?: Array<{ resource: string; scope?: string }>;
 	} | null;
