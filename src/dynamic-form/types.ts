@@ -969,6 +969,12 @@ interface TableActionBase {
 	/** When set, the action is hidden unless this feature flag is enabled. */
 	requiresFeature?: string;
 	/**
+	 * Tier-based visibility — the action is hidden unless the current
+	 * workspace tier satisfies the requirement (solo < team < enterprise).
+	 * Mirrors the backend TierGuard (e.g. invite members requires "team").
+	 */
+	requiredTier?: "solo" | "team" | "enterprise";
+	/**
 	 * Permission-based visibility (scope-aware) — e.g. super-admin-only
 	 * actions use `[{ resource: "tenants", action: "read", scope: "all" }]`.
 	 * Unlike `permissions` (plain ability check), this respects scopes.
@@ -983,7 +989,24 @@ interface TableActionBase {
 /** New format: open a dialog (form) from a table row or toolbar. */
 interface TableActionOpenDialog extends TableActionBase {
 	action: "openDialog";
-	dialog: { formId: string; context?: "create" | "edit" | "view" };
+	dialog: {
+		/** Form component id — preferred; falls back to legacy formId. */
+		componentId?: string;
+		/** Legacy form id (still supported during migration). */
+		formId?: string;
+		context?: "create" | "edit" | "view";
+		/** Optional dialog title ($trl_ key or literal). Overrides the derived one. */
+		title?: string;
+		/**
+		 * Row fields copied into the form's pathParams when opening in
+		 * "create" context (e.g. the clicked plan's id as planId).
+		 * Prefilled fields are matched by form field name.
+		 *
+		 * - `string[]` — copy each row field under its own name
+		 * - `Record<formField, rowField>` — rename: `{ planId: "id" }`
+		 */
+		rowFields?: string[] | Record<string, string>;
+	};
 }
 
 /** New format: navigate to a path (supports {placeholder} resolution). */
@@ -1071,10 +1094,28 @@ export interface TableEmptyState {
 	action?: string;
 }
 
+/**
+ * What happens when a table row is clicked.
+ *
+ * New action-discriminant format (authored via the metadata DSL) plus the
+ * legacy redirect/endpoint format — dispatch is presence-based.
+ */
 export interface ITableOnRowClick {
-	redirect?: string;
+	/** New format: openDialog / apiCall / navigate. */
+	action?: "openDialog" | "apiCall" | "navigate";
+	/** openDialog: the dialog form component. */
+	dialog?: {
+		componentId?: number | string;
+		context?: "create" | "edit" | "view";
+	};
+	/** apiCall: the request. */
 	endpoint?: string;
-	method?: "POST" | "PUT" | "PATCH" | "DELETE";
+	method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+	/** navigate: the target path (supports {id} substitution). */
+	path?: string;
+	confirm?: { title?: string; message?: string };
+	/** Legacy format: redirect/endpoint. */
+	redirect?: string;
 	permissions?: string[];
 	/** When this feature flag is OFF, use fallbackRedirect instead of redirect. */
 	fallbackFeature?: string;

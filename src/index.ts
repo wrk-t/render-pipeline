@@ -22,6 +22,12 @@ export {
 	type PermissionRequirement,
 	type UserPermission,
 } from "./ability/checkComponentPermission";
+export {
+	checkTier,
+	resolveTier,
+	TIER_ORDER,
+	type WorkspaceTier,
+} from "./ability/checkTier";
 export type { ComponentRendererProps } from "./ComponentRenderer";
 // ── Pipeline core ────────────────────────────────────────────
 export { AutoComponent, ComponentRenderer } from "./ComponentRenderer";
@@ -129,9 +135,9 @@ export { RawJsonRenderer } from "./renderers/RawJsonRenderer";
 export { ReferenceCell } from "./renderers/ReferenceCell";
 // ── Renderers ────────────────────────────────────────────────
 export { ScreenLayoutRenderer } from "./renderers/ScreenLayoutRenderer";
-export { SectionRenderer } from "./renderers/SectionRenderer";
 export { StageActionsRenderer } from "./renderers/StageActionsRenderer";
 export { StateContextRenderer } from "./renderers/StateContextRenderer";
+export { TypographyRenderer } from "./renderers/TypographyRenderer";
 export { TableRenderer } from "./renderers/TableRenderer";
 export { TabsRenderer } from "./renderers/TabsRenderer";
 export type { VersionInfo } from "./renderers/VersionContext";

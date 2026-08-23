@@ -1,8 +1,6 @@
 "use client";
 
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { Form, Formik, type FormikHelpers } from "formik";
@@ -13,7 +11,7 @@ import { checkComponentPermission } from "../ability/checkComponentPermission";
 import { ComponentRenderer } from "../ComponentRenderer";
 import { getApiClient, useRenderUser } from "../deps";
 import { buildFormSchema } from "../dynamic-form/buildValidationSchema";
-import type { FormAction, FormRenderSection } from "../dynamic-form/types";
+import type { FormAction } from "../dynamic-form/types";
 import { useFeatures } from "../hooks/useFeatures";
 import { useResolvedParams } from "../hooks/useResolvedParams";
 import { useSnack } from "../hooks/useSnack";
@@ -117,68 +115,82 @@ export function FormRenderer({
     [component.slotsFilled],
   );
 
-  const { allFields, sections } = useMemo(() => {
-    const fields: RenderedElement[] = [];
-    const secs: FormRenderSection[] = [];
+  	const allFields = useMemo(() => {
+  		const fields: RenderedElement[] = [];
 
-    const walkElements = (els: RenderedElement[]) => {
-      for (const el of els) {
-        if (!isVisible(el)) continue;
+  		const walkElements = (els: RenderedElement[]) => {
+  			for (const el of els) {
+  				if (!isVisible(el)) continue;
 
-        // ── Check referenced component's visibleToPermissions ──
-        if (
-          el.elementType === "component_ref" &&
-          el.referencedComponent &&
-          !isComponentVisible(el.referencedComponent)
-        ) {
-          continue;
-        }
+  				// ── Check referenced component's visibleToPermissions ──
+  				if (
+  					el.elementType === "component_ref" &&
+  					el.referencedComponent &&
+  					!isComponentVisible(el.referencedComponent)
+  				) {
+  					continue;
+  				}
 
-        if (el.elementType === "field") {
-          fields.push(el);
-        } else if (
-          el.elementType === "component_ref" &&
-          el.referencedComponent
-        ) {
-          const ref = el.referencedComponent;
-          if (ref.blueprintName === "section") {
-            const sectionFields: RenderedElement[] = [];
-            for (const slotEls of Object.values(ref.slotsFilled)) {
-              for (const slotEl of slotEls) {
-                if (slotEl.elementType === "field" && isVisible(slotEl)) {
-                  sectionFields.push(slotEl);
-                  fields.push(slotEl);
-                }
-              }
-            }
-            secs.push({
-              id: ref.id,
-              name: ref.name,
-              displayName: ref.displayName,
-              description: ref.description,
-              collapsible: (ref.config as any)?.collapsible ?? false,
-              collapsedByDefault:
-                (ref.config as any)?.collapsedByDefault ?? false,
-              displayOrder: el.displayOrder,
-              fields: sectionFields.map((f) =>
-                adaptField(f, isFieldReadOnly(f)),
-              ) as any,
-            } as FormRenderSection);
-          } else {
-            for (const slotEls of Object.values(ref.slotsFilled)) {
-              walkElements(slotEls);
-            }
-          }
-        }
-      }
-    };
+  				if (el.elementType === "field") {
+  					fields.push(el);
+  				} else if (
+  					el.elementType === "component_ref" &&
+  					el.referencedComponent
+  				) {
+  					// Recurse into any component (Stack/Grid/Box/…) — fields
+  					// are collected generically, no section special-case.
+  					walkElements(Object.values(el.referencedComponent.slotsFilled).flat());
+  				}
+  			}
+  		};
 
-    walkElements(Object.values(component.slotsFilled).flat());
-    return { allFields: fields, sections: secs };
-  }, [component, context, userPermissions]);
+  		walkElements(Object.values(component.slotsFilled).flat());
+  		return fields;
+  	}, [component, context, userPermissions]);
 
-  const actions: FormAction[] =
-    (component.config?.actions as FormAction[]) ?? [];
+  	// Actions live in the "actions" slot as Button/Link components — map
+    	// them back to the FormAction shape the footer + handleSubmit consume.
+    	const actions = useMemo<FormAction[]>(() => {
+    		const out: FormAction[] = [];
+    		for (const el of component.slotsFilled["actions"] ?? []) {
+    			const ref =
+    				el.elementType === "component_ref" ? el.referencedComponent : null;
+    			if (!ref) continue;
+    			const cfg = (ref.config ?? {}) as {
+    				label?: string;
+    				action?: string;
+    				path?: string;
+    				endpoint?: string;
+    				method?: "POST" | "PUT" | "PATCH";
+    				context?: "create" | "edit";
+    				successMessage?: string;
+    				successRedirect?: string;
+    				stateContext?: string;
+    				fieldMap?: Record<string, string>;
+    			};
+    			const label = cfg.label ?? ref.displayName;
+    			if (ref.blueprintName === "link") {
+    				out.push({ action: "link", label, path: cfg.path ?? "/" });
+    			} else if (ref.blueprintName === "button") {
+    				if (cfg.action === "submit") {
+    					out.push({
+    						action: "apiCall",
+    						label,
+    						endpoint: cfg.endpoint ?? "",
+    						method: cfg.method ?? "POST",
+    						context: cfg.context,
+    						successMessage: cfg.successMessage,
+    						successRedirect: cfg.successRedirect,
+    						...(cfg.stateContext ? { stateContext: cfg.stateContext } : {}),
+    						...(cfg.fieldMap ? { fieldMap: cfg.fieldMap } : {}),
+    					} as any);
+    				} else if (cfg.action === "close") {
+    					out.push({ action: "cancel", label });
+    				}
+    			}
+    		}
+    		return out;
+    	}, [component.slotsFilled]);
 
   // ── Fetch record data for edit mode ──
   const editEndpoint = useMemo(() => {
@@ -251,10 +263,17 @@ export function FormRenderer({
     return values;
   }, [allFields, recordData, effectiveContext, pathParams]);
 
-  const validationSchema = useMemo(() => {
-    if (sections.length === 0) return undefined;
-    return buildFormSchema({ sections, ungroupedFields: [] } as any);
-  }, [sections]);
+  	// Validation is built from ALL collected fields (ungrouped) — grouping
+  	// is purely visual (Stack/Grid), so every field validates.
+  	const validationSchema = useMemo(() => {
+  		if (allFields.length === 0) return undefined;
+  		return buildFormSchema({
+  			sections: [],
+  			ungroupedFields: allFields.map((f) =>
+  				adaptField(f, isFieldReadOnly(f)),
+  			) as any,
+  		} as any);
+  	}, [allFields]);
 
   // Filter actions by context if provided (exclude GET-only "fetch" actions from submit buttons)
   const visibleApiActions = useMemo(
@@ -271,12 +290,18 @@ export function FormRenderer({
 
   const stateCtx = useStateContext();
 
-  const handleSubmit = async (
-    values: Record<string, unknown>,
-    helpers: FormikHelpers<Record<string, unknown>>,
-  ) => {
-    const submitAction = visibleApiActions[0] as any;
-    if (!submitAction) return;
+  	const handleSubmit = async (
+  		values: Record<string, unknown>,
+  		helpers: FormikHelpers<Record<string, unknown>>,
+  	) => {
+  		const submitAction = visibleApiActions[0] as any;
+  		if (!submitAction) {
+  			console.warn(
+  				"[FormRenderer] submit pressed but no submit action found — actions slot:",
+  				component.slotsFilled["actions"] ?? [],
+  			);
+  			return;
+  		}
     try {
       const endpoint = submitAction.endpoint.replace(
         /\{(\w+)\}/g,
@@ -333,14 +358,12 @@ export function FormRenderer({
     }
   };
 
-  // Close actions (non-submit buttons)
-  const closeActions = actions.filter((a: any) => a.action === "close");
+	  // Close actions (non-submit buttons)
+	  const closeActions = actions.filter(
+	  	(a: any) => a.action === "close" || a.action === "cancel",
+	  );
 
-  const linkActions = actions.filter(
-    (a: any) => a.action === "link" || a.action === "navigate",
-  );
-
-  // Resolve action labels for the dialog footer
+	  // Resolve action labels for the dialog footer
   const submitLabel = (visibleApiActions[0] as any)?.label ?? "Submit";
   const closeLabel = (closeActions[0] as any)?.label ?? "Close";
 
@@ -396,8 +419,8 @@ export function FormRenderer({
       onSubmit={handleSubmit}
       enableReinitialize
     >
-      {({ isSubmitting, submitForm }) => {
-        submitFormRef.current = submitForm as unknown as () => Promise<void>;
+	      {({ submitForm }) => {
+	        submitFormRef.current = submitForm as unknown as () => Promise<void>;
         return (
           <Form>
             {!onFormReady && component.displayName && (
@@ -437,58 +460,36 @@ export function FormRenderer({
                 </Box>
               ))}
 
-            {/* Standalone buttons (when not wrapped in a dialog) */}
-            {!onFormReady &&
-              (visibleApiActions.length > 0 ||
-                closeActions.length > 0 ||
-                linkActions.length > 0) && (
-                <Stack direction="row" spacing={2} className="mt-6">
-                  {closeActions.map((a: any) => (
-                    <Button
-                      key={a.label}
-                      variant="text"
-                      color="inherit"
-                      disabled={isSubmitting}
-                      onClick={onClose}
-                    >
-                      {a.label}
-                    </Button>
-                  ))}
-                  {visibleApiActions.map((a: any) => (
-                    <Button
-                      key={a.label}
-                      type="submit"
-                      variant="contained"
-                      disabled={isSubmitting}
-                    >
-                      {isSubmitting ? (
-                        <CircularProgress size={20} color="inherit" />
-                      ) : (
-                        a.label
-                      )}
-                    </Button>
-                  ))}
-                  {linkActions.map((a: any) => (
-                    <Button
-                      key={a.label}
-                      variant="text"
-                      onClick={() => {
-                        const resolved = a.path.replace(
-                          /\{(\w+)\}/g,
-                          (_: string, key: string) =>
-                            pathParams && key in pathParams
-                              ? String(pathParams[key])
-                              : `{${key}}`,
-                        );
-                        router.push(resolved);
-                      }}
-                    >
-                      {a.label}
-                    </Button>
-                  ))}
-                </Stack>
-              )}
-          </Form>
+	            {/* Actions slot — rendered from the metadata tree
+	                (Button/Link components via their own renderers) */}
+	            {!onFormReady &&
+	              (component.slotsFilled["actions"] ?? []).some(
+	                (el) =>
+	                  el.isActive &&
+	                  el.elementType === "component_ref" &&
+	                  el.referencedComponent,
+	              ) && (
+	                <Stack direction="row" spacing={2} className="mt-6">
+	                  {(component.slotsFilled["actions"] ?? [])
+	                    .filter(
+	                      (el) =>
+	                        el.isActive &&
+	                        el.elementType === "component_ref" &&
+	                        el.referencedComponent,
+	                    )
+	                    .sort((a, b) => a.displayOrder - b.displayOrder)
+	                    .map((el) => (
+	                      <ComponentRenderer
+	                        key={el.id}
+	                        component={el.referencedComponent!}
+	                        pathParams={pathParams}
+	                        paramBindings={el.paramBindings}
+	                        onClose={onClose}
+	                      />
+	                    ))}
+	                </Stack>
+	              )}
+	          </Form>
         );
       }}
     </Formik>

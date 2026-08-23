@@ -203,12 +203,15 @@ export function ListRenderer({
 
 	// ── Create / Edit form dialog state ───────────────────────
 	const [showFormDialog, setShowFormDialog] = useState(false);
-	const [formComponentId, setFormComponentId] = useState("");
+	const [formComponentId, setFormComponentId] = useState<number | null>(null);
 	const [formContext, setFormContext] = useState<"create" | "edit">("create");
 	const [formRecordId, setFormRecordId] = useState<string | undefined>(
 		undefined,
 	);
 	const [formDialogTitle, setFormDialogTitle] = useState("");
+	const [formPathParams, setFormPathParams] = useState<
+		Record<string, string>
+	>({});
 
 	const formApiRef = useRef<{
 		submitForm: () => Promise<void>;
@@ -219,10 +222,11 @@ export function ListRenderer({
 
 	const handleFormClose = useCallback(() => {
 		setShowFormDialog(false);
-		setFormComponentId("");
+		setFormComponentId(null);
 		setFormContext("create");
 		setFormRecordId(undefined);
 		setFormDialogTitle("");
+		setFormPathParams({});
 		formApiRef.current = null;
 		mutate(() => true);
 	}, [mutate]);
@@ -236,14 +240,19 @@ export function ListRenderer({
 	const openActionDialog = useCallback(
 		(action: TableAction, row?: Record<string, unknown>) => {
 			if (action.action === "openDialog") {
-				const context = action.dialog?.context ?? "edit";
-				const title =
+				const dialog = action.dialog as any;
+				const context = dialog?.context ?? "edit";
+				const componentTitle =
 					typeof component.displayName === "string"
 						? component.displayName.replace(/^\$trl_/, "")
 						: "Record";
+				const customTitle =
+					typeof dialog?.title === "string"
+						? dialog.title.replace(/^\$trl_/, "")
+						: null;
 				setFormComponentId(
-					((action.dialog as any)?.componentId as string | undefined) ??
-						action.dialog?.formId ??
+					(dialog?.componentId as string | undefined) ??
+						dialog?.formId ??
 						"",
 				);
 				setFormContext(context === "view" ? "edit" : context);
@@ -251,12 +260,38 @@ export function ListRenderer({
 					context === "create" ? undefined : String(row?.id ?? ""),
 				);
 				setFormDialogTitle(
-					context === "create"
-						? `Create ${title}`
-						: context === "view"
-							? `View ${title}`
-							: `Edit ${title}`,
+					customTitle ??
+						(context === "create"
+							? `Create ${componentTitle}`
+							: context === "view"
+								? `View ${componentTitle}`
+								: `Edit ${componentTitle}`),
 				);
+				// In create context, copy selected row fields into the form's
+				// pathParams so prefilled/hidden fields (e.g. the clicked
+				// plan's id as planId) reach the form's initial values.
+				const rowFieldsRaw = dialog?.rowFields as
+					| string[]
+					| Record<string, string>
+					| undefined;
+				const rowFieldPairs: Array<[string, string]> = Array.isArray(
+					rowFieldsRaw,
+				)
+					? (rowFieldsRaw as string[]).map((k) => [k, k])
+					: rowFieldsRaw
+						? Object.entries(rowFieldsRaw)
+						: [];
+				const rowParams =
+					context === "create" && row
+						? Object.fromEntries(
+								rowFieldPairs
+									.filter(
+										([, src]) => row[src] !== undefined && row[src] !== null,
+									)
+									.map(([dst, src]) => [dst, String(row[src])]),
+							)
+						: {};
+				setFormPathParams({ ...resolvedPathParams, ...rowParams });
 				setShowFormDialog(true);
 				return;
 			}
@@ -318,6 +353,9 @@ export function ListRenderer({
 			: "";
 	const emptyMessage = settings.emptyMessage ?? "No items";
 	const showTypeBadge = settings.showTypeBadge === true;
+	// Field whose value is rendered as the card's value line (defaults to
+	// "value" — override per component, e.g. "price" for plan cards).
+	const valueField = settings.valueField ?? "value";
 
 	return (
 		<Box>
@@ -370,11 +408,20 @@ export function ListRenderer({
 				<Stack spacing={1}>
 					{items.map((item) => {
 						const actions = visibleRowActions(item);
+						const cardDialogAction =
+							settings.openDialogOnCardClick === true
+								? actions.find((a) => a.action === "openDialog")
+								: undefined;
 						return (
 							<Card
 								key={String(item.id ?? "")}
 								variant="outlined"
-								className="w-full"
+								className={`w-full ${cardDialogAction ? "cursor-pointer hover:bg-gray-50" : ""}`}
+								onClick={
+									cardDialogAction
+										? () => openActionDialog(cardDialogAction, item)
+										: undefined
+								}
 							>
 								<Stack
 									direction="row"
@@ -408,9 +455,9 @@ export function ListRenderer({
 												{String(item.description)}
 											</Typography>
 										) : null}
-										{item.value !== undefined && item.value !== null ? (
+										{item[valueField] !== undefined && item[valueField] !== null ? (
 											<Typography variant="body2" className="break-all">
-												{String(item.value)}
+												{String(item[valueField])}
 											</Typography>
 										) : null}
 									</Stack>
@@ -422,7 +469,10 @@ export function ListRenderer({
 													<IconButton
 														size="small"
 														color={(action.color as any) ?? "default"}
-														onClick={() => openActionDialog(action, item)}
+														onClick={(e) => {
+															e.stopPropagation();
+															openActionDialog(action, item);
+														}}
 													>
 														{action.icon ? (
 															<TableIcon name={action.icon} size={18} />
@@ -502,7 +552,7 @@ export function ListRenderer({
 						recordId={formRecordId}
 						onSuccess={handleFormSuccess}
 						onClose={handleFormClose}
-						pathParams={resolvedPathParams}
+						pathParams={formPathParams}
 						onFormReady={(api) => {
 							const cur = formApiRef.current;
 							if (

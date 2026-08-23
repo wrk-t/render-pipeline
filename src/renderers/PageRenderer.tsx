@@ -1,11 +1,18 @@
 "use client";
 
 import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import type { ReactElement } from "react";
 import { ComponentRenderer } from "../ComponentRenderer";
 import type { RenderedComponent } from "../types";
+
+// ──────────────────────────────────────────────────────────────────
+// PageRenderer — a plain page shell.
+//
+// Renders the `body` slot children directly in displayOrder — no
+// implicit grid. Authors express layout explicitly with Grid / Stack /
+// Container nodes.
+// ──────────────────────────────────────────────────────────────────
 
 export function PageRenderer({
 	component,
@@ -16,15 +23,9 @@ export function PageRenderer({
 }): ReactElement {
 	const bodyElements = component.slotsFilled["body"] ?? [];
 
-	// Sort by grid row then col for css-grid layout
 	const sorted = [...bodyElements]
 		.filter((e) => e.isActive)
-		.sort((a, b) => {
-			const aRow = a.grid?.row ?? 0;
-			const bRow = b.grid?.row ?? 0;
-			if (aRow !== bRow) return aRow - bRow;
-			return (a.grid?.col ?? 0) - (b.grid?.col ?? 0);
-		});
+		.sort((a, b) => a.displayOrder - b.displayOrder);
 
 	return (
 		<Box className="p-4">
@@ -33,22 +34,20 @@ export function PageRenderer({
 					{component.displayName}
 				</Typography>
 			)}
-			<Stack spacing={3}>
-				{sorted.map((el) => {
-					if (el.elementType === "component_ref" && el.referencedComponent) {
-						return (
-							<Box key={el.id}>
-								<ComponentRenderer
-									component={el.referencedComponent}
-									pathParams={pathParams}
-									paramBindings={el.paramBindings}
-								/>
-							</Box>
-						);
-					}
-					return null;
-				})}
-			</Stack>
+			{sorted.map((el) => {
+				if (el.elementType === "component_ref" && el.referencedComponent) {
+					return (
+						<Box key={el.id}>
+							<ComponentRenderer
+								component={el.referencedComponent}
+								pathParams={pathParams}
+								paramBindings={el.paramBindings}
+							/>
+						</Box>
+					);
+				}
+				return null;
+			})}
 		</Box>
 	);
 }

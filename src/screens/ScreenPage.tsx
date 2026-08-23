@@ -124,7 +124,7 @@ function WidgetRenderer({
 
 	return (
 		<AutoComponent
-			componentId={widget.resourceId ?? ""}
+			componentId={widget.resourceId ?? 0}
 			pathParams={resolvedParams}
 			{...(hasId
 				? { recordId: resolvedParams.id, context: "edit" as const }

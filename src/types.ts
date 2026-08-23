@@ -8,18 +8,18 @@ import type React from "react";
 // ── Rendered metadata (mirrors the backend `include=render` contract) ──
 
 export interface RenderedElement {
-	id: string;
+	id: number;
 	slotName: string;
 	elementType: "field" | "component_ref" | "renderer";
-	fieldDefinitionId?: string | null;
-	uiComponentId?: string | null;
+	fieldDefinitionId?: number | null;
+	uiComponentId?: number | null;
 	name?: string | null;
 	type?: string | null;
 	label?: string | null;
 	overrides?: Record<string, unknown> | null;
 	referencedComponent?: RenderedComponent | null;
 	paramBindings?: Record<string, ParamBinding> | null;
-	rendererBlueprintId?: string | null;
+	rendererBlueprintId?: number | null;
 	rendererConfig?: Record<string, unknown> | null;
 	grid?: {
 		row?: number;
@@ -33,8 +33,8 @@ export interface RenderedElement {
 }
 
 export interface RenderedComponent {
-	id: string;
-	blueprintId: string;
+	id: number;
+	blueprintId: number;
 	blueprintName: string;
 	name: string;
 	displayName: string;
@@ -116,7 +116,7 @@ export type RendererComponent = React.ComponentType<RendererProps>;
 // ── Pipeline entry props ────────────────────────────────────────
 
 export interface AutoComponentProps {
-	componentId: string;
+	componentId: number;
 	onSuccess?: (res: any) => void;
 	onError?: (err: unknown) => void;
 	context?: string;

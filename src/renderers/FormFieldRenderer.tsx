@@ -125,6 +125,11 @@ function FormFieldRendererInner({
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const field = adaptField(element) as any as RenderField;
 
+	// Hidden fields carry values into the submit payload (prefilled via
+	// pathParams/defaults) but render nothing — e.g. the plan's
+	// packageVersionId on the subscription create form.
+	if ((field.fieldOverrides as any)?.hidden === true) return null;
+
 	const conditions = useMemo(
 		() => evaluateFieldConditions(field, values),
 		[field, values],

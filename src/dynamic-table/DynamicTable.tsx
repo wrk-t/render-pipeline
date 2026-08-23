@@ -33,6 +33,7 @@ import { type ReactElement, useCallback, useMemo, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { useCan } from "../ability";
 import { checkComponentPermission } from "../ability/checkComponentPermission";
+import { checkTier, resolveTier } from "../ability/checkTier";
 import { getApiClient, useRenderUser } from "../deps";
 import type { TableAction, TableMetadata, TableRowCondition } from "../dynamic-form/types";
 import { useFeatures } from "../hooks/useFeatures";
@@ -53,7 +54,7 @@ import { TableIcon } from "./TableIcon";
 
 export interface DynamicTableColumn {
 	/** Column instance id from the backend. */
-	id: string;
+	id: number;
 	/** The field name in the response data (maps to MRT accessorKey). */
 	name: string;
 	/** Display overrides (e.g. displayName → column header). */
@@ -503,6 +504,7 @@ export function DynamicTable({
 	const { data: user } = useRenderUser();
 	const userPermissions: Array<{ resource: string; scope?: string }> =
 		(user as any)?.permissions?.data ?? [];
+	const workspaceTier = resolveTier(user as any);
 
 	const checkPermission = useCallback(
 		(p: string) => {
@@ -533,9 +535,15 @@ export function DynamicTable({
 						checkComponentPermission(
 							userPermissions,
 							(a as any).visibleToPermissions,
-						)),
+						)) &&
+					checkTier((a as any).requiredTier, workspaceTier),
 			),
-		[tableMetadata.toolbarActions ?? [], checkPermission, userPermissions],
+		[
+			tableMetadata.toolbarActions ?? [],
+			checkPermission,
+			userPermissions,
+			workspaceTier,
+		],
 	);
 
 	const internalActions: TableAction[] = useMemo(
@@ -550,9 +558,15 @@ export function DynamicTable({
 						checkComponentPermission(
 							userPermissions,
 							(a as any).visibleToPermissions,
-						)),
+						)) &&
+					checkTier((a as any).requiredTier, workspaceTier),
 			),
-		[tableMetadata.toolbarActions, checkPermission, userPermissions],
+		[
+			tableMetadata.toolbarActions,
+			checkPermission,
+			userPermissions,
+			workspaceTier,
+		],
 	);
 
 	// ── In-memory dialog state (reported upward via onDialogChange) ──
@@ -671,7 +685,7 @@ export function DynamicTable({
 				setDialogState(
 					action.dialog.context ?? "edit",
 					row ? String(row.id ?? "") : "",
-					action.dialog.formId,
+					action.dialog.componentId ?? action.dialog.formId ?? "",
 					JSON.stringify(extraObj),
 				);
 				return;
@@ -888,6 +902,10 @@ export function DynamicTable({
 						action.requiresFeature &&
 						!features[action.requiresFeature]
 					) {
+						return false;
+					}
+					// Tier gating (e.g. team-only actions)
+					if (!checkTier((action as any).requiredTier, workspaceTier)) {
 						return false;
 					}
 					// Permission check
@@ -1194,6 +1212,41 @@ export function DynamicTable({
 				// Skip navigation if a dialog was just closed (avoid stray clicks)
 				if (document.querySelector(".MuiDialog-root")) return;
 
+				// New action-discriminant format: navigate / apiCall / openDialog
+				if (onClick.action === "navigate" && onClick.path) {
+					const normalized = onClick.path.replace(/^~\//, "/");
+					push(resolveRowPlaceholders(normalized, row.original));
+					return;
+				}
+				if (onClick.action === "apiCall" && onClick.endpoint) {
+					const baseUrl = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
+					const endpoint = resolveRowPlaceholders(
+						onClick.endpoint,
+						row.original,
+					);
+					getApiClient().request({
+						url: `${baseUrl}${endpoint}`,
+						method: onClick.method ?? "GET",
+						data: row.original,
+					});
+					return;
+				}
+				if (onClick.action === "openDialog" && onClick.dialog) {
+					const extraObj = {
+						_actionId: "onRowClick",
+						...resolvedPathParams,
+						id: String(row.original.id ?? ""),
+					};
+					setDialogState(
+						onClick.dialog.context ?? "edit",
+						String(row.original.id ?? ""),
+						String(onClick.dialog.componentId ?? ""),
+						JSON.stringify(extraObj),
+					);
+					return;
+				}
+
+				// Legacy redirect/endpoint format
 				if (onClick.redirect) {
 					let redirect = onClick.redirect;
 					// Feature-gated navigation: when the flag is OFF and the row
