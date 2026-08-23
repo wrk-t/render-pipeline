@@ -13,6 +13,7 @@ export interface VersionInfo {
 	version: string;
 	stage: "draft" | "published" | "deprecated";
 	releaseDate?: string | null;
+	sunsetDate?: string | null;
 }
 
 interface VersionContextValue {

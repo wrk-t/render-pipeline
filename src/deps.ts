@@ -18,7 +18,11 @@ import type { AxiosInstance } from "axios";
 
 export interface RenderUser {
 	id?: string;
-	tenant?: { id?: string } | null;
+	tenant?: {
+		id?: string;
+		/** Workspace tier (solo/team/enterprise) — drives tier-gated UI. */
+		tier?: "solo" | "team" | "enterprise";
+	} | null;
 	role?: string;
 	roleName?: string;
 	features?: string[];

@@ -51,7 +51,6 @@ export function FormDateField({ field }: { field: DateField }): ReactElement {
 						textField: {
 							required: field.isRequired,
 							fullWidth: true,
-							size: "small",
 							// X v9 dropped `placeholder` from the textField slot —
 							// keep it for older majors.
 							placeholder: field.uiOverrides.behavior?.placeholder,

@@ -1,7 +1,6 @@
 "use client";
 
 import Box from "@mui/material/Box";
-import Grid from "@mui/material/Grid";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { type ReactElement, useMemo } from "react";
@@ -11,36 +10,15 @@ import type { RenderedComponent, RenderedElement } from "../types";
 import { useDateRange } from "./DateRangeContext";
 import { useVersion, VersionProvider } from "./VersionContext";
 
-// Blueprint names that render their own background/padding and should
-// not be wrapped in a white card.
-const FULL_BLEED_BLUEPRINTS = new Set(["date-range-picker"]);
-
-// Card wrapper for body children
-function BodyCard({
-	children,
-	fullBleed,
-}: {
-	children: ReactElement;
-	fullBleed?: boolean;
-}) {
-	if (fullBleed) {
-		return children;
-	}
-	return (
-		<Box
-			sx={(theme) => {
-				return {
-					background: theme.palette.common.white,
-					p: 2.5,
-					borderRadius: 2,
-					height: "100%",
-				};
-			}}
-		>
-			{children}
-		</Box>
-	);
-}
+// ──────────────────────────────────────────────────────────────────
+// ScreenLayoutRenderer — the screen shell.
+//
+// Renders the `header` slot (or the component's own title/description)
+// and the `body` slot. Body children render directly in displayOrder —
+// there is NO implicit grid or card wrapper anymore: authors express
+// layout explicitly with Grid / Stack / Container nodes, so what you
+// author is what renders (drag-and-drop builder friendly).
+// ──────────────────────────────────────────────────────────────────
 
 export function ScreenLayoutRenderer({
 	component,
@@ -67,7 +45,6 @@ export function ScreenLayoutRenderer({
 	};
 	const headerElements = component.slotsFilled["header"] ?? [];
 	const bodyElements = component.slotsFilled["body"] ?? [];
-	const layout = (component.config as any)?.layout ?? "stacked";
 
 	// Feature-gated elements: hidden when their component requires a
 	// feature flag that is OFF for the current user context.
@@ -79,16 +56,10 @@ export function ScreenLayoutRenderer({
 		return features[required] === true;
 	};
 
-	// Sort body elements: explicit rows first, then by displayOrder
 	const sortedBody = [...bodyElements]
 		.filter((e) => e.isActive)
 		.filter(isFeatureVisible)
-		.sort((a, b) => {
-			const aRow = a.grid?.row ?? Number.POSITIVE_INFINITY;
-			const bRow = b.grid?.row ?? Number.POSITIVE_INFINITY;
-			if (aRow !== bRow) return aRow - bRow;
-			return (a.displayOrder ?? 0) - (b.displayOrder ?? 0);
-		});
+		.sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
 
 	const activeHeaderEls = headerElements
 		.filter((e) => e.isActive)
@@ -129,62 +100,20 @@ export function ScreenLayoutRenderer({
 				)}
 			</Stack>
 
-			{/* ── Body area ────────────────────────────────────── */}
-			{layout === "sidebar" ? (
-				<Stack direction="row" spacing={3}>
-					<Box className="flex-1">
-						<Stack spacing={3}>
-							{sortedBody.map((el) => {
-								if (
-									el.elementType === "component_ref" &&
-									el.referencedComponent
-								) {
-									return (
-										<BodyCard
-											key={el.id}
-											fullBleed={FULL_BLEED_BLUEPRINTS.has(
-												el.referencedComponent.blueprintName,
-											)}
-										>
-											<ComponentRenderer
-												component={el.referencedComponent}
-												pathParams={extendedPathParams}
-												paramBindings={el.paramBindings}
-											/>
-										</BodyCard>
-									);
-								}
-								return null;
-							})}
-						</Stack>
-					</Box>
-				</Stack>
-			) : (
-				<Grid container spacing={2}>
-					{sortedBody.map((el) => {
-						if (el.elementType === "component_ref" && el.referencedComponent) {
-							const colSpan = el.grid?.colSpan ?? 12;
-							const row = el.grid?.row;
-							return (
-								<Grid key={el.id} size={{ xs: 12, sm: colSpan }}>
-									<BodyCard
-										fullBleed={FULL_BLEED_BLUEPRINTS.has(
-											el.referencedComponent.blueprintName,
-										)}
-									>
-										<ComponentRenderer
-											component={el.referencedComponent}
-											pathParams={extendedPathParams}
-											paramBindings={el.paramBindings}
-										/>
-									</BodyCard>
-								</Grid>
-							);
-						}
-						return null;
-					})}
-				</Grid>
-			)}
+			{/* ── Body area — explicit layout (Grid/Stack/Container) ── */}
+			{sortedBody.map((el) => {
+				if (el.elementType === "component_ref" && el.referencedComponent) {
+					return (
+						<ComponentRenderer
+							key={el.id}
+							component={el.referencedComponent}
+							pathParams={extendedPathParams}
+							paramBindings={el.paramBindings}
+						/>
+					);
+				}
+				return null;
+			})}
 		</Box>
 	);
 }

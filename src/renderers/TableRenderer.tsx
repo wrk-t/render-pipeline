@@ -11,12 +11,17 @@ import {
 } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { checkComponentPermission } from "../ability/checkComponentPermission";
+import { checkTier, resolveTier } from "../ability/checkTier";
 import { AutoComponent } from "../ComponentRenderer";
 import { BaseDialog } from "../components/dialog/BaseDialog";
 import { QrPreviewDialog } from "../components/qr/QrPreviewDialog";
 import { QrStyleDialog } from "../components/qr/QrStyleDialog";
 import { getApiClient, useRenderUser } from "../deps";
-import type { TableAction } from "../dynamic-form/types";
+import type {
+	TableAction,
+	TableActionConditions,
+	TableActionConfirm,
+} from "../dynamic-form/types";
 import type { DynamicTableColumn } from "../dynamic-table";
 import { DynamicTable } from "../dynamic-table";
 import { useSnack } from "../hooks/useSnack";
@@ -26,6 +31,83 @@ import type { RenderedComponent } from "../types";
 // State-context + table IDs for the link-operations dialog
 const LINK_OPS_STATE_CTX_ID = "evjeix5v91ytlcmj5tz9ak4t";
 const LINK_OPS_TABLE_ID = "ut1zfkikcc4ce0j9gnampl3t";
+
+/**
+ * Map a toolbar/row-action Button component (from the table's
+ * `toolbar` / `row-actions` slots) to the TableAction shape
+ * DynamicTable + handleDialogChange consume.
+ */
+function actionFromComponent(ref: RenderedComponent): TableAction {
+	const cfg = (ref.config ?? {}) as {
+		label?: string;
+		action?: string;
+		icon?: string;
+		color?: string;
+		endpoint?: string;
+		method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+		path?: string;
+		dialog?: { componentId?: number; context?: "create" | "edit" | "view" };
+		confirm?: TableActionConfirm;
+		condition?: TableActionConditions;
+		successRedirect?: string;
+		visibleToPermissions?: Array<{
+			resource: string;
+			action: string;
+			scope?: "own" | "tenant" | "all";
+		}>;
+	};
+	const base = {
+		id: String(ref.id),
+		label: cfg.label ?? ref.displayName,
+		icon: cfg.icon,
+		color: cfg.color,
+		...(cfg.condition ? { condition: cfg.condition } : {}),
+		...(cfg.confirm ? { confirm: cfg.confirm } : {}),
+		...(cfg.visibleToPermissions?.length
+			? { visibleToPermissions: cfg.visibleToPermissions }
+			: {}),
+	};
+	switch (cfg.action) {
+		case "openDialog":
+			return {
+				...base,
+				action: "openDialog",
+				dialog: {
+					componentId: String(cfg.dialog?.componentId ?? ""),
+					context: cfg.dialog?.context ?? "edit",
+				},
+			};
+		case "navigate":
+			return { ...base, action: "navigate", path: cfg.path ?? "/" };
+		case "apiCall":
+			return {
+				...base,
+				action: "apiCall",
+				endpoint: cfg.endpoint ?? "",
+				method: cfg.method ?? "PATCH",
+				...(cfg.successRedirect
+					? { successRedirect: cfg.successRedirect, onSuccess: "navigate" }
+					: { onSuccess: "refreshTable" }),
+			};
+		default:
+			return { ...base, action: "custom", customAction: cfg.action ?? "custom" };
+	}
+}
+
+function slotActions(
+	component: RenderedComponent,
+	slot: string,
+): TableAction[] {
+	return (component.slotsFilled[slot] ?? [])
+		.filter(
+			(el) =>
+				el.isActive &&
+				el.elementType === "component_ref" &&
+				el.referencedComponent,
+		)
+		.sort((a, b) => a.displayOrder - b.displayOrder)
+		.map((el) => actionFromComponent(el.referencedComponent!));
+}
 
 export function TableRenderer({
 	component,
@@ -76,7 +158,7 @@ export function TableRenderer({
 
 	// ── Create / Edit form dialog state ──
 	const [showFormDialog, setShowFormDialog] = useState(false);
-	const [formComponentId, setFormComponentId] = useState("");
+	const [formComponentId, setFormComponentId] = useState<number | null>(null);
 	const [formContext, setFormContext] = useState<"create" | "edit">("create");
 	const [formRecordId, setFormRecordId] = useState<string | undefined>(
 		undefined,
@@ -93,7 +175,7 @@ export function TableRenderer({
 
 	const handleFormClose = useCallback(() => {
 		setShowFormDialog(false);
-		setFormComponentId("");
+		setFormComponentId(null);
 		setFormContext("create");
 		setFormRecordId(undefined);
 		setFormDialogTitle("");
@@ -158,7 +240,7 @@ export function TableRenderer({
 		try {
 			const baseUrl = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
 			const endpoint = resolveUrlTemplate(
-				"/api/v1/packages/{id}/operations",
+				"/api/v1/packages/{packageId}/versions/{versionId}/operations",
 				pathParams,
 			);
 			await getApiClient().request({
@@ -178,6 +260,7 @@ export function TableRenderer({
 	const { data: user } = useRenderUser();
 	const userPermissions: Array<{ resource: string; scope?: string }> =
 		(user as any)?.permissions?.data ?? [];
+	const workspaceTier = resolveTier(user as any);
 	// Current workspace tenant — resolves {tenantId} templates on tenant
 	// screens whose route doesn't carry the tenant (e.g. settings).
 	const currentTenantId = (user as any)?.tenant?.id as string | undefined;
@@ -191,13 +274,16 @@ export function TableRenderer({
 				.filter((c) => c.isActive)
 				.filter((c) => {
 					const visPerms = (c.overrides as any)?.visibleToPermissions;
-					if (!visPerms || visPerms.length === 0) return true;
-					return checkComponentPermission(userPermissions, visPerms);
+					if (visPerms?.length) {
+						if (!checkComponentPermission(userPermissions, visPerms))
+							return false;
+					}
+					return checkTier((c.overrides as any)?.requiredTier, workspaceTier);
 				})
 				.sort((a, b) => a.displayOrder - b.displayOrder)
 				.map((c) => ({
 					id: c.id,
-					name: c.name ?? c.fieldDefinitionId ?? "",
+					name: c.name ?? String(c.fieldDefinitionId ?? ""),
 					fieldOverrides: {
 						name: (c.overrides as any)?.name ?? undefined,
 						displayName:
@@ -207,7 +293,7 @@ export function TableRenderer({
 					isActive: c.isActive,
 					displayOrder: c.displayOrder,
 				})),
-		[columnEls, userPermissions],
+		[columnEls, userPermissions, workspaceTier],
 	);
 
 	const tableMetadata = useMemo(
@@ -216,6 +302,10 @@ export function TableRenderer({
 			name: component.name,
 			title: component.displayName,
 			description: component.description,
+			// Toolbar / row actions live in the slots as Button components —
+			// map them to the TableAction shape DynamicTable consumes.
+			toolbarActions: slotActions(component, "toolbar"),
+			rowActions: slotActions(component, "row-actions"),
 		}),
 		[component],
 	);
@@ -630,6 +720,7 @@ function InnerTableWrapper({
 	const { data: user } = useRenderUser();
 	const userPermissions: Array<{ resource: string; scope?: string }> =
 		(user as any)?.permissions?.data ?? [];
+	const workspaceTier = resolveTier(user as any);
 
 	const columns: DynamicTableColumn[] = useMemo(
 		() =>
@@ -637,13 +728,16 @@ function InnerTableWrapper({
 				.filter((c) => c.isActive)
 				.filter((c) => {
 					const visPerms = (c.overrides as any)?.visibleToPermissions;
-					if (!visPerms || visPerms.length === 0) return true;
-					return checkComponentPermission(userPermissions, visPerms);
+					if (visPerms?.length) {
+						if (!checkComponentPermission(userPermissions, visPerms))
+							return false;
+					}
+					return checkTier((c.overrides as any)?.requiredTier, workspaceTier);
 				})
 				.sort((a, b) => a.displayOrder - b.displayOrder)
 				.map((c) => ({
 					id: c.id,
-					name: c.name ?? c.fieldDefinitionId ?? "",
+					name: c.name ?? String(c.fieldDefinitionId ?? ""),
 					fieldOverrides: {
 						name: (c.overrides as any)?.name ?? undefined,
 						displayName:
@@ -653,7 +747,7 @@ function InnerTableWrapper({
 					isActive: c.isActive,
 					displayOrder: c.displayOrder,
 				})),
-		[component, userPermissions],
+		[component, userPermissions, workspaceTier],
 	);
 
 	const tableMetadata = useMemo(

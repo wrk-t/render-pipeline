@@ -15,13 +15,16 @@ async function fetchComponent(url: string): Promise<RenderedComponent | null> {
 	return body?.data?.component ?? body?.component ?? null;
 }
 
-export function useComponentRender(componentId: string | null): {
+export function useComponentRender(componentId: number | null): {
 	data: RenderedComponent | null | undefined;
 	isLoading: boolean;
 	error: unknown;
 } {
+	// revalidateOnMount: re-seeded metadata (seed.ts upserts) is refetched
+	// whenever a component mounts — no stale tree after a db:seed run.
 	return useSWR<RenderedComponent | null>(
 		componentId ? `/api/v1/components/${componentId}?include=render` : null,
 		fetchComponent,
+		{ revalidateOnMount: true },
 	);
 }

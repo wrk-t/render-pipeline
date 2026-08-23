@@ -45,8 +45,8 @@ registerRenderer("swagger-editor", ({ pathParams }) => <MyEditor pathParams={pat
 ```tsx
 import { AutoComponent } from "@wrk-t/render-pipeline";
 
-// Fetches + renders any component by its metadata CUID
-<AutoComponent componentId="ux31jioy55b05kf0vq99bvvw" />
+// Fetches + renders any component by its static metadata id
+<AutoComponent componentId={1} />
 ```
 
 ## Development

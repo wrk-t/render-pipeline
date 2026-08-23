@@ -16,3 +16,10 @@ export {
 	type PermissionRequirement,
 	type UserPermission,
 } from "./checkComponentPermission";
+
+export {
+	checkTier,
+	resolveTier,
+	TIER_ORDER,
+	type WorkspaceTier,
+} from "./checkTier";

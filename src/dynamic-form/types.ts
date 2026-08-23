@@ -96,6 +96,16 @@ export interface SelectOption {
 	label: string;
 	value: unknown;
 	disabled?: boolean;
+	/**
+	 * When set, the option is only offered to users whose permissions
+	 * satisfy every requirement (e.g. hide the scope "all" option from
+	 * tenant admins: [{ resource: "rolePermissions", action: "create", scope: "all" }]).
+	 */
+	visibleToPermissions?: Array<{
+		resource: string;
+		action?: string;
+		scope?: "own" | "tenant" | "all";
+	}>;
 }
 
 // ── 6. FIELD TYPE ENUM ──
@@ -121,8 +131,7 @@ export type FieldType =
 	| "reference"
 	| "autocomplete"
 	| "color"
-	| "variants"
-	| "icon";
+	| "settingValue";
 
 // ── 7. DATASOURCE TYPES ──
 
@@ -774,6 +783,21 @@ export interface IconField extends FieldBase {
 
 // ── The full discriminated union ──
 
+export interface SettingValueField extends FieldBase {
+	type: "settingValue";
+	fieldOverrides?: FieldOverrides | null;
+	uiOverrides: {
+		layout?: FieldLayout;
+		behavior?: {
+			placeholder?: string;
+			defaultValue?: string;
+			maxLength?: number;
+			minLength?: number;
+			pattern?: string;
+		};
+	};
+}
+
 export type RenderField =
 	| TextField
 	| ColorField
@@ -795,8 +819,8 @@ export type RenderField =
 	| JsonField
 	| ReferenceField
 	| AutocompleteField
-	| VariantField
-	| IconField;
+	| SettingValueField;
+
 // ── 16. RENDER RESPONSE SHAPES ──
 
 export interface FormRenderSettings extends FormSettings {
@@ -933,6 +957,15 @@ export interface TableActionCondition {
 	value?: unknown;
 }
 
+/**
+ * A single condition or a list of conditions (all must pass).
+ * Lists let an action target specific rows on two dimensions at once,
+ * e.g. tenant-owned rows that aren't soft-deleted:
+ *   [{ field: "tenantId", operator: "notEmpty" },
+ *    { field: "deletedAt", operator: "isEmpty" }]
+ */
+export type TableActionConditions = TableActionCondition | TableActionCondition[];
+
 export interface TableActionConfirm {
 	title: string;
 	message: string;
@@ -948,17 +981,52 @@ interface TableActionBase {
 	iconOff?: string;
 	color?: string;
 	type?: "button" | "dropdown" | "link";
-	condition?: TableActionCondition;
+	condition?: TableActionConditions;
 	confirm?: TableActionConfirm;
 	placement?: "top-toolbar" | "toolbar-actions";
 	permissions?: string[];
 	roles?: string[];
+	/** When set, the action is hidden unless this feature flag is enabled. */
+	requiresFeature?: string;
+	/**
+	 * Tier-based visibility — the action is hidden unless the current
+	 * workspace tier satisfies the requirement (solo < team < enterprise).
+	 * Mirrors the backend TierGuard (e.g. invite members requires "team").
+	 */
+	requiredTier?: "solo" | "team" | "enterprise";
+	/**
+	 * Permission-based visibility (scope-aware) — e.g. super-admin-only
+	 * actions use `[{ resource: "tenants", action: "read", scope: "all" }]`.
+	 * Unlike `permissions` (plain ability check), this respects scopes.
+	 */
+	visibleToPermissions?: Array<{
+		resource: string;
+		action: string;
+		scope?: "own" | "tenant" | "all";
+	}>;
 }
 
 /** New format: open a dialog (form) from a table row or toolbar. */
 interface TableActionOpenDialog extends TableActionBase {
 	action: "openDialog";
-	dialog: { formId: string; context?: "create" | "edit" | "view" };
+	dialog: {
+		/** Form component id — preferred; falls back to legacy formId. */
+		componentId?: string;
+		/** Legacy form id (still supported during migration). */
+		formId?: string;
+		context?: "create" | "edit" | "view";
+		/** Optional dialog title ($trl_ key or literal). Overrides the derived one. */
+		title?: string;
+		/**
+		 * Row fields copied into the form's pathParams when opening in
+		 * "create" context (e.g. the clicked plan's id as planId).
+		 * Prefilled fields are matched by form field name.
+		 *
+		 * - `string[]` — copy each row field under its own name
+		 * - `Record<formField, rowField>` — rename: `{ planId: "id" }`
+		 */
+		rowFields?: string[] | Record<string, string>;
+	};
 }
 
 /** New format: navigate to a path (supports {placeholder} resolution). */
@@ -972,7 +1040,9 @@ interface TableActionApiCall extends TableActionBase {
 	action: "apiCall";
 	endpoint: string;
 	method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-	onSuccess?: "refreshTable" | "closeDialog" | "navigate";
+	/** Static request body — overrides the default (whole row) payload. */
+	body?: Record<string, unknown>;
+	onSuccess?: "refreshTable" | "refreshAll" | "closeDialog" | "navigate";
 	successRedirect?: string;
 	onError?: "showSnackbar";
 }
@@ -1009,6 +1079,19 @@ export type TableAction =
 	| TableActionLinkSelected
 	| TableActionLegacy;
 
+export interface TableRowCondition {
+	/** Row data field to test. */
+	field: string;
+	/** Comparison operator (default: "equals"). */
+	operator?: "equals" | "notEquals" | "notEmpty" | "isEmpty";
+	/** Value compared against for equals/notEquals. */
+	value?: unknown;
+	/** Optional Tailwind class applied to matching rows. */
+	className?: string;
+	/** Optional raw background color applied to matching rows. */
+	backgroundColor?: string;
+}
+
 export interface TableSettings {
 	density: TableDensity;
 	striped: boolean;
@@ -1021,6 +1104,8 @@ export interface TableSettings {
 	searchable: boolean;
 	searchableFields?: string[];
 	columnToggle: boolean;
+	/** Conditional row styling (e.g. red background for failed entries). */
+	rowConditions?: TableRowCondition[];
 }
 
 export interface TableEmptyState {
@@ -1029,10 +1114,28 @@ export interface TableEmptyState {
 	action?: string;
 }
 
+/**
+ * What happens when a table row is clicked.
+ *
+ * New action-discriminant format (authored via the metadata DSL) plus the
+ * legacy redirect/endpoint format — dispatch is presence-based.
+ */
 export interface ITableOnRowClick {
-	redirect?: string;
+	/** New format: openDialog / apiCall / navigate. */
+	action?: "openDialog" | "apiCall" | "navigate";
+	/** openDialog: the dialog form component. */
+	dialog?: {
+		componentId?: number | string;
+		context?: "create" | "edit" | "view";
+	};
+	/** apiCall: the request. */
 	endpoint?: string;
-	method?: "POST" | "PUT" | "PATCH" | "DELETE";
+	method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+	/** navigate: the target path (supports {id} substitution). */
+	path?: string;
+	confirm?: { title?: string; message?: string };
+	/** Legacy format: redirect/endpoint. */
+	redirect?: string;
 	permissions?: string[];
 	/** When this feature flag is OFF, use fallbackRedirect instead of redirect. */
 	fallbackFeature?: string;

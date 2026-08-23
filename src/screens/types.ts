@@ -6,7 +6,7 @@
 import type { ParamBinding } from "../types";
 
 export interface Widget {
-	id: string;
+	id: number;
 	widgetType:
 		| "table"
 		| "form"
@@ -17,7 +17,7 @@ export interface Widget {
 		| "swagger"
 		| "test"
 		| "page";
-	resourceId: string | null;
+	resourceId: number | null;
 	displayOrder: number;
 	widgetOverrides: { title?: string; sizeHint?: string } | null;
 	config: Record<string, unknown> | null;
@@ -26,17 +26,18 @@ export interface Widget {
 }
 
 export interface Screen {
-	id: string;
+	id: number;
 	name: string;
 	description: string;
 	displayName: string;
 	pathPattern: string | null;
-	parentScreenId: string | null;
+	parentScreenId: number | null;
 	visibleToPermissions?: Array<{
 		resource: string;
 		action: string;
 		scope?: "own" | "tenant" | "all";
 	}> | null;
+	meta?: Record<string, unknown> | null;
 }
 
 export interface ResolvedScreen {

@@ -24,6 +24,7 @@ import {
 	FormPasswordField,
 	FormReferenceField,
 	FormSelectField,
+	FormSettingValueField,
 	FormSwitchField,
 	FormTextareaField,
 	FormTextField,
@@ -38,14 +39,24 @@ import { UI_COMPONENTS_SEED } from "../ui-components";
 // UI Type Map
 // ─────────────────────────────────────────────────────────────
 
-/**
- * Maps UI component CUIDs to their DynamicField type name.
- * Derived from the canonical UI_COMPONENTS_SEED so the frontend
- * mapping can never drift from the seeded definitions.
- */
-export const UI_TYPE_MAP: Record<string, string> = Object.fromEntries(
-	UI_COMPONENTS_SEED.map((c) => [c.id, c.componentType]),
-);
+/** Maps UI component CUIDs to their DynamicField type name */
+export const UI_TYPE_MAP: Record<string, string> = {
+	ehyogseqi0finqr3nxvrloz9: "text",
+	ntei44cohh13u9ucn39vcyk6: "textarea",
+	yre76a811cgd0gah7slikx7n: "number",
+	ljim0jdtwehy2u4bmizcl5l1: "email",
+	tocuq2ddmh63873sozdtsxzv: "password",
+	ulrl8i5mvw8xdtx1mvy8nweh: "select",
+	n1a36mr1qezahbe933cvyfob: "multiselect",
+	xeygn35o9r4wwqffgkfnrk7v: "radio",
+	ug6fakpjm1i4lmuovsnt0avo: "checkbox",
+	doz363xcy9jvlqsfrhznhtzq: "switch",
+	abwwrks7rd9qlpoed3p60x5e: "settingValue",
+	e18e47v29py88decf28m2b8v: "autocomplete",
+	drjllunrc3zl0bt1dztjcmp6: "reference",
+	s07ljezsn03enysedxu5g9r7: "richtext",
+	iohrvkm1dpkg2yg5d6wuv7z8: "json",
+};
 
 // ─────────────────────────────────────────────────────────────
 // Field Adapter
@@ -119,6 +130,11 @@ function FormFieldRendererInner({
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const field = adaptField(element) as any as RenderField;
 
+	// Hidden fields carry values into the submit payload (prefilled via
+	// pathParams/defaults) but render nothing — e.g. the plan's
+	// packageVersionId on the subscription create form.
+	if ((field.fieldOverrides as any)?.hidden === true) return null;
+
 	const conditions = useMemo(
 		() => evaluateFieldConditions(field, values),
 		[field, values],
@@ -175,6 +191,17 @@ function FormFieldRendererInner({
 				))
 				.with({ type: "switch" }, (f) => (
 					<FormSwitchField
+						field={
+							{
+								...f,
+								isRequired: conditions.isRequired,
+								isReadOnly: conditions.isDisabled,
+							} as any
+						}
+					/>
+				))
+				.with({ type: "settingValue" }, (f) => (
+					<FormSettingValueField
 						field={
 							{
 								...f,

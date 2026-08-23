@@ -63,21 +63,24 @@ export function LineChartCell({ cell }: any): ReactElement {
 	const { range } = useDateRange();
 
 	const rowData = cell?.row?.original ?? {};
-	const packageId = rowData.id ?? rowData.packageId ?? "";
+	// Query params are version-scoped: prefer the row's current version
+	// (e.g. packages list rows carry `versions[0]`), fall back to the row id
+	// for rows that ARE versions (e.g. the package versions table).
+	const versionId = rowData.versions?.[0]?.id ?? rowData.id ?? rowData.packageId ?? "";
 	const columnDef = cell?.column?.columnDef ?? {};
 	const fmt = (columnDef as any).columnFormat ?? {};
 	const cellHeight = fmt.height ?? 48;
 	const cellWidth = fmt.width ?? 160;
 	const queryId = fmt.queryId as string | undefined;
 
-	if (!(queryId && packageId)) {
+	if (!(queryId && versionId)) {
 		return <Box sx={{ minHeight: cellHeight }}>—</Box>;
 	}
 
 	const params: Record<string, string> = {
 		from: String(range.from),
 		to: String(range.to),
-		packageId,
+		versionId,
 	};
 
 	const handleClick = (e: React.MouseEvent) => {
