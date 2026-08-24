@@ -170,49 +170,68 @@ export function FormRenderer({
   		return fields;
   	}, [component, context, userPermissions]);
 
-  	// Actions live in the "actions" slot as Button/Link components — map
-    	// them back to the FormAction shape the footer + handleSubmit consume.
-    	const actions = useMemo<FormAction[]>(() => {
-    		const out: FormAction[] = [];
-    		for (const el of component.slotsFilled["actions"] ?? []) {
-    			const ref =
-    				el.elementType === "component_ref" ? el.referencedComponent : null;
-    			if (!ref) continue;
-    			const cfg = (ref.config ?? {}) as {
-    				label?: string;
-    				action?: string;
-    				path?: string;
-    				endpoint?: string;
-    				method?: "POST" | "PUT" | "PATCH";
-    				context?: "create" | "edit";
-    				successMessage?: string;
-    				successRedirect?: string;
-    				stateContext?: string;
-    				fieldMap?: Record<string, string>;
-    			};
-    			const label = cfg.label ?? ref.displayName;
-    			if (ref.blueprintName === "link") {
-    				out.push({ action: "link", label, path: cfg.path ?? "/" });
-    			} else if (ref.blueprintName === "button") {
-    				if (cfg.action === "submit") {
-    					out.push({
-    						action: "apiCall",
-    						label,
-    						endpoint: cfg.endpoint ?? "",
-    						method: cfg.method ?? "POST",
-    						context: cfg.context,
-    						successMessage: cfg.successMessage,
-    						successRedirect: cfg.successRedirect,
-    						...(cfg.stateContext ? { stateContext: cfg.stateContext } : {}),
-    						...(cfg.fieldMap ? { fieldMap: cfg.fieldMap } : {}),
-    					} as any);
-    				} else if (cfg.action === "close") {
-    					out.push({ action: "cancel", label });
-    				}
-    			}
-    		}
-    		return out;
-    	}, [component.slotsFilled]);
+	  // Submission config lives on the FORM (config.submit) — the submit
+	  // button is just a Button with action: "submit". Legacy seeds that
+	  // carried it on the button still work via the cfg.* fallbacks.
+	  const submitCfg = (component.config as any)?.submit as
+	    | {
+	        endpoint?: string;
+	        method?: string;
+	        context?: "create" | "edit";
+	        successMessage?: string;
+	        successRedirect?: string;
+	        stateContext?: string;
+	        fieldMap?: Record<string, string>;
+	      }
+	    | undefined;
+
+	  // Actions live in the "actions" slot as Button/Link components — map
+	    // them back to the FormAction shape the footer + handleSubmit consume.
+	    const actions = useMemo<FormAction[]>(() => {
+	    	const out: FormAction[] = [];
+	    	for (const el of component.slotsFilled["actions"] ?? []) {
+	    		const ref =
+	    			el.elementType === "component_ref" ? el.referencedComponent : null;
+	    		if (!ref) continue;
+	    		const cfg = (ref.config ?? {}) as {
+	    			label?: string;
+	    			action?: string;
+	    			path?: string;
+	    			endpoint?: string;
+	    			method?: "POST" | "PUT" | "PATCH";
+	    			context?: "create" | "edit";
+	    			successMessage?: string;
+	    			successRedirect?: string;
+	    			stateContext?: string;
+	    			fieldMap?: Record<string, string>;
+	    		};
+	    		const label = cfg.label ?? ref.displayName;
+	    		if (ref.blueprintName === "link") {
+	    			out.push({ action: "link", label, path: cfg.path ?? "/" });
+	    		} else if (ref.blueprintName === "button") {
+	    			if (cfg.action === "submit") {
+	    				out.push({
+	    					action: "apiCall",
+	    					label,
+	    					endpoint: submitCfg?.endpoint ?? cfg.endpoint ?? "",
+	    					method: (submitCfg?.method ?? cfg.method ?? "POST") as any,
+	    					context: submitCfg?.context ?? cfg.context,
+	    					successMessage: submitCfg?.successMessage ?? cfg.successMessage,
+	    					successRedirect: submitCfg?.successRedirect ?? cfg.successRedirect,
+	    					...(submitCfg?.stateContext || cfg.stateContext
+	    						? { stateContext: submitCfg?.stateContext ?? cfg.stateContext }
+	    						: {}),
+	    					...(submitCfg?.fieldMap || cfg.fieldMap
+	    						? { fieldMap: submitCfg?.fieldMap ?? cfg.fieldMap }
+	    						: {}),
+	    				} as any);
+	    			} else if (cfg.action === "close") {
+	    				out.push({ action: "cancel", label });
+	    			}
+	    		}
+	    	}
+	    	return out;
+	    }, [component.slotsFilled, submitCfg]);
 
   // ── Fetch record data for edit mode ──
   const editEndpoint = useMemo(() => {

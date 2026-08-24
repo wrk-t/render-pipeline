@@ -1,4 +1,5 @@
 export { FormAutocompleteField } from "./FormAutocompleteField";
+export { FormCheckboxField } from "./FormCheckboxField";
 export { FormColorField } from "./FormColorField";
 export { FormDateField } from "./FormDateField";
 export { FormEmailField } from "./FormEmailField";

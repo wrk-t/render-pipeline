@@ -1,7 +1,7 @@
 import { checkComponentPermission } from "../ability/checkComponentPermission";
 import { getApiClient, getUserSnapshot } from "../deps";
 import { matchPattern } from "./matchPattern";
-import type { ResolvedScreen, Screen, Widget } from "./types";
+import type { ResolvedScreen, Screen } from "./types";
 
 function filterScreensByPermissions(screens: Screen[]): Screen[] {
 	const user = getUserSnapshot();
@@ -24,18 +24,17 @@ function filterScreensByPermissions(screens: Screen[]): Screen[] {
 	);
 }
 
-export async function resolveScreen(
-	moduleName: string,
-	segments: string[],
-): Promise<ResolvedScreen> {
-	const baseUrl = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
-	const empty: ResolvedScreen = {
-		screen: null,
-		parentScreen: null,
-		parentWidgets: [],
-		params: {},
-		widgets: [],
-	};
+	export async function resolveScreen(
+		moduleName: string,
+		segments: string[],
+	): Promise<ResolvedScreen> {
+		const baseUrl = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
+		const empty: ResolvedScreen = {
+			screen: null,
+			parentScreen: null,
+			params: {},
+			rootComponentId: null,
+		};
 
 	const modRes = await getApiClient().get(
 		`${baseUrl}/api/v1/modules?search=${moduleName}&limit=1`,
@@ -106,7 +105,7 @@ export async function resolveScreen(
 				const extracted = matchPattern(segments, nameMatch.pathPattern);
 				if (extracted) params = extracted;
 			}
-			return buildResult(baseUrl, nameMatch, params, allScreens);
+			return buildResult(nameMatch, params, allScreens);
 		}
 	}
 
@@ -115,7 +114,7 @@ export async function resolveScreen(
 		const pattern = screen.pathPattern === "/" ? null : screen.pathPattern;
 		const params = matchPattern(segments, pattern);
 		if (params) {
-			return buildResult(baseUrl, screen, params, allScreens);
+			return buildResult(screen, params, allScreens);
 		}
 	}
 
@@ -126,51 +125,29 @@ export async function resolveScreen(
 				!s.parentScreenId && (!s.pathPattern || s.pathPattern === "/"),
 		);
 		if (defaultScreen) {
-			return buildResult(baseUrl, defaultScreen, {}, allScreens);
+			return buildResult(defaultScreen, {}, allScreens);
 		}
 	}
 
 	return empty;
 }
 
-async function buildResult(
-	baseUrl: string,
-	screen: Screen,
-	params: Record<string, string>,
-	allScreens: Screen[],
-): Promise<ResolvedScreen> {
-	const screenId = screen.id;
+	async function buildResult(
+		screen: Screen,
+		params: Record<string, string>,
+		allScreens: Screen[],
+	): Promise<ResolvedScreen> {
+		// The screen mounts its root component directly (screens.componentId) —
+		// no widget rows to fetch.
+		const parentId = screen.parentScreenId;
+		const parent = parentId
+			? (allScreens.find((s: Screen) => s.id === parentId) ?? null)
+			: null;
 
-	// Fetch the matched screen's own widgets
-	const widgetsRes = await getApiClient().get(
-		`${baseUrl}/api/v1/screen-widgets?screenId=${screenId}&sortBy=displayOrder&limit=100`,
-	);
-	const widgets: Widget[] = widgetsRes.data?.data?.data ?? [];
-
-	// Check if this screen has a parent (tab child)
-	const parentId = screen.parentScreenId;
-	if (parentId) {
-		const parent = allScreens.find((s: Screen) => s.id === parentId);
-		if (parent) {
-			// Fetch parent's widgets (contains the TabWidget)
-			const parentWidgetsRes = await getApiClient().get(
-				`${baseUrl}/api/v1/screen-widgets?screenId=${parent.id}&sortBy=displayOrder&limit=100`,
-			);
-			return {
-				screen,
-				parentScreen: parent,
-				parentWidgets: parentWidgetsRes.data?.data?.data ?? [],
-				params,
-				widgets,
-			};
-		}
+		return {
+			screen,
+			parentScreen: parent,
+			params,
+			rootComponentId: screen.componentId ?? null,
+		};
 	}
-
-	return {
-		screen,
-		parentScreen: null,
-		parentWidgets: [],
-		params,
-		widgets,
-	};
-}

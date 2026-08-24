@@ -1,38 +1,21 @@
 // ──────────────────────────────────────────────────────────────────
 // ScreenPage — dashboard screen routing on top of the render pipeline.
 //
-// Resolves the URL segments to a screen (modules → screens →
-// screen_widgets metadata) and renders every widget through
-// AutoComponent. The legacy widget-type registry and the tab-widget
-// flow were removed: all seed data uses `page` widgets backed by arch
-// components, so the pipeline handles everything uniformly.
+// Resolves the URL segments to a screen (modules → screens metadata)
+// and renders the screen's ROOT component (screens.componentId)
+// through AutoComponent. Everything on a screen is a component — the
+// old widget registry / screen_widgets flow is gone.
 // ──────────────────────────────────────────────────────────────────
 
 "use client";
 
 import CircularProgress from "@mui/material/CircularProgress";
-import Grid from "@mui/material/Grid";
 import Stack from "@mui/material/Stack";
 import { type ReactElement, useEffect, useState } from "react";
 import { AutoComponent } from "../ComponentRenderer";
-import { getQueryParams, resolveParamBindings } from "../resolveParams";
 import { ScreenStateProvider } from "./ScreenState";
-import type { ResolvedScreen, ScreenPageProps, Widget } from "./types";
+import type { ResolvedScreen, ScreenPageProps } from "./types";
 import { useScreen } from "./useScreenPreloader";
-
-function sizeHintToGrid(hint: string | undefined | null): number {
-	switch (hint) {
-		case "small":
-			return 3;
-		case "medium":
-			return 4;
-		case "large":
-			return 6;
-		case "full":
-		default:
-			return 12;
-	}
-}
 
 // ── Helper: unwrap Next.js async params into module + segments ──
 
@@ -75,60 +58,25 @@ function ScreenContent({
 }: {
 	resolved: ResolvedScreen;
 }): ReactElement {
-	const { params: pathParams, widgets } = resolved;
+	const { params: pathParams, rootComponentId } = resolved;
 
-	const contentWidgets = widgets
-		.filter((w) => w.isActive)
-		.sort((a, b) => a.displayOrder - b.displayOrder);
+	// No root component (screen not fully seeded) — render nothing.
+	if (rootComponentId == null) return <></>;
 
-	return (
-		<ScreenStateProvider>
-			<Stack spacing={2}>
-				<Grid container spacing={2}>
-					{contentWidgets.map((widget) => (
-						<Grid
-							key={widget.id}
-							size={{
-								xs: 12,
-								sm: sizeHintToGrid(widget.widgetOverrides?.sizeHint),
-							}}
-						>
-							<WidgetRenderer widget={widget} pathParams={pathParams} />
-						</Grid>
-					))}
-				</Grid>
-			</Stack>
-		</ScreenStateProvider>
-	);
-}
-
-function WidgetRenderer({
-	widget,
-	pathParams,
-}: {
-	widget: Widget;
-	pathParams: Record<string, string>;
-}): ReactElement {
-	// Widgets point at an arch component via `resourceId`; the pipeline
-	// fetches, gates and renders it. Legacy widget paramBindings resolve
-	// through the same resolver as element bindings.
-	const resolvedParams = {
-		...pathParams,
-		...resolveParamBindings(widget.paramBindings ?? null, {
-			pathParams,
-			queryParams: getQueryParams(),
-		}),
-	};
-
+	// Detail screens carry `:id` in their path pattern — resolve the
+	// record context so forms open in edit mode.
+	const resolvedParams = { ...pathParams };
 	const hasId = "id" in resolvedParams;
 
 	return (
-		<AutoComponent
-			componentId={widget.resourceId ?? 0}
-			pathParams={resolvedParams}
-			{...(hasId
-				? { recordId: resolvedParams.id, context: "edit" as const }
-				: {})}
-		/>
+		<ScreenStateProvider>
+			<AutoComponent
+				componentId={rootComponentId}
+				pathParams={resolvedParams}
+				{...(hasId
+					? { recordId: resolvedParams.id, context: "edit" as const }
+					: {})}
+			/>
+		</ScreenStateProvider>
 	);
 }

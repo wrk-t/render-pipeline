@@ -96,6 +96,8 @@ export interface SelectOption {
 	label: string;
 	value: unknown;
 	disabled?: boolean;
+	/** The raw API row — used for custom option layouts (e.g. name + id). */
+	raw?: Record<string, unknown>;
 	/**
 	 * When set, the option is only offered to users whose permissions
 	 * satisfy every requirement (e.g. hide the scope "all" option from
@@ -136,13 +138,24 @@ export type FieldType =
 // ── 7. DATASOURCE TYPES ──
 
 /** Metadata attached by the backend when an entity datasource is resolved. */
-export interface EntityMeta {
-	displayField: string;
-	valueField: string;
-	searchFields: string[];
-	filter?: { field: string; value: unknown };
-	orderBy?: { field: string; direction: "asc" | "desc" };
-}
+	export interface EntityMeta {
+		displayField: string;
+		valueField: string;
+		searchFields: string[];
+		filter?: { field: string; value: unknown };
+		orderBy?: { field: string; direction: "asc" | "desc" };
+		/**
+		 * Option label template — "{field}" tokens replaced from the row
+		 * (e.g. "{displayName}  {id}" to disambiguate tenants by id).
+		 * Falls back to displayField when omitted.
+		 */
+		labelTemplate?: string;
+		/**
+		 * Render each option as a space-between Stack: display field on the
+		 * left, value field (e.g. the id) on the right.
+		 */
+		splitLabel?: boolean;
+	}
 
 export interface ServiceDatasource {
 	type: "service";

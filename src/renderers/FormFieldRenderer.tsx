@@ -12,8 +12,9 @@ import { useFormikContext } from "formik";
 import { memo, type ReactElement, useMemo } from "react";
 import { match } from "ts-pattern";
 import { evaluateFieldConditions } from "../dynamic-form/fieldHelpers";
-import {
+	import {
 	FormAutocompleteField,
+	FormCheckboxField,
 	FormColorField,
 	FormDateField,
 	FormEmailField,
@@ -200,6 +201,17 @@ function FormFieldRendererInner({
 						}
 					/>
 				))
+				.with({ type: "checkbox" }, (f) => (
+					<FormCheckboxField
+						field={
+							{
+								...f,
+								isRequired: conditions.isRequired,
+								isReadOnly: conditions.isDisabled,
+							} as any
+						}
+					/>
+				))
 				.with({ type: "settingValue" }, (f) => (
 					<FormSettingValueField
 						field={
@@ -338,7 +350,6 @@ function FormFieldRendererInner({
 					/>
 				))
 				.with({ type: "radio" }, unimplemented)
-				.with({ type: "checkbox" }, unimplemented)
 				.with({ type: "datetime" }, unimplemented)
 				.with({ type: "time" }, unimplemented)
 				.with({ type: "file" }, unimplemented)

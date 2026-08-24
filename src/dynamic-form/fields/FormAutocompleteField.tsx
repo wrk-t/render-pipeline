@@ -12,18 +12,19 @@
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
-import { Stack, Typography } from "@mui/material";
+import { Box, Stack, Typography } from "@mui/material";
 import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 import { useField, useFormikContext } from "formik";
-import {
-	type ReactElement,
-	type SyntheticEvent,
-	useCallback,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+	import {
+		type ReactElement,
+		type SyntheticEvent,
+		useCallback,
+		useEffect,
+		useMemo,
+		useRef,
+		useState,
+	} from "react";
 import useSWR from "swr";
 import { getApiClient } from "../../deps";
 import type {
@@ -49,21 +50,38 @@ function toSelectOption(item: unknown, entityMeta?: EntityMeta): SelectOption {
 
 	// Already a SelectOption shape
 	if ("label" in obj && "value" in obj) {
-		return { label: String(obj.label ?? ""), value: obj.value };
+		return {
+			label: String(obj.label ?? ""),
+			value: obj.value,
+			raw: obj,
+		};
 	}
 
 	const displayField = entityMeta?.displayField;
 	const valueField = entityMeta?.valueField ?? "id";
 
-	return {
-		label: String(
+	// Label template — "{field}" tokens replaced from the row (e.g.
+	// "{displayName}  {id}" to disambiguate tenants by id).
+	let label: string;
+	if (entityMeta?.labelTemplate) {
+		label = entityMeta.labelTemplate.replace(
+			/\{(\w+)\}/g,
+			(_: string, key: string) => String(obj[key] ?? ""),
+		);
+	} else {
+		label = String(
 			obj[displayField ?? "displayName"] ??
 				obj.displayName ??
 				obj.name ??
 				obj.label ??
 				"",
-		),
+		);
+	}
+
+	return {
+		label,
 		value: obj[valueField] ?? obj.id ?? obj.value,
+		raw: obj,
 	};
 }
 
@@ -100,16 +118,22 @@ export function FormAutocompleteField({
 	const entityMeta = serviceDs?.entityMeta;
 
 	// ── Search state ────────────────────────────────────────────
-	const [inputValue, setInputValue] = useState("");
+	// The MUI input is UNCONTROLLED (no inputValue prop) — controlling it
+	// fights the user's typing (programmatic "reset" syncs wipe keystrokes).
+	// We only track the text via onInputChange to drive the server search.
 	const [search, setSearch] = useState<string | null>(null);
 	const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const debounceMs = field.uiOverrides.behavior?.debounce ?? 300;
 	const minChars = field.uiOverrides.behavior?.minChars ?? 2;
 
-	// Debounce user input → trigger search
+	// Debounce user input → trigger search. Only real typing (reason
+	// "input") searches — MUI fires onInputChange with "reset"/"clear"
+	// when it syncs the input to the selected option's label; treating
+	// those as searches would fire a request for the full label (which
+	// never matches) and oscillate forever.
 	const handleInputChange = useCallback(
-		(_event: SyntheticEvent, value: string) => {
-			setInputValue(value);
+		(_event: SyntheticEvent, value: string, reason: string) => {
+			if (reason !== "input") return;
 			if (debounceRef.current) clearTimeout(debounceRef.current);
 			debounceRef.current = setTimeout(() => {
 				setSearch(value.length >= minChars ? value : null);
@@ -128,6 +152,10 @@ export function FormAutocompleteField({
 	const swrKey = useServiceSwrKey(serviceDs, search, entityMeta, formValues);
 
 	// ── Fetch options when serviceDs is present ─────────────────
+	// keepPreviousData: during a search the key changes and the new key
+	// has no cached rows — without it `options` briefly empties, the
+	// selected option disappears and MUI snaps the input back to the
+	// value's label mid-typing.
 	const { data: serviceData, isLoading: serviceLoading } = useSWR(
 		swrKey,
 		async () => {
@@ -176,17 +204,48 @@ export function FormAutocompleteField({
 			if (body && Array.isArray(body.data)) return body.data;
 			return [];
 		},
+		{ keepPreviousData: true },
 	);
 
 	// ── Build the final option list ────────────────────────────
-	const options: SelectOption[] = serviceDs
-		? Array.isArray(serviceData)
-			? serviceData.map((item: unknown) => toSelectOption(item, entityMeta))
-			: []
-		: staticOptions;
+	// Memoised on the SWR data (stable between fetches) so the option
+	// objects keep their identity across re-renders.
+	const options: SelectOption[] = useMemo(
+		() =>
+			serviceDs
+				? Array.isArray(serviceData)
+					? serviceData.map((item: unknown) => toSelectOption(item, entityMeta))
+					: []
+				: staticOptions,
+		[serviceDs, serviceData, entityMeta, staticOptions],
+	);
 
-	// ── Find the currently selected option object ──────────────
-	const selectedOption = options.find((opt) => opt.value === value) ?? null;
+	// ── Selected option — a STABLE reference for the current value ──
+	// Deriving it from the live options list would hand MUI a NEW `value`
+	// object on every re-render (the mapped options are fresh each time);
+	// MUI treats any `value` reference change as a value change and resets
+	// the input to the option's label — wiping keystrokes mid-edit.
+	const [selectedOption, setSelectedOption] = useState<SelectOption | null>(
+		null,
+	);
+	const prevValueRef = useRef<string | number | null>(value);
+
+	useEffect(() => {
+		const valueChanged = prevValueRef.current !== value;
+		prevValueRef.current = value;
+		if (valueChanged) {
+			setSelectedOption(
+				!value ? null : (options.find((opt) => opt.value === value) ?? null),
+			);
+			return;
+		}
+		// Value unchanged — only populate the selection if we don't have one
+		// yet (e.g. options arrived after mount with a preset value).
+		if (!selectedOption && value) {
+			const match = options.find((opt) => opt.value === value);
+			if (match) setSelectedOption(match);
+		}
+	}, [value, options, selectedOption]);
 
 	// ── Handle selection — store only the value ────────────────
 	const handleChange = (
@@ -203,7 +262,6 @@ export function FormAutocompleteField({
 			<Autocomplete<SelectOption, false, false, false>
 				value={selectedOption}
 				onChange={handleChange}
-				inputValue={inputValue}
 				onInputChange={handleInputChange}
 				options={options}
 				getOptionLabel={(opt: SelectOption) => opt.label}
@@ -218,6 +276,33 @@ export function FormAutocompleteField({
 						: `Type at least ${minChars} characters to search`
 				}
 				filterOptions={(x) => x} // server-side filtering, no client filter
+				renderOption={(props, option) => {
+					// Split layout: display field left, value (e.g. id) right.
+					const raw = (option as SelectOption).raw;
+					if (entityMeta?.splitLabel && raw) {
+						const left = String(
+							raw[entityMeta.displayField] ?? raw.displayName ?? option.label,
+						);
+						const right = String(raw[entityMeta.valueField] ?? raw.id ?? "");
+						return (
+							<li {...props}>
+								<Box
+									sx={{
+										display: "flex",
+										justifyContent: "space-between",
+										alignItems: "center",
+										width: "100%",
+										gap: 2,
+									}}
+								>
+									<span>{left}</span>
+									<span className="text-sm opacity-60">{right}</span>
+								</Box>
+							</li>
+						);
+					}
+					return <li {...props}>{option.label}</li>;
+				}}
 				renderInput={(params) => (
 					<TextField
 						{...params}

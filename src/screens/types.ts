@@ -1,29 +1,11 @@
 // ──────────────────────────────────────────────────────────────────
-// Screen routing types — legacy `modules → screens → screen_widgets`
-// metadata that routes URLs to arch components.
+// Screen routing types — `modules → screens → root component`.
+//
+// A screen mounts ONE root component (screens.componentId) — the old
+// screen_widgets indirection is gone. Everything on a screen is a
+// component; the pipeline resolves the URL to a screen and renders its
+// root through AutoComponent.
 // ──────────────────────────────────────────────────────────────────
-
-import type { ParamBinding } from "../types";
-
-export interface Widget {
-	id: number;
-	widgetType:
-		| "table"
-		| "form"
-		| "chart"
-		| "info"
-		| "tabs"
-		| "editor"
-		| "swagger"
-		| "test"
-		| "page";
-	resourceId: number | null;
-	displayOrder: number;
-	widgetOverrides: { title?: string; sizeHint?: string } | null;
-	config: Record<string, unknown> | null;
-	paramBindings?: Record<string, ParamBinding> | null;
-	isActive: boolean;
-}
 
 export interface Screen {
 	id: number;
@@ -32,6 +14,8 @@ export interface Screen {
 	displayName: string;
 	pathPattern: string | null;
 	parentScreenId: number | null;
+	/** The root component this screen mounts (screens.componentId). */
+	componentId: number | null;
 	visibleToPermissions?: Array<{
 		resource: string;
 		action: string;
@@ -41,16 +25,14 @@ export interface Screen {
 }
 
 export interface ResolvedScreen {
-	/** The matched child screen (e.g. the active tab) */
+	/** The matched screen */
 	screen: Screen | null;
 	/** The parent screen when the matched screen has a parentScreenId */
 	parentScreen: Screen | null;
-	/** Widgets belonging to the parent screen (contains the TabWidget) */
-	parentWidgets: Widget[];
 	/** Parameters extracted from the URL path pattern */
 	params: Record<string, string>;
-	/** Widgets belonging to the matched screen */
-	widgets: Widget[];
+	/** The root component to render (screen.componentId). */
+	rootComponentId: number | null;
 }
 
 /** Props of the Next.js dashboard screen route. */

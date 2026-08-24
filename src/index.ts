@@ -159,7 +159,6 @@ export type {
 	ResolvedScreen,
 	Screen,
 	ScreenPageProps,
-	Widget,
 } from "./screens/types";
 export {
 	screenKey,
