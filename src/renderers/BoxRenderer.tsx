@@ -10,13 +10,15 @@ import { LayoutChildren } from "./layoutChildren";
 // for layout that isn't Stack/Grid/Container.
 // ──────────────────────────────────────────────────────────────────
 
-export function BoxRenderer({
-	component,
-	pathParams,
-}: {
-	component: RenderedComponent;
-	pathParams?: Record<string, string>;
-}): ReactElement {
+		export function BoxRenderer({
+			component,
+			pathParams,
+			context,
+		}: {
+			component: RenderedComponent;
+			pathParams?: Record<string, string>;
+			context?: string;
+		}): ReactElement {
 	const config = (component.config ?? {}) as {
 		display?: string;
 		flexDirection?: string;
@@ -59,7 +61,7 @@ export function BoxRenderer({
 				} as any
 			}
 		>
-			<LayoutChildren elements={elements} pathParams={pathParams} />
+			<LayoutChildren elements={elements} pathParams={pathParams} context={context} />
 		</Box>
 	);
 }

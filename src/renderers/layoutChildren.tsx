@@ -31,9 +31,12 @@ function useOptionalFormikContext() {
 export function LayoutChildren({
 	elements,
 	pathParams,
+	context,
 }: {
 	elements: RenderedElement[];
 	pathParams?: Record<string, string>;
+	/** Dialog context — flows to fields (visibleWhen/readOnlyWhen) and children. */
+	context?: string;
 }): ReactElement | null {
 	const formik = useOptionalFormikContext();
 
@@ -47,6 +50,7 @@ export function LayoutChildren({
 							component={el.referencedComponent}
 							pathParams={pathParams}
 							paramBindings={el.paramBindings}
+							context={context}
 						/>
 					);
 				}
@@ -62,7 +66,7 @@ export function LayoutChildren({
 					if (formik) {
 						return (
 							<Box key={el.id}>
-								<FormFieldRenderer element={el} />
+								<FormFieldRenderer element={el} context={context} />
 							</Box>
 						);
 					}

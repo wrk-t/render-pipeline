@@ -10,13 +10,15 @@ import { LayoutChildren } from "./layoutChildren";
 // The card surface is Paper (see PaperRenderer).
 // ──────────────────────────────────────────────────────────────────
 
-export function ContainerRenderer({
-	component,
-	pathParams,
-}: {
-	component: RenderedComponent;
-	pathParams?: Record<string, string>;
-}): ReactElement {
+	export function ContainerRenderer({
+		component,
+		pathParams,
+		context,
+	}: {
+		component: RenderedComponent;
+		pathParams?: Record<string, string>;
+		context?: string;
+	}): ReactElement {
 	const config = (component.config ?? {}) as {
 		maxWidth?: "xs" | "sm" | "md" | "lg" | "xl" | false;
 		disableGutters?: boolean;
@@ -33,7 +35,7 @@ export function ContainerRenderer({
 			disableGutters={config.disableGutters}
 			className={config.className}
 		>
-			<LayoutChildren elements={elements} pathParams={pathParams} />
+			<LayoutChildren elements={elements} pathParams={pathParams} context={context} />
 		</Container>
 	);
 }

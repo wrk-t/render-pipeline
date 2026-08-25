@@ -14,9 +14,11 @@ import { LayoutChildren } from "./layoutChildren";
 export function StackRenderer({
 	component,
 	pathParams,
+	context,
 }: {
 	component: RenderedComponent;
 	pathParams?: Record<string, string>;
+	context?: string;
 }): ReactElement {
 	const config = (component.config ?? {}) as {
 		direction?: "row" | "column";
@@ -46,7 +48,7 @@ export function StackRenderer({
 					: {}),
 			}}
 		>
-			<LayoutChildren elements={elements} pathParams={pathParams} />
+			<LayoutChildren elements={elements} pathParams={pathParams} context={context} />
 		</Stack>
 	);
 }

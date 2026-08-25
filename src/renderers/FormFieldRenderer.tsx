@@ -118,6 +118,8 @@ export function adaptField(
 
 export interface FormFieldRendererProps {
 	element: RenderedElement;
+	/** Dialog context ("create" | "edit") — drives visibleWhen/readOnlyWhen. */
+	context?: string;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -126,10 +128,30 @@ export interface FormFieldRendererProps {
 
 function FormFieldRendererInner({
 	element,
+	context,
 }: FormFieldRendererProps): ReactElement | null {
 	const { values } = useFormikContext<Record<string, unknown>>();
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const field = adaptField(element) as any as RenderField;
+	const ov = element.overrides as Record<string, unknown> | null;
+
+	// Context-based visibility — e.g. visibleWhen: {context: ["create"]}
+	// (the field only exists while creating; hidden in edit dialogs).
+	const vw = (ov as any)?.visibleWhen as { context?: string[] } | undefined;
+	if (
+		vw?.context?.length &&
+		!(context && vw.context.includes(context))
+	) {
+		return null;
+	}
+
+	// Context-based readonly — e.g. readOnlyWhen: {context: ["edit"]}
+	// (the value is assigned at creation and immutable afterwards).
+	const rw = (ov as any)?.readOnlyWhen as { context?: string[] } | undefined;
+	const contextReadOnly = rw?.context?.length
+		? Boolean(context && rw.context.includes(context))
+		: false;
+	if (contextReadOnly) field.isReadOnly = true;
 
 	// Hidden fields carry values into the submit payload (prefilled via
 	// pathParams/defaults) but render nothing — e.g. the plan's

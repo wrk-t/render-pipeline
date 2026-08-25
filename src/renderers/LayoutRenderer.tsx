@@ -1,7 +1,6 @@
 "use client";
 
 import Box from "@mui/material/Box";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import type { ReactElement } from "react";
@@ -10,22 +9,26 @@ import type { RenderedComponent } from "../types";
 import { LayoutChildren } from "./layoutChildren";
 
 // ──────────────────────────────────────────────────────────────────
-// LayoutRenderer — the default page/panel shell: a titled Paper card.
+// LayoutRenderer — the default page/panel shell. A PLAIN container
+// (no Paper surface — the page background shows through; components
+// like tables wrap themselves in Paper).
 //
-//   Paper (surface)
+//   Box (page)
 //     └─ header: title (Typography h6) + description (body2) + actions
 //     └─ content: the component tree
 //
-// Composes the Paper surface with a title/description header, so
-// screens get a card look without hand-wrapping every widget in Paper.
+// The old implicit card surface moved to the components: wrap a table
+// in an explicit Paper node to give it a card look.
 // ──────────────────────────────────────────────────────────────────
 
 export function LayoutRenderer({
 	component,
 	pathParams,
+	context,
 }: {
 	component: RenderedComponent;
 	pathParams?: Record<string, string>;
+	context?: string;
 }): ReactElement {
 	const config = (component.config ?? {}) as {
 		title?: string;
@@ -34,6 +37,8 @@ export function LayoutRenderer({
 		radius?: number | string;
 		maxWidth?: number | string;
 		fullBleed?: boolean;
+		/** Vertical gap between content children. */
+		spacing?: number;
 	};
 	// `description` is an identity key — it lives on the component column,
 	// not in config (same for displayName as the title fallback).
@@ -51,16 +56,24 @@ export function LayoutRenderer({
 
 	const hasHeader = !!(title || description || actions.length > 0);
 
+	// Vertical gap between content children (e.g. stacked cards).
+	const contentEl = (
+		<LayoutChildren elements={content} pathParams={pathParams} context={context} />
+	);
+	const contentWithSpacing =
+		config.spacing != null && config.spacing > 0 ? (
+			<Stack spacing={config.spacing}>{contentEl}</Stack>
+		) : (
+			contentEl
+		);
+
 	if (config.fullBleed === true) {
-		return <LayoutChildren elements={content} pathParams={pathParams} />;
+		return contentWithSpacing;
 	}
 
 	return (
-		<Paper
-			elevation={config.elevation ?? 1}
+		<Box
 			sx={{
-				p: config.padding ?? 2.5,
-				borderRadius: config.radius ?? 2,
 				height: "100%",
 				...(config.maxWidth != null
 					? { maxWidth: config.maxWidth, mx: "auto" }
@@ -93,13 +106,14 @@ export function LayoutRenderer({
 									component={el.referencedComponent!}
 									pathParams={pathParams}
 									paramBindings={el.paramBindings}
+									context={context}
 								/>
 							))}
 						</Stack>
 					)}
 				</Stack>
 			)}
-			<LayoutChildren elements={content} pathParams={pathParams} />
-		</Paper>
+			{contentWithSpacing}
+		</Box>
 	);
 }

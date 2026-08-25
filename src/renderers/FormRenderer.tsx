@@ -440,18 +440,19 @@ export function FormRenderer({
               el.elementType === "component_ref" && el.referencedComponent,
           )
           .sort((a, b) => a.displayOrder - b.displayOrder)
-          .map((el) => (
-            <Box key={el.id}>
-              <ComponentRenderer
-                component={el.referencedComponent!}
-                pathParams={pathParams}
-                paramBindings={el.paramBindings}
-              />
-            </Box>
-          ))}
-      </Box>
-    );
-  }
+        		  .map((el) => (
+        		  	<Box key={el.id}>
+        		  		<ComponentRenderer
+        		  			component={el.referencedComponent!}
+        		  			pathParams={pathParams}
+        		  			paramBindings={el.paramBindings}
+        		  			context={context}
+        		  		/>
+        		  	</Box>
+        		  ))}
+        	  </Box>
+        	);
+          }
 
   return (
     <Formik
@@ -491,15 +492,16 @@ export function FormRenderer({
                   isComponentVisible(el.referencedComponent),
               )
               .sort((a, b) => a.displayOrder - b.displayOrder)
-              .map((el) => (
-                <Box key={el.id}>
-                  <ComponentRenderer
-                    component={el.referencedComponent!}
-                    pathParams={pathParams}
-                    paramBindings={el.paramBindings}
-                  />
-                </Box>
-              ))}
+            			  .map((el) => (
+            			  	<Box key={el.id}>
+            			  		<ComponentRenderer
+            			  			component={el.referencedComponent!}
+            			  			pathParams={pathParams}
+            			  			paramBindings={el.paramBindings}
+            			  			context={context}
+            			  		/>
+            			  	</Box>
+            			  ))}
 
 	            {/* Actions slot — rendered from the metadata tree
 	                (Button/Link components via their own renderers) */}

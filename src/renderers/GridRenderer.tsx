@@ -23,9 +23,11 @@ import { LayoutChildren } from "./layoutChildren";
 	export function GridRenderer({
 		component,
 		pathParams,
+		context,
 	}: {
 		component: RenderedComponent;
 		pathParams?: Record<string, string>;
+		context?: string;
 	}): ReactElement {
 		const config = (component.config ?? {}) as {
 			container?: boolean;
@@ -60,14 +62,14 @@ import { LayoutChildren } from "./layoutChildren";
 							: {}),
 					}}
 				>
-					<LayoutChildren elements={elements} pathParams={pathParams} />
+					<LayoutChildren elements={elements} pathParams={pathParams} context={context} />
 				</Grid>
 			);
 		}
 
 		return (
 			<Grid size={config.sizes} offset={config.offset}>
-				<LayoutChildren elements={elements} pathParams={pathParams} />
+				<LayoutChildren elements={elements} pathParams={pathParams} context={context} />
 			</Grid>
 		);
 	}

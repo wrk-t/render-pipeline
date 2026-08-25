@@ -133,7 +133,9 @@ export type FieldType =
 	| "reference"
 	| "autocomplete"
 	| "color"
-	| "settingValue";
+	| "settingValue"
+	| "variants"
+	| "icon";
 
 // ── 7. DATASOURCE TYPES ──
 
@@ -832,7 +834,9 @@ export type RenderField =
 	| JsonField
 	| ReferenceField
 	| AutocompleteField
-	| SettingValueField;
+	| SettingValueField
+	| VariantField
+	| IconField;
 
 // ── 16. RENDER RESPONSE SHAPES ──
 

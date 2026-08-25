@@ -202,8 +202,8 @@ function optionValue(o: string | SelectOption): string {
 				onKeyDown={handleKeyDown}
 				filterOptions={filterOptions}
 				disabled={isSubmitting || field.isReadOnly}
-				getOptionLabel={(o) => o.label}
-				isOptionEqualToValue={(o, v) => String(o.value) === String(v.value)}
+				getOptionLabel={optionLabel}
+				isOptionEqualToValue={(o, v) => optionValue(o) === optionValue(v)}
 				renderValue={() => null}
 				renderInput={(params) => (
 					<TextField

@@ -13,9 +13,11 @@ import { LayoutChildren } from "./layoutChildren";
 export function PaperRenderer({
 	component,
 	pathParams,
+	context,
 }: {
 	component: RenderedComponent;
 	pathParams?: Record<string, string>;
+	context?: string;
 }): ReactElement {
 	const config = (component.config ?? {}) as {
 		elevation?: number;
@@ -31,7 +33,9 @@ export function PaperRenderer({
 		.filter((e) => e.isActive)
 		.sort((a, b) => a.displayOrder - b.displayOrder);
 
-	const children = <LayoutChildren elements={elements} pathParams={pathParams} />;
+	const children = (
+		<LayoutChildren elements={elements} pathParams={pathParams} context={context} />
+	);
 
 	if (config.fullBleed === true) {
 		return children;

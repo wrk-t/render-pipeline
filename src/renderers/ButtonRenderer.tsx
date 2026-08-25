@@ -46,6 +46,9 @@ export function ButtonRenderer({ component, onClose }: RendererProps): ReactElem
 	const isSubmit = action === "submit";
 	const formik = useOptionalFormikContext();
 	const submitting = isSubmit && formik?.isSubmitting === true;
+	// The authoring compiler stores Button icons on the component row's `icon`
+	// column (identity key, stripped from config) — fall back to it.
+	const icon = config.icon ?? component.icon ?? undefined;
 
 	const onClick = () => {
 		if (action === "close") {
@@ -84,7 +87,7 @@ export function ButtonRenderer({ component, onClose }: RendererProps): ReactElem
 			{submitting ? (
 				<CircularProgress size={20} color="inherit" />
 			) : (
-				config.icon && <Unicon name={config.icon as any} size={18} className="mr-1" />
+				icon && <Unicon name={icon as any} size={18} className="mr-1" />
 			)}
 			{config.label ?? (component.displayName || component.name)}
 		</Button>

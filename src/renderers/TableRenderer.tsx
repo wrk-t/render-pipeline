@@ -50,6 +50,7 @@ function actionFromComponent(ref: RenderedComponent): TableAction {
 		confirm?: TableActionConfirm;
 		condition?: TableActionConditions;
 		successRedirect?: string;
+		onSuccess?: "refreshTable" | "refreshAll" | "closeDialog" | "navigate";
 		visibleToPermissions?: Array<{
 			resource: string;
 			action: string;
@@ -59,7 +60,9 @@ function actionFromComponent(ref: RenderedComponent): TableAction {
 	const base = {
 		id: String(ref.id),
 		label: cfg.label ?? ref.displayName,
-		icon: cfg.icon,
+		// The authoring compiler stores Button icons on the component row's
+		// `icon` column (identity key, stripped from config) — fall back to it.
+		icon: cfg.icon ?? ref.icon ?? undefined,
 		color: cfg.color,
 		...(cfg.condition ? { condition: cfg.condition } : {}),
 		...(cfg.confirm ? { confirm: cfg.confirm } : {}),
@@ -86,8 +89,12 @@ function actionFromComponent(ref: RenderedComponent): TableAction {
 				endpoint: cfg.endpoint ?? "",
 				method: cfg.method ?? "PATCH",
 				...(cfg.successRedirect
-					? { successRedirect: cfg.successRedirect, onSuccess: "navigate" }
-					: { onSuccess: "refreshTable" }),
+					? { successRedirect: cfg.successRedirect }
+					: {}),
+				// Explicit onSuccess (e.g. "refreshAll" for feature toggles) wins;
+				// otherwise successRedirect implies navigate, else refreshTable.
+				onSuccess:
+					cfg.onSuccess ?? (cfg.successRedirect ? "navigate" : "refreshTable"),
 			};
 		default:
 			return { ...base, action: "custom", customAction: cfg.action ?? "custom" };

@@ -71,6 +71,15 @@ export interface DynamicTableColumn {
 		hideable?: boolean | null;
 		editable?: boolean | null;
 		format?: { type: string } | null;
+		filterType?: "text" | "number" | "select" | "date" | "boolean" | null;
+		/** Option source for select filters (static or API-backed). */
+		filterOptions?: {
+			type?: "static" | "service";
+			options?: Array<{ label: string; value: string }> | null;
+			endpoint?: string | null;
+			labelField?: string | null;
+			valueField?: string | null;
+		} | null;
 	} | null;
 	/** Whether the column is active. */
 	isActive?: boolean;
@@ -141,6 +150,7 @@ export interface DynamicTableProps {
 
 function buildColumnDef(
 	col: DynamicTableColumn,
+	filterSelectOptions?: Array<{ label: string; value: string }>,
 ): MRT_ColumnDef<Record<string, unknown>> {
 	const config = col.columnConfig;
 	const overrides = col.fieldOverrides;
@@ -158,6 +168,16 @@ function buildColumnDef(
 		maxSize: numOrUndefined(config?.maxWidth),
 		...(config?.editable ? { enableEditing: true } : {}),
 	};
+
+	// Select filters — dropdown instead of free text. Options come from
+	// filterOptions: a static list or rows fetched from an endpoint (e.g.
+	// DB-defined enums like tiers).
+	if (config?.filterType === "select") {
+		def.filterVariant = "select";
+		if (filterSelectOptions?.length) {
+			def.filterSelectOptions = filterSelectOptions;
+		}
+	}
 
 	// Format-based cell rendering — delegates to column cell renderers
 	if (config?.format) {
@@ -406,14 +426,84 @@ export function DynamicTable({
 
 	// ── Build MRT column definitions ───────────────────────────
 	// Hide `deletedAt` column unless the user chose to see deleted items.
-	const columns = useMemo<MRT_ColumnDef<Record<string, unknown>>[]>(
+
+	// Service-backed select-filter options (e.g. tiers) — collected once,
+	// fetched under a single SWR key covering every endpoint.
+	const serviceFilterSources = useMemo(
 		() =>
 			columnInstances
 				.filter((col) => col.isActive !== false)
+				.filter((col) => col.columnConfig?.filterType === "select")
+				.filter((col) => col.columnConfig?.filterOptions?.type === "service")
+				.map((col) => ({
+					columnId: col.id,
+					endpoint: col.columnConfig?.filterOptions?.endpoint ?? "",
+					labelField:
+						col.columnConfig?.filterOptions?.labelField ?? "displayName",
+					valueField: col.columnConfig?.filterOptions?.valueField ?? "id",
+				})),
+		[columnInstances],
+	);
+
+	const { data: serviceOptions } = useSWR(
+		serviceFilterSources.length
+			? [
+					"column-filter-options",
+					serviceFilterSources.map((s) => s.endpoint),
+				]
+			: null,
+		async ([, endpoints]: [string, string[]]) => {
+			const entries = await Promise.all(
+				endpoints.map(async (endpoint) => {
+					const res = await getApiClient().get(endpoint);
+					const items =
+						res.data?.data?.data ?? res.data?.data ?? res.data ?? [];
+					return [endpoint, Array.isArray(items) ? items : [items]];
+				}),
+			);
+			return Object.fromEntries(entries);
+		},
+	);
+
+	const columns = useMemo<MRT_ColumnDef<Record<string, unknown>>[]>(
+		() => {
+			const optionsByColumn = new Map<
+				number,
+				Array<{ label: string; value: string }>
+			>();
+			for (const src of serviceFilterSources) {
+				const rows = (serviceOptions ?? {})[src.endpoint];
+				if (!Array.isArray(rows)) continue;
+				optionsByColumn.set(
+					src.columnId,
+					rows.map((row: any) => ({
+						label: String(
+							row[src.labelField] ?? row.displayName ?? row.name ?? "",
+						),
+						value: String(row[src.valueField] ?? row.id ?? ""),
+					})),
+				);
+			}
+
+			return columnInstances
+				.filter((col) => col.isActive !== false)
 				.filter((col) => includeDeleted || col.name !== "deletedAt")
 				.sort((a, b) => a.displayOrder - b.displayOrder)
-				.map(buildColumnDef),
-		[columnInstances, includeDeleted],
+				.map((col) => {
+					// Static options come straight from the column config; service
+					// options come from the fetched rows.
+					const staticOpts =
+						col.columnConfig?.filterType === "select" &&
+						col.columnConfig?.filterOptions?.type === "static"
+							? (col.columnConfig.filterOptions.options ?? [])
+							: undefined;
+					return buildColumnDef(
+						col,
+						staticOpts ?? optionsByColumn.get(col.id),
+					);
+				});
+		},
+		[columnInstances, includeDeleted, serviceFilterSources, serviceOptions],
 	);
 
 	// ── Build the SWR cache key for server-side data ────────────
@@ -809,6 +899,9 @@ export function DynamicTable({
 			sorting: isServerSide ? sorting : undefined,
 			globalFilter: isServerSide ? globalFilter : undefined,
 			columnFilters: isServerSide ? columnFilters : undefined,
+			// Row actions stay pinned to the right edge — MRT applies the
+			// sticky positioning + background (v3 keeps this in TanStack state).
+			columnPinning: { right: ["mrt-row-actions"] },
 		},
 
 		// ── Manual (server-side) controllers ───────────────────
