@@ -28,9 +28,11 @@ import { useSnack } from "../hooks/useSnack";
 import { resolveUrlTemplate } from "../query-builder";
 import type { RenderedComponent } from "../types";
 
-// State-context + table IDs for the link-operations dialog
-const LINK_OPS_STATE_CTX_ID = "evjeix5v91ytlcmj5tz9ak4t";
-const LINK_OPS_TABLE_ID = "ut1zfkikcc4ce0j9gnampl3t";
+// State-context + table IDs for the link-operations dialog.
+// These match the seeded package link-ops components (see
+// seeds/metadata/components/tables/packageVersionAvailableOpsTable.ts).
+const LINK_OPS_STATE_CTX_ID = "489";
+const LINK_OPS_TABLE_ID = "488";
 
 /**
  * Map a toolbar/row-action Button component (from the table's
@@ -51,6 +53,8 @@ function actionFromComponent(ref: RenderedComponent): TableAction {
 		condition?: TableActionConditions;
 		successRedirect?: string;
 		onSuccess?: "refreshTable" | "refreshAll" | "closeDialog" | "navigate";
+		requiresFeature?: string;
+		body?: Record<string, unknown>;
 		visibleToPermissions?: Array<{
 			resource: string;
 			action: string;
@@ -66,6 +70,7 @@ function actionFromComponent(ref: RenderedComponent): TableAction {
 		color: cfg.color,
 		...(cfg.condition ? { condition: cfg.condition } : {}),
 		...(cfg.confirm ? { confirm: cfg.confirm } : {}),
+		...(cfg.requiresFeature ? { requiresFeature: cfg.requiresFeature } : {}),
 		...(cfg.visibleToPermissions?.length
 			? { visibleToPermissions: cfg.visibleToPermissions }
 			: {}),
@@ -88,6 +93,9 @@ function actionFromComponent(ref: RenderedComponent): TableAction {
 				action: "apiCall",
 				endpoint: cfg.endpoint ?? "",
 				method: cfg.method ?? "PATCH",
+				// Static body overrides the default (whole-row) payload — e.g.
+				// stage transitions POST { stage: "published" }.
+				...(cfg.body ? { body: cfg.body } : {}),
 				...(cfg.successRedirect
 					? { successRedirect: cfg.successRedirect }
 					: {}),
@@ -97,7 +105,11 @@ function actionFromComponent(ref: RenderedComponent): TableAction {
 					cfg.onSuccess ?? (cfg.successRedirect ? "navigate" : "refreshTable"),
 			};
 		default:
-			return { ...base, action: "custom", customAction: cfg.action ?? "custom" };
+			return {
+				...base,
+				action: "custom",
+				customAction: cfg.action ?? "custom",
+			};
 	}
 }
 
@@ -486,9 +498,9 @@ export function TableRenderer({
 								/* ignore */
 							}
 							const mergedPathParams = {
-								...extras,
-								...pathParams,
 								...tenantParam,
+								...pathParams,
+								...extras,
 							};
 							const baseUrl = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
 							const endpoint = resolveUrlTemplate(
@@ -530,9 +542,9 @@ export function TableRenderer({
 							/* ignore */
 						}
 						const mergedPathParams = {
-							...extras,
-							...pathParams,
 							...tenantParam,
+							...pathParams,
+							...extras,
 						};
 						const t =
 							typeof tableMetadata.title === "string"
@@ -604,9 +616,9 @@ export function TableRenderer({
 							/* ignore */
 						}
 						const mergedPathParams = {
-							...extras,
-							...pathParams,
 							...tenantParam,
+							...pathParams,
+							...extras,
 						};
 
 						return (
@@ -670,10 +682,7 @@ export function TableRenderer({
 			)}
 			{/* QR style customization dialog (customizeQrStyle toolbar action) */}
 			{showStyleDialog && (
-				<QrStyleDialog
-					open
-					onClose={() => setShowStyleDialog(false)}
-				/>
+				<QrStyleDialog open onClose={() => setShowStyleDialog(false)} />
 			)}
 			{/* New link-operations dialog */}
 			{showLinkOpsDialog && stateCtxComp && (

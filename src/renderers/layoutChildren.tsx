@@ -6,8 +6,9 @@ import Typography from "@mui/material/Typography";
 import { useFormikContext } from "formik";
 import type { ReactElement } from "react";
 import { ComponentRenderer } from "../ComponentRenderer";
+import { useFeatures } from "../hooks/useFeatures";
 import type { RenderedElement } from "../types";
-import { FormFieldRenderer } from "./FormFieldRenderer";
+import { FormFieldRenderer, isFieldFeatureVisible } from "./FormFieldRenderer";
 
 // ──────────────────────────────────────────────────────────────────
 // LayoutChildren — renders the `content` slot elements of an explicit
@@ -39,6 +40,7 @@ export function LayoutChildren({
 	context?: string;
 }): ReactElement | null {
 	const formik = useOptionalFormikContext();
+	const { features } = useFeatures();
 
 	return (
 		<>
@@ -56,6 +58,10 @@ export function LayoutChildren({
 				}
 
 				if (el.elementType === "field") {
+					// Feature-gated fields never render, even in the read-only
+					// (non-Formik) fallback — e.g. the MI selector behind
+					// `multi_mi_instance`.
+					if (!isFieldFeatureVisible(el.overrides, features)) return null;
 					const name =
 						(el.overrides as any)?.name ??
 						el.name ??

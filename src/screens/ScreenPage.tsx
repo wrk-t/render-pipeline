@@ -64,7 +64,9 @@ function ScreenContent({
 	if (rootComponentId == null) return <></>;
 
 	// Detail screens carry `:id` in their path pattern — resolve the
-	// record context so forms open in edit mode.
+	// record context so forms open in edit mode. Id-less screens are
+	// explicitly "create" (e.g. the plan create page) so forms with both
+	// create+edit actions derive the right one.
 	const resolvedParams = { ...pathParams };
 	const hasId = "id" in resolvedParams;
 
@@ -73,9 +75,8 @@ function ScreenContent({
 			<AutoComponent
 				componentId={rootComponentId}
 				pathParams={resolvedParams}
-				{...(hasId
-					? { recordId: resolvedParams.id, context: "edit" as const }
-					: {})}
+				context={hasId ? ("edit" as const) : ("create" as const)}
+				{...(hasId ? { recordId: resolvedParams.id } : {})}
 			/>
 		</ScreenStateProvider>
 	);

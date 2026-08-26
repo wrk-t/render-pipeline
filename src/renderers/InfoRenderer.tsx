@@ -8,7 +8,9 @@ import { type ReactElement, useMemo } from "react";
 import useSWR from "swr";
 import { ComponentRenderer } from "../ComponentRenderer";
 import { getApiClient } from "../deps";
+import { useFeatures } from "../hooks/useFeatures";
 import type { RenderedComponent } from "../types";
+import { isFieldFeatureVisible } from "./FormFieldRenderer";
 
 function getNestedValue(obj: any, path: string): any {
 	return path.split(".").reduce((acc, key) => acc?.[key], obj);
@@ -24,6 +26,7 @@ export function InfoRenderer({
 	const config = (component.config ?? {}) as Record<string, any>;
 	const datasource = config?.datasource;
 	const dataRoot: string = config?.dataRoot ?? "";
+	const { features } = useFeatures();
 
 	const endpoint = useMemo(() => {
 		if (!datasource?.endpoint) return null;
@@ -88,6 +91,9 @@ export function InfoRenderer({
 						);
 					}
 					if (el.elementType === "field") {
+						// Feature-gated fields never render (e.g. the MI selector
+						// behind `multi_mi_instance`).
+						if (!isFieldFeatureVisible(el.overrides, features)) return null;
 						const name =
 							(el.overrides as any)?.name ??
 							el.name ??

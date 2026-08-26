@@ -16,6 +16,7 @@
 import { type ReactElement, useMemo } from "react";
 import { checkComponentPermission } from "./ability/checkComponentPermission";
 import { useRenderUser } from "./deps";
+import { ViewTenantContext } from "./hooks/useFeatures";
 import { RenderBoundary, UnknownRenderer } from "./RenderBoundary";
 import { rendererRegistry } from "./registry";
 import {
@@ -77,24 +78,32 @@ export function ComponentRenderer({
 	const Renderer = rendererRegistry[component.blueprintName];
 
 	return (
-		<ParentBindingsContext.Provider
-			value={{ ...parentBindings, ...resolvedParams }}
+		<ViewTenantContext.Provider
+			value={
+				typeof resolvedParams.tenantId === "string"
+					? resolvedParams.tenantId
+					: undefined
+			}
 		>
-			{Renderer ? (
-				<Renderer
-					component={component}
-					pathParams={resolvedParams}
-					onSuccess={onSuccess}
-					onError={onError}
-					context={context}
-					onClose={onClose}
-					recordId={recordId}
-					onFormReady={onFormReady}
-				/>
-			) : (
-				<UnknownRenderer blueprintName={component.blueprintName} />
-			)}
-		</ParentBindingsContext.Provider>
+			<ParentBindingsContext.Provider
+				value={{ ...parentBindings, ...resolvedParams }}
+			>
+				{Renderer ? (
+					<Renderer
+						component={component}
+						pathParams={resolvedParams}
+						onSuccess={onSuccess}
+						onError={onError}
+						context={context}
+						onClose={onClose}
+						recordId={recordId}
+						onFormReady={onFormReady}
+					/>
+				) : (
+					<UnknownRenderer blueprintName={component.blueprintName} />
+				)}
+			</ParentBindingsContext.Provider>
+		</ViewTenantContext.Provider>
 	);
 }
 

@@ -626,13 +626,15 @@ export function DynamicTable({
 							userPermissions,
 							(a as any).visibleToPermissions,
 						)) &&
-					checkTier((a as any).requiredTier, workspaceTier),
+					checkTier((a as any).requiredTier, workspaceTier) &&
+					(!(a as any).requiresFeature || features[(a as any).requiresFeature]),
 			),
 		[
 			tableMetadata.toolbarActions ?? [],
 			checkPermission,
 			userPermissions,
 			workspaceTier,
+			features,
 		],
 	);
 
@@ -649,13 +651,15 @@ export function DynamicTable({
 							userPermissions,
 							(a as any).visibleToPermissions,
 						)) &&
-					checkTier((a as any).requiredTier, workspaceTier),
+					checkTier((a as any).requiredTier, workspaceTier) &&
+					(!(a as any).requiresFeature || features[(a as any).requiresFeature]),
 			),
 		[
 			tableMetadata.toolbarActions,
 			checkPermission,
 			userPermissions,
 			workspaceTier,
+			features,
 		],
 	);
 
@@ -881,6 +885,11 @@ export function DynamicTable({
 	);
 
 	// ── Build the MRT instance ─────────────────────────────────
+	// Row actions pin to the logical END of the table — the right edge
+	// in LTR, the left edge in RTL. MRT treats pinning sides as logical
+	// and flips them for RTL tables, so "right" pins to the visual end
+	// in BOTH directions.
+
 	const table = useMaterialReactTable({
 		muiTableHeadRowProps() {
 			return { sx: { boxShadow: "none" } };
@@ -899,8 +908,10 @@ export function DynamicTable({
 			sorting: isServerSide ? sorting : undefined,
 			globalFilter: isServerSide ? globalFilter : undefined,
 			columnFilters: isServerSide ? columnFilters : undefined,
-			// Row actions stay pinned to the right edge — MRT applies the
-			// sticky positioning + background (v3 keeps this in TanStack state).
+			// Row actions pin to the logical END of the table — the right
+			// edge in LTR, the left edge in RTL. MRT treats pinning sides as
+			// logical and flips them for RTL tables, so "right" pins to the
+			// visual end in BOTH directions.
 			columnPinning: { right: ["mrt-row-actions"] },
 		},
 
@@ -989,6 +1000,31 @@ export function DynamicTable({
 		displayColumnDefOptions: {
 			"mrt-row-actions": {
 				header: "",
+				// Fixed width — the actions column holds icon buttons only.
+				size: 50,
+				// grow:0 stops MRT's proportional flex growth (columns grow to
+				// fill the table when there are few columns).
+				grow: 0,
+				// Center the actions icon within the column. MRT hardcodes
+				// ml:10px on the toggle button — reset it so the icon truly
+				// centers in the fixed-width column. A subtle edge shadow marks
+				// the pinned column as floating over the scrolling content.
+				// The app's RTL cache plugin (cssjanus) flips box-shadow
+				// x-offsets, so a single source value renders on the CONTENT
+				// side in both directions: LTR → -4px (left edge), RTL → +4px
+				// (right edge). MRT's own pinned :before shadow assumes LTR —
+				// suppress it so only ours shows.
+				muiTableBodyCellProps: {
+					align: "center",
+					sx: {
+						"& .MuiIconButton-root": { ml: "0 !important" },
+						"&[data-pinned='true']:before": { boxShadow: "none" },
+						boxShadow: "-4px 0 8px -4px rgba(0, 0, 0, 0.08)",
+					},
+				},
+				muiTableHeadCellProps: {
+					align: "center",
+				},
 			},
 		},
 		renderRowActionMenuItems: ({ closeMenu, row, table }) =>
@@ -1389,8 +1425,7 @@ export function DynamicTable({
 				sx: {
 					cursor: onClick ? "pointer" : undefined,
 					backgroundColor:
-						matchedCondition?.backgroundColor ??
-						(settings.striped && row.index % 2 === 1 ? "grey.100" : undefined),
+						matchedCondition?.backgroundColor ?? "#ffffff",
 				},
 				className: matchedCondition?.className,
 				onClick: onClick ? handleRowClick : undefined,

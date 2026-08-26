@@ -385,11 +385,21 @@ export function FormRenderer({
         method: (submitAction.method ?? "POST").toLowerCase(),
         data: payload,
       });
-      if (onSuccess) onSuccess(res.data);
-      if (submitAction.successMessage)
-        snack.success(submitAction.successMessage);
-      if (submitAction.successRedirect)
-        router.push(submitAction.successRedirect);
+      			if (onSuccess) onSuccess(res.data);
+      			if (submitAction.successMessage)
+      				snack.success(submitAction.successMessage);
+      			if (submitAction.successRedirect)
+      				router.push(
+      					submitAction.successRedirect.replace(
+      						/\{(\w+)\}/g,
+      						(_: string, key: string) => {
+      							if (key === "id" && recordId) return recordId;
+      							if (resolvedPathParams && key in resolvedPathParams)
+      								return String(resolvedPathParams[key] ?? "");
+      							return `{${key}}`;
+      						},
+      					),
+      				);
     } catch (err) {
       console.log({ err });
       if (onError) onError(err);

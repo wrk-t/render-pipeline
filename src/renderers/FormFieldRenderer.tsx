@@ -12,7 +12,8 @@ import { useFormikContext } from "formik";
 import { memo, type ReactElement, useMemo } from "react";
 import { match } from "ts-pattern";
 import { evaluateFieldConditions } from "../dynamic-form/fieldHelpers";
-	import {
+import { useFeatures, type FeatureFlags } from "../hooks/useFeatures";
+import {
 	FormAutocompleteField,
 	FormCheckboxField,
 	FormColorField,
@@ -123,6 +124,29 @@ export interface FormFieldRendererProps {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Feature gating
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Feature gating for a field element's overrides:
+ * - `requiresFeature`   — the field renders only when the flag is ON
+ * - `hiddenWhenFeature` — the field hides when the flag is ON
+ *
+ * Shared by FormFieldRenderer (Formik path) and LayoutChildren's
+ * read-only fallback so feature-gated fields never render anywhere.
+ */
+export function isFieldFeatureVisible(
+	overrides: Record<string, unknown> | null | undefined,
+	features: FeatureFlags,
+): boolean {
+	const rf = (overrides as any)?.requiresFeature as string | undefined;
+	if (rf && !features[rf]) return false;
+	const hwf = (overrides as any)?.hiddenWhenFeature as string | undefined;
+	if (hwf && features[hwf]) return false;
+	return true;
+}
+
+// ─────────────────────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────────────────────
 
@@ -131,17 +155,20 @@ function FormFieldRendererInner({
 	context,
 }: FormFieldRendererProps): ReactElement | null {
 	const { values } = useFormikContext<Record<string, unknown>>();
+	const { features } = useFeatures();
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const field = adaptField(element) as any as RenderField;
 	const ov = element.overrides as Record<string, unknown> | null;
 
+	// Feature-gated fields — `requiresFeature` shows only when the flag is
+	// ON, `hiddenWhenFeature` hides when the flag is ON (e.g. the MI
+	// instance selector on the service form behind `multi_mi_instance`).
+	if (!isFieldFeatureVisible(ov, features)) return null;
+
 	// Context-based visibility — e.g. visibleWhen: {context: ["create"]}
 	// (the field only exists while creating; hidden in edit dialogs).
 	const vw = (ov as any)?.visibleWhen as { context?: string[] } | undefined;
-	if (
-		vw?.context?.length &&
-		!(context && vw.context.includes(context))
-	) {
+	if (vw?.context?.length && !(context && vw.context.includes(context))) {
 		return null;
 	}
 
