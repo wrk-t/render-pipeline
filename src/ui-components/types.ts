@@ -7,8 +7,8 @@
 // ──────────────────────────────────────────────────────────────────
 
 export interface UiComponentSeed {
-	/** 24-char CUID (registered in the backend `uiComponents` namespace). */
-	id: string;
+	/** Numeric id (matches the backend `ui_components` integer-id schema). */
+	id: number;
 	name: string;
 	displayName: string;
 	description: string;

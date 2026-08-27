@@ -7,19 +7,19 @@ import type { ReactElement } from "react";
 import { ComponentRenderer } from "../ComponentRenderer";
 import type { RenderedComponent } from "../types";
 import { LayoutChildren } from "./layoutChildren";
+import { Paper } from "@mui/material";
 
 // ──────────────────────────────────────────────────────────────────
-// LayoutRenderer — the default page/panel shell. A PLAIN container
-// (no Paper surface — the page background shows through; components
-// like tables wrap themselves in Paper).
+// ══════════════════════════════════════════════════════════════
+// LayoutRenderer — the screen shell: a page header + a Paper card.
 //
-//   Box (page)
-//     └─ header: title (Typography h6) + description (body2) + actions
-//     └─ content: the component tree
+//   Stack
+//     ├─ header: title (Typography h5) + description (body2) + actions
+//     └─ Paper (surface) — the content/component tree only
 //
-// The old implicit card surface moved to the components: wrap a table
-// in an explicit Paper node to give it a card look.
-// ──────────────────────────────────────────────────────────────────
+// The title/description live OUTSIDE the paper (they are page-level),
+// the paper wraps just the components on the screen.
+// ══════════════════════════════════════════════════════════════
 
 export function LayoutRenderer({
 	component,
@@ -46,13 +46,13 @@ export function LayoutRenderer({
 	const description = component.description ?? undefined;
 
 	const content = (component.slotsFilled["content"] ?? [])
-		.filter((e) => e.isActive)
-		.sort((a, b) => a.displayOrder - b.displayOrder);
+			.filter((e) => e.isActive)
+			.sort((a, b) => a.displayOrder - b.displayOrder);
 	const actions = (component.slotsFilled["actions"] ?? [])
-		.filter(
-			(e) => e.isActive && e.elementType === "component_ref" && e.referencedComponent,
-		)
-		.sort((a, b) => a.displayOrder - b.displayOrder);
+			.filter(
+				(e) => e.isActive && e.elementType === "component_ref" && e.referencedComponent,
+			)
+			.sort((a, b) => a.displayOrder - b.displayOrder);
 
 	const hasHeader = !!(title || description || actions.length > 0);
 
@@ -72,23 +72,16 @@ export function LayoutRenderer({
 	}
 
 	return (
-		<Box
-			sx={{
-				height: "100%",
-				...(config.maxWidth != null
-					? { maxWidth: config.maxWidth, mx: "auto" }
-					: {}),
-			}}
-		>
+		<Stack spacing={1.5} className="h-full">
 			{hasHeader && (
 				<Stack
 					direction="row"
-					className="mb-3 items-center justify-between"
+					className="items-center justify-between"
 					spacing={2}
 				>
 					<Box>
 						{title && (
-							<Typography variant="h6" className="font-semibold">
+							<Typography variant="h5" className="font-semibold">
 								{title}
 							</Typography>
 						)}
@@ -113,7 +106,20 @@ export function LayoutRenderer({
 					)}
 				</Stack>
 			)}
-			{contentWithSpacing}
-		</Box>
+			<Paper
+				elevation={config.elevation ?? 1}
+				sx={{
+					p: config.padding ?? 2.5,
+					borderRadius: config.radius ?? 2,
+					flex: 1,
+					minHeight: 0,
+					...(config.maxWidth != null
+						? { maxWidth: config.maxWidth, mx: "auto", width: "100%" }
+						: {}),
+				}}
+			>
+				<LayoutChildren elements={content} pathParams={pathParams} />
+			</Paper>
+		</Stack>
 	);
 }

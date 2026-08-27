@@ -7,21 +7,30 @@ function filterScreensByPermissions(screens: Screen[]): Screen[] {
 	const user = getUserSnapshot();
 	const permissions: Array<{ resource: string; scope?: string }> =
 		(user as any)?.permissions?.data ?? [];
+	const features: string[] = (user as any)?.features ?? [];
 
 	// Don't filter until user data is loaded
 	if (!user) return screens;
 
 	// Users with the `tenants` permission at scope "all" are platform super
-	// admins — tenant-specific screens marked hideForSuperAdmin are hidden.
+	// admins — tenant-specific screens marked hideForSuperAdmin are hidden,
+	// and super admins bypass feature gating.
 	const isTenantScopeAll = permissions.some(
 		(p) => p.resource === "tenants" && p.scope === "all",
 	);
 
-	return screens.filter(
-		(s) =>
-			!((s.meta as any)?.hideForSuperAdmin && isTenantScopeAll) &&
-			checkComponentPermission(permissions, s.visibleToPermissions as any),
-	);
+	return screens.filter((s) => {
+		if ((s.meta as any)?.hideForSuperAdmin && isTenantScopeAll) return false;
+		if (!isTenantScopeAll) {
+			// Feature gating: requiresFeature needs the feature ON;
+			// hiddenWhenFeature hides the screen when the feature is ON.
+			const required = s.requiresFeature;
+			if (required && !features.includes(required)) return false;
+			const hiddenWhen = (s.meta as any)?.hiddenWhenFeature;
+			if (hiddenWhen && features.includes(hiddenWhen)) return false;
+		}
+		return checkComponentPermission(permissions, s.visibleToPermissions as any);
+	});
 }
 
 	export async function resolveScreen(

@@ -64,8 +64,9 @@ function actionFromComponent(ref: RenderedComponent): TableAction {
 	const base = {
 		id: String(ref.id),
 		label: cfg.label ?? ref.displayName,
-		// The authoring compiler stores Button icons on the component row's
-		// `icon` column (identity key, stripped from config) — fall back to it.
+		// `icon` is lifted to the component's identity column by the authoring
+		// DSL (IDENTITY_KEYS), so the render exposes it as ref.icon — not in
+		// config. Fall back to cfg.icon for legacy config-driven actions.
 		icon: cfg.icon ?? ref.icon ?? undefined,
 		color: cfg.color,
 		...(cfg.condition ? { condition: cfg.condition } : {}),
@@ -309,10 +310,11 @@ export function TableRenderer({
 							(c.overrides as any)?.displayName ?? c.label ?? undefined,
 					},
 					columnConfig: (c.overrides as any)?.columnConfig ?? undefined,
+					datasource: (c.overrides as any)?.datasource ?? undefined,
 					isActive: c.isActive,
 					displayOrder: c.displayOrder,
 				})),
-		[columnEls, userPermissions, workspaceTier],
+			[columnEls, userPermissions, workspaceTier],
 	);
 
 	const tableMetadata = useMemo(
@@ -760,10 +762,11 @@ function InnerTableWrapper({
 							(c.overrides as any)?.displayName ?? c.label ?? undefined,
 					},
 					columnConfig: (c.overrides as any)?.columnConfig ?? undefined,
+					datasource: (c.overrides as any)?.datasource ?? undefined,
 					isActive: c.isActive,
 					displayOrder: c.displayOrder,
 				})),
-		[component, userPermissions, workspaceTier],
+			[component, userPermissions, workspaceTier],
 	);
 
 	const tableMetadata = useMemo(

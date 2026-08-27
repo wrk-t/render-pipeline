@@ -16,6 +16,8 @@ export interface Screen {
 	parentScreenId: number | null;
 	/** The root component this screen mounts (screens.componentId). */
 	componentId: number | null;
+	/** Feature flag (features.name) that must be enabled for the tenant. */
+	requiresFeature?: string | null;
 	visibleToPermissions?: Array<{
 		resource: string;
 		action: string;

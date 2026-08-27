@@ -52,40 +52,45 @@ import { TableIcon } from "./TableIcon";
 // Only the fields actually used by buildColumnDef are required.
 // ─────────────────────────────────────────────────────────────
 
-export interface DynamicTableColumn {
-	/** Column instance id from the backend. */
-	id: number;
-	/** The field name in the response data (maps to MRT accessorKey). */
-	name: string;
-	/** Display overrides (e.g. displayName → column header). */
-	fieldOverrides?: { displayName?: string | null } | null;
-	/** Column display configuration. */
-	columnConfig?: {
-		width?: string | number | null;
-		minWidth?: string | number | null;
-		maxWidth?: string | number | null;
-		align?: "left" | "center" | "right" | "justify" | null;
-		sortable?: boolean | null;
-		filterable?: boolean | null;
-		resizable?: boolean | null;
-		hideable?: boolean | null;
-		editable?: boolean | null;
-		format?: { type: string } | null;
-		filterType?: "text" | "number" | "select" | "date" | "boolean" | null;
-		/** Option source for select filters (static or API-backed). */
-		filterOptions?: {
-			type?: "static" | "service";
-			options?: Array<{ label: string; value: string }> | null;
-			endpoint?: string | null;
-			labelField?: string | null;
-			valueField?: string | null;
+	export interface DynamicTableColumn {
+		/** Column instance id from the backend. */
+		id: number;
+		/** The field name in the response data (maps to MRT accessorKey). */
+		name: string;
+		/** Display overrides (e.g. displayName → column header). */
+		fieldOverrides?: { displayName?: string | null } | null;
+		/** Column display configuration. */
+		columnConfig?: {
+			width?: string | number | null;
+			minWidth?: string | number | null;
+			maxWidth?: string | number | null;
+			align?: "left" | "center" | "right" | "justify" | null;
+			sortable?: boolean | null;
+			filterable?: boolean | null;
+			resizable?: boolean | null;
+			hideable?: boolean | null;
+			editable?: boolean | null;
+			filterType?: "text" | "number" | "select" | "date" | "boolean" | null;
+			/** Select-filter options — static list or service-backed fetch. */
+			filterOptions?: {
+				type?: "static" | "service";
+				options?: Array<{ label?: string; value?: unknown }> | null;
+				endpoint?: string;
+				labelField?: string;
+				valueField?: string;
+			} | null;
+			format?: { type: string } | null;
 		} | null;
-	} | null;
-	/** Whether the column is active. */
-	isActive?: boolean;
-	/** Display order for sorting columns. */
-	displayOrder: number;
-}
+		/** Field datasource (e.g. static select options) — feeds select filters. */
+		datasource?: {
+			type?: string;
+			options?: Array<{ label?: string; value?: unknown }> | null;
+		} | null;
+		/** Whether the column is active. */
+		isActive?: boolean;
+		/** Display order for sorting columns. */
+		displayOrder: number;
+	}
 
 // ─────────────────────────────────────────────────────────────
 // Props
@@ -150,7 +155,7 @@ export interface DynamicTableProps {
 
 function buildColumnDef(
 	col: DynamicTableColumn,
-	filterSelectOptions?: Array<{ label: string; value: string }>,
+	filterSelectOptions?: Array<{ label?: string | number | null; value?: unknown }>,
 ): MRT_ColumnDef<Record<string, unknown>> {
 	const config = col.columnConfig;
 	const overrides = col.fieldOverrides;
@@ -169,13 +174,44 @@ function buildColumnDef(
 		...(config?.editable ? { enableEditing: true } : {}),
 	};
 
-	// Select filters — dropdown instead of free text. Options come from
-	// filterOptions: a static list or rows fetched from an endpoint (e.g.
-	// DB-defined enums like tiers).
-	if (config?.filterType === "select") {
-		def.filterVariant = "select";
-		if (filterSelectOptions?.length) {
-			def.filterSelectOptions = filterSelectOptions;
+	// ── Column filter variant ────────────────────────────────────
+	// Map the metadata filterType to an MRT filter UI: select columns
+	// render a dropdown (options from the field's static datasource),
+	// boolean columns a Yes/No select, date columns a date picker.
+	if (config?.filterable && config.filterType) {
+		switch (config.filterType) {
+			case "select": {
+				def.filterVariant = "select";
+				// Prefer the resolved options passed by the caller (columnConfig
+				// filterOptions — static or service-backed); fall back to the
+				// field's static datasource options (the form's options, reused).
+				const options =
+					filterSelectOptions ?? (col.datasource as any)?.options;
+				if (Array.isArray(options) && options.length > 0) {
+					def.filterSelectOptions = options.map(
+						(o: { label?: string; value?: unknown }) => ({
+							label: String(o.label ?? o.value ?? ""),
+							value: String(o.value ?? ""),
+						}),
+					);
+				}
+				break;
+			}
+			case "boolean": {
+				def.filterVariant = "select";
+				def.filterSelectOptions = [
+					{ label: "Yes", value: "true" },
+					{ label: "No", value: "false" },
+				];
+				break;
+			}
+			case "date": {
+				def.filterVariant = "date";
+				break;
+			}
+			default: {
+				def.filterVariant = "text";
+			}
 		}
 	}
 
@@ -912,6 +948,7 @@ export function DynamicTable({
 			// edge in LTR, the left edge in RTL. MRT treats pinning sides as
 			// logical and flips them for RTL tables, so "right" pins to the
 			// visual end in BOTH directions.
+			// Row-action menu is pinned right so it never scrolls away.
 			columnPinning: { right: ["mrt-row-actions"] },
 		},
 

@@ -11,13 +11,30 @@
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
 	"type": "module",
+	"typesVersions": {
+		"*": {
+			"ui-components": ["./dist/ui-components/index.d.ts"],
+			"ui-components/seed": ["./dist/ui-components/seed.d.ts"]
+		}
+	},
 	"exports": {
 		".": {
-			"import": "./dist/index.js",
-			"types": "./dist/index.d.ts"
-		},
+				"import": "./dist/index.js",
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			},
+		"./ui-components": {
+				"import": "./dist/ui-components/index.js",
+				"types": "./dist/ui-components/index.d.ts",
+				"default": "./dist/ui-components/index.js"
+			},
+		"./ui-components/seed": {
+				"import": "./dist/ui-components/seed.js",
+				"types": "./dist/ui-components/seed.d.ts",
+				"default": "./dist/ui-components/seed.js"
+			},
 		"./*": "./dist/*"
-	},
+		},
 	"files": [
 		"dist"
 	],
