@@ -4,11 +4,26 @@
 // Supports both static options and service datasources (including
 // resolved entity datasources). When a service datasource is
 // present, options are fetched once on mount via SWR.
+//
+// CONTROLLED value: uses `useField` and always passes `value ?? ""`
+// to the MUI Select. The previous formik-mui `FastSelect` wrapper
+// passed `value={undefined}` on first render (MUI warns + misbehaves
+// when a Select switches uncontrolled→controlled) and its `onClose`
+// read `e.target.dataset` — an event shape MUI v9 no longer provides,
+// so closing the dropdown threw during the Select's internal sync and
+// froze the page (the Style tab).
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
-import { MenuItem, Stack, Typography } from "@mui/material";
-import { FastSelect } from "@smartpath/typed-formik-mui";
+import {
+	FormControl,
+	InputLabel,
+	MenuItem,
+	Select,
+	Stack,
+	Typography,
+} from "@mui/material";
+import { useField } from "formik";
 import type { ReactElement } from "react";
 import useSWR from "swr";
 import { checkComponentPermission } from "../../ability/checkComponentPermission";
@@ -48,14 +63,14 @@ function toSelectOption(item: unknown, entityMeta?: EntityMeta): SelectOption {
 // Component
 // ─────────────────────────────────────────────────────────────
 
-	export function FormSelectField({
+export function FormSelectField({
 	field,
 }: {
 	field: SelectField;
 }): ReactElement {
 	const { data: user } = useRenderUser();
 	const userPermissions: Array<{ resource: string; scope?: string }> =
-		(user as any)?.permissions?.data ?? [];
+		user?.permissions?.data ?? [];
 
 	// ── Resolve datasource ─────────────────────────────────────
 	const ds = field.fieldOverrides?.datasource as FieldDatasource | undefined;
@@ -120,27 +135,44 @@ function toSelectOption(item: unknown, entityMeta?: EntityMeta): SelectOption {
 	// is "all").
 	const visibleOptions = options.filter(
 		(opt) =>
-			!opt.visibleToPermissions?.length ||
-			checkComponentPermission(
-				userPermissions as any,
-				opt.visibleToPermissions as any,
-			),
+			!opt.visibleToPermissions ||
+			opt.visibleToPermissions.length === 0 ||
+			checkComponentPermission(userPermissions, opt.visibleToPermissions),
 	);
+
+	// ── Controlled value (never undefined — see header comment) ──
+	const [{ value }, meta, { setValue, setTouched }] = useField<string>(
+		field.name,
+	);
+	const isError = Boolean(meta.touched && meta.error);
 
 	return (
 		<Stack spacing={0.2}>
-			<FastSelect
-				name={field.name}
-				label={field.label}
+			<FormControl
+				fullWidth
+				size="small"
+				error={isError}
 				required={field.isRequired}
 				disabled={field.isReadOnly}
 			>
-				{visibleOptions.map((opt) => (
-					<MenuItem key={String(opt.value)} value={opt.value as string}>
-						{opt.label}
-					</MenuItem>
-				))}
-			</FastSelect>
+				<InputLabel id={`field-select-${field.name}`}>{field.label}</InputLabel>
+				<Select
+					labelId={`field-select-${field.name}`}
+					label={field.label}
+					value={value ?? ""}
+					onChange={(e) => {
+						setValue(e.target.value as string);
+						setTouched(true);
+					}}
+					onBlur={() => setTouched(true)}
+				>
+					{visibleOptions.map((opt) => (
+						<MenuItem key={String(opt.value)} value={opt.value as string}>
+							{opt.label}
+						</MenuItem>
+					))}
+				</Select>
+			</FormControl>
 			{field.fieldOverrides?.description ? (
 				<Typography variant="caption" color="text.secondary" className="pl-3">
 					{field.fieldOverrides.description}

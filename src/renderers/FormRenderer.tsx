@@ -46,6 +46,48 @@ function defaultInitialValue(el: RenderedElement): unknown {
 }
 
 // ──────────────────────────────────────────────────────────────────
+// Dotted-name helpers — template extras live in the `data` jsonb, so
+// form fields are named "data.winePairing" etc. These set/read the
+// NESTED values Formik produces/consumes for such names.
+// ──────────────────────────────────────────────────────────────────
+
+function setDottedValue(
+	values: Record<string, unknown>,
+	dottedName: string,
+	value: unknown,
+): void {
+	const parts = dottedName.split(".");
+	if (parts.length === 1) {
+		values[parts[0]] = value;
+		return;
+	}
+	let node = values;
+	for (const part of parts.slice(0, -1)) {
+		if (
+			node[part] === null ||
+			typeof node[part] !== "object" ||
+			Array.isArray(node[part])
+		) {
+			node[part] = {};
+		}
+		node = node[part] as Record<string, unknown>;
+	}
+	node[parts[parts.length - 1]] = value;
+}
+
+function getDottedValue(
+	obj: Record<string, unknown>,
+	dottedName: string,
+): unknown {
+	let node: unknown = obj;
+	for (const part of dottedName.split(".")) {
+		if (node === null || typeof node !== "object") return undefined;
+		node = (node as Record<string, unknown>)[part];
+	}
+	return node;
+}
+
+// ──────────────────────────────────────────────────────────────────
 // FormRenderer
 // ──────────────────────────────────────────────────────────────────
 
@@ -287,7 +329,12 @@ export function FormRenderer({
     // First, apply default values from overrides
     for (const field of allFields) {
       const name = field.name ?? "";
-      if (name) values[name] = (field.overrides as any)?.defaultValue ?? "";
+      if (name)
+        setDottedValue(
+          values,
+          name,
+          (field.overrides as any)?.defaultValue ?? "",
+        );
     }
     // Then, overlay pathParams for matching field names
     if (pathParams) {
@@ -295,10 +342,15 @@ export function FormRenderer({
         if (key in values) values[key] = value;
       }
     }
-    // Then, overlay record data for edit mode
+    // Then, overlay record data for edit mode (dotted names resolve
+    // nested values, e.g. "data.winePairing" ← record.data.winePairing).
     if (recordData && effectiveContext === "edit") {
-      for (const key of Object.keys(recordData as Record<string, unknown>)) {
-        if (key in values) values[key] = (recordData as any)[key] ?? "";
+      const src = recordData as Record<string, unknown>;
+      for (const field of allFields) {
+        const name = field.name ?? "";
+        if (!name) continue;
+        const v = getDottedValue(src, name);
+        if (v !== undefined && v !== null) setDottedValue(values, name, v);
       }
     }
     return values;

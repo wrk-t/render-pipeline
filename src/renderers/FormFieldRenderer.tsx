@@ -19,8 +19,10 @@ import {
 	FormColorField,
 	FormDateField,
 	FormEmailField,
+	FormFontPickerField,
 	FormImageField,
 	FormJsonField,
+	FormMapPickerField,
 	FormMultiSelectField,
 	FormNumberField,
 	FormPasswordField,
@@ -32,6 +34,7 @@ import {
 	FormTextField,
 	IconPickerField,
 	VariantEditorField,
+	FormAvailabilityWindowsField,
 } from "../dynamic-form/fields";
 import type { RenderField } from "../dynamic-form/types";
 import type { RenderedElement } from "../types";
@@ -209,6 +212,17 @@ function FormFieldRendererInner({
 						}
 					/>
 				))
+				.with({ type: "font" }, (f) => (
+					<FormFontPickerField
+						field={
+							{
+								...f,
+								isRequired: conditions.isRequired,
+								isReadOnly: conditions.isDisabled,
+							} as any
+						}
+					/>
+				))
 				.with({ type: "textarea" }, (f) => (
 					<FormTextareaField
 						field={
@@ -319,6 +333,17 @@ function FormFieldRendererInner({
 						}
 					/>
 				))
+				.with({ type: "map" }, (f) => (
+					<FormMapPickerField
+						field={
+							{
+								...f,
+								isRequired: conditions.isRequired,
+								isReadOnly: conditions.isDisabled,
+							} as any
+						}
+					/>
+				))
 				.with({ type: "autocomplete" }, (f) => (
 					<FormAutocompleteField
 						field={
@@ -370,6 +395,17 @@ function FormFieldRendererInner({
 				))
 				.with({ type: "variants" }, (f) => (
 					<VariantEditorField
+						field={
+							{
+								...f,
+								isRequired: conditions.isRequired,
+								isReadOnly: conditions.isDisabled,
+							} as any
+						}
+					/>
+				))
+				.with({ type: "availability-windows" }, (f) => (
+					<FormAvailabilityWindowsField
 						field={
 							{
 								...f,

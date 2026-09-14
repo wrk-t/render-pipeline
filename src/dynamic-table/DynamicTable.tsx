@@ -597,6 +597,7 @@ export function DynamicTable({
 				includeDeleted,
 				searchableFields: settings.searchableFields,
 				datasourceParams: datasource.params,
+				pathParams: resolvedPathParams,
 			});
 			const suffix = otherQueryString ? `&${otherQueryString}` : "";
 			const sep = resolvedEndpoint.includes("?") ? "&" : "?";

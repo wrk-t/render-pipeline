@@ -23,9 +23,7 @@ export const BooleanCell: FC<BooleanCellProps> = ({ cell }) => {
 	return (
 		<span
 			title={String(value ?? "")}
-			className={`inline-flex items-center justify-center ${
-				truthy ? "text-green-600" : "text-red-500"
-			}`}
+			className={`flex w-full items-center justify-center ${truthy ? "text-green-600" : "text-red-500"}`}
 		>
 			<Unicon name={truthy ? "CheckCircle" : "Cancel"} size={18} />
 		</span>

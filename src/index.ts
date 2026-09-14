@@ -38,8 +38,8 @@ export {
 	type TDatePickerValue,
 } from "./components/common/fields/dateRangePicker/config";
 export { ICON_EXPORT, Unicon } from "./components/common/icon/Unicon";
-export { LocalMonacoEditor } from "./components/common/LocalMonacoEditor";
 export type { LocalMonacoEditorProps } from "./components/common/LocalMonacoEditor";
+export { LocalMonacoEditor } from "./components/common/LocalMonacoEditor";
 // ── Shared UI / helpers ──────────────────────────────────────
 export { BaseDialog } from "./components/dialog/BaseDialog";
 export { BaseDialogActions } from "./components/dialog/BaseDialogActions";
@@ -48,11 +48,12 @@ export type {
 	IBaseDialogActionsProps,
 	IBaseDialogProps,
 } from "./components/dialog/types";
-export type { RenderPipelineDeps, RenderUser } from "./deps";
+export type { LocalFontSeed, RenderPipelineDeps, RenderUser } from "./deps";
 // ── Dependency seam ──────────────────────────────────────────
 export {
 	configureRenderPipeline,
 	getApiClient,
+	getLocalFonts,
 	getUserSnapshot,
 	useRenderUser,
 } from "./deps";
@@ -67,6 +68,7 @@ export {
 	FormColorField,
 	FormDateField,
 	FormEmailField,
+	FormFontPickerField,
 	FormImageField,
 	FormJsonField,
 	FormMultiSelectField,
@@ -137,9 +139,9 @@ export { ReferenceCell } from "./renderers/ReferenceCell";
 export { ScreenLayoutRenderer } from "./renderers/ScreenLayoutRenderer";
 export { StageActionsRenderer } from "./renderers/StageActionsRenderer";
 export { StateContextRenderer } from "./renderers/StateContextRenderer";
-export { TypographyRenderer } from "./renderers/TypographyRenderer";
 export { TableRenderer } from "./renderers/TableRenderer";
 export { TabsRenderer } from "./renderers/TabsRenderer";
+export { TypographyRenderer } from "./renderers/TypographyRenderer";
 export type { VersionInfo } from "./renderers/VersionContext";
 export { useVersion, VersionProvider } from "./renderers/VersionContext";
 export type { ParamResolveContext, ParamScope } from "./resolveParams";

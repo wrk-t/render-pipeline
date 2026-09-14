@@ -7,8 +7,8 @@
 //   2. Import it here and add one entry below
 // ──────────────────────────────────────────────────────────────────
 
-import { AvatarRenderer } from "./renderers/AvatarRenderer";
 import { AuditHistoryRenderer } from "./renderers/AuditHistoryRenderer";
+import { AvatarRenderer } from "./renderers/AvatarRenderer";
 import { BarRenderer } from "./renderers/BarRenderer";
 import { BoxRenderer } from "./renderers/BoxRenderer";
 import { ButtonRenderer } from "./renderers/ButtonRenderer";
@@ -18,11 +18,11 @@ import { FormRenderer } from "./renderers/FormRenderer";
 import { GaugeRenderer } from "./renderers/GaugeRenderer";
 import { GridRenderer } from "./renderers/GridRenderer";
 import { InfoRenderer } from "./renderers/InfoRenderer";
+import { LayoutRenderer } from "./renderers/LayoutRenderer";
 import { LineRenderer } from "./renderers/LineRenderer";
 import { LinkRenderer } from "./renderers/LinkRenderer";
 import { ListRenderer } from "./renderers/ListRenderer";
 import { LogoUploaderRenderer } from "./renderers/LogoUploaderRenderer";
-import { LayoutRenderer } from "./renderers/LayoutRenderer";
 import { MetricRenderer } from "./renderers/MetricRenderer";
 import { PageRenderer } from "./renderers/PageRenderer";
 import { PaperRenderer } from "./renderers/PaperRenderer";
@@ -71,6 +71,8 @@ export const rendererRegistry: Record<string, RendererComponent> = {
 	link: LinkRenderer,
 	typography: TypographyRenderer,
 	layout: LayoutRenderer,
+	// Site-builder screens (siteBuilderManager / siteTemplatesManager) are
+	// APP-owned renderers — the host app registers them at startup.
 };
 
 /**

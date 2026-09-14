@@ -135,7 +135,10 @@ export type FieldType =
 	| "color"
 	| "settingValue"
 	| "variants"
-	| "icon";
+	| "icon"
+	| "availability-windows"
+	| "font"
+	| "map";
 
 // ── 7. DATASOURCE TYPES ──
 
@@ -536,15 +539,27 @@ export interface TextField extends FieldBase {
 }
 
 export interface ColorField extends FieldBase {
-  type: "color";
-  fieldOverrides?: FieldOverrides | null;
-  uiOverrides: {
-    layout?: FieldLayout;
-    behavior?: {
-      placeholder?: string;
-      defaultValue?: string;
-    };
-  };
+	type: "color";
+	fieldOverrides?: FieldOverrides | null;
+	uiOverrides: {
+		layout?: FieldLayout;
+		behavior?: {
+			placeholder?: string;
+			defaultValue?: string;
+		};
+	};
+}
+
+export interface FontField extends FieldBase {
+	type: "font";
+	fieldOverrides?: FieldOverrides | null;
+	uiOverrides: {
+		layout?: FieldLayout;
+		behavior?: {
+			placeholder?: string;
+			defaultValue?: string;
+		};
+	};
 }
 
 export interface TextareaField extends FieldBase {
@@ -787,12 +802,40 @@ export interface VariantField extends FieldBase {
   };
 }
 
+export interface AvailabilityWindowsField extends FieldBase {
+  type: "availability-windows";
+  fieldOverrides?: FieldOverrides | null;
+  uiOverrides: {
+    layout?: FieldLayout;
+    behavior?: { placeholder?: string };
+  };
+}
+
 export interface IconField extends FieldBase {
   type: "icon";
   fieldOverrides?: FieldOverrides | null;
   uiOverrides: {
     layout?: FieldLayout;
     behavior?: { placeholder?: string };
+  };
+}
+
+/**
+ * Map picker — renders a Mapbox map; clicking / dragging the marker sets
+ * two form values (`latField` + `lngField`).
+ */
+export interface MapField extends FieldBase {
+  type: "map";
+  fieldOverrides?: FieldOverrides | null;
+  uiOverrides: {
+    layout?: FieldLayout;
+    behavior?: {
+      latField?: string;
+      lngField?: string;
+      styleUrl?: string;
+      accessToken?: string;
+      zoom?: number;
+    };
   };
 }
 
@@ -836,7 +879,10 @@ export type RenderField =
 	| AutocompleteField
 	| SettingValueField
 	| VariantField
-	| IconField;
+	| IconField
+	| AvailabilityWindowsField
+	| FontField
+	| MapField;
 
 // ── 16. RENDER RESPONSE SHAPES ──
 

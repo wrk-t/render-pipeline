@@ -31,10 +31,24 @@ export interface RenderUser {
 	} | null;
 }
 
+/**
+ * A locally hosted font (files served by the app, loaded via its own
+ * `@font-face` rules) — shown in the font picker's local list.
+ */
+export interface LocalFontSeed {
+	/** Font family name — must match the app's `@font-face` family. */
+	name: string;
+	category?: string;
+	/** Available variants (e.g. "regular", "italic", "400", "700"). */
+	variants: string[];
+}
+
 export interface RenderPipelineDeps {
 	client: AxiosInstance;
 	useGetUser: () => { data?: RenderUser | null };
 	getUserSnapshot: () => RenderUser | null;
+	/** Local font catalog for the font picker (optional — defaults to none). */
+	localFonts?: LocalFontSeed[];
 }
 
 let configured: RenderPipelineDeps | null = null;
@@ -64,4 +78,9 @@ export function useRenderUser(): { data?: RenderUser | null } {
 /** Non-hook snapshot for async code paths (e.g. screen resolution). */
 export function getUserSnapshot(): RenderUser | null {
 	return requireDeps().getUserSnapshot();
+}
+
+/** The app's local font catalog (for the font picker field). */
+export function getLocalFonts(): LocalFontSeed[] {
+	return requireDeps().localFonts ?? [];
 }

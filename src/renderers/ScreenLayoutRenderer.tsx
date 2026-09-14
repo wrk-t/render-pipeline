@@ -4,7 +4,9 @@ import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { type ReactElement, useMemo } from "react";
+import useSWR from "swr";
 import { ComponentRenderer } from "../ComponentRenderer";
+import { getApiClient } from "../deps";
 import { useFeatures } from "../hooks/useFeatures";
 import type { RenderedComponent, RenderedElement } from "../types";
 import { useDateRange } from "./DateRangeContext";
@@ -20,7 +22,7 @@ import { useVersion, VersionProvider } from "./VersionContext";
 // author is what renders (drag-and-drop builder friendly).
 // ──────────────────────────────────────────────────────────────────
 
-export function ScreenLayoutRenderer({
+	export function ScreenLayoutRenderer({
 	component,
 	pathParams,
 }: {
@@ -43,6 +45,32 @@ export function ScreenLayoutRenderer({
 		...dateParams,
 		...(selectedVersion?.id ? { versionId: selectedVersion.id } : {}),
 	};
+	const config = (component.config ?? {}) as {
+		datasource?: { endpoint?: string; method?: string };
+	};
+
+	// Optional entity fetch for a DYNAMIC header — the row's name /
+	// description overlay the layout's own title/description.
+	const headerEndpoint = useMemo(() => {
+		const raw = config.datasource?.endpoint;
+		if (!raw) return null;
+		return raw.replace(/\{(\w+)\}/g, (_: string, key: string) =>
+			pathParams && key in pathParams ? String(pathParams[key]) : `{${key}}`,
+		);
+	}, [config.datasource?.endpoint, pathParams]);
+	const { data: headerRow } = useSWR(
+		headerEndpoint,
+		headerEndpoint
+			? async (url: string) => {
+					const r = await getApiClient().get(url);
+					return (r.data?.data ?? r.data ?? null) as Record<
+						string,
+						unknown
+					> | null;
+				}
+			: null,
+	);
+
 	const headerElements = component.slotsFilled["header"] ?? [];
 	const bodyElements = component.slotsFilled["body"] ?? [];
 
@@ -86,14 +114,14 @@ export function ScreenLayoutRenderer({
 					})
 				) : (
 					<>
-						{component.displayName && (
+						{(headerRow?.name ?? component.displayName) && (
 							<Typography variant="h4" className="font-bold">
-								{component.displayName}
+								{String(headerRow?.name ?? component.displayName)}
 							</Typography>
 						)}
-						{component.description && (
+						{(headerRow?.description ?? component.description) && (
 							<Typography variant="subtitle2" color="text.secondary">
-								{component.description}
+								{String(headerRow?.description ?? component.description)}
 							</Typography>
 						)}
 					</>

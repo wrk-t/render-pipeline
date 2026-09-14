@@ -1,10 +1,17 @@
 export { FormAutocompleteField } from "./FormAutocompleteField";
+export { AssetPickerDialog } from "./AssetPickerDialog";
+export { FormAvailabilityWindowsField } from "./FormAvailabilityWindowsField";
 export { FormCheckboxField } from "./FormCheckboxField";
-export { FormColorField } from "./FormColorField";
+export {
+	ColorPickerInput,
+	FormColorField,
+} from "./FormColorField";
 export { FormDateField } from "./FormDateField";
 export { FormEmailField } from "./FormEmailField";
+export { FormFontPickerField } from "./FormFontPickerField";
 export { FormImageField } from "./FormImageField";
 export { FormJsonField } from "./FormJsonField";
+export { FormMapPickerField } from "./FormMapPickerField";
 export { FormMultiSelectField } from "./FormMultiSelectField";
 export { FormNumberField } from "./FormNumberField";
 export { FormPasswordField } from "./FormPasswordField";

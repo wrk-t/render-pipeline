@@ -43,6 +43,7 @@ function actionFromComponent(ref: RenderedComponent): TableAction {
 	const cfg = (ref.config ?? {}) as {
 		label?: string;
 		action?: string;
+		customAction?: string;
 		icon?: string;
 		color?: string;
 		endpoint?: string;
@@ -109,7 +110,9 @@ function actionFromComponent(ref: RenderedComponent): TableAction {
 			return {
 				...base,
 				action: "custom",
-				customAction: cfg.action ?? "custom",
+				// The host app's custom action id (e.g. "viewQr", "customizeQrStyle") —
+				// NOT the button's action keyword ("custom").
+				customAction: cfg.customAction ?? cfg.action ?? "custom",
 			};
 	}
 }

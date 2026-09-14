@@ -20,9 +20,9 @@ import {
   type SyntheticEvent,
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from "react";
-import useSWR from "swr";
 import { getApiClient } from "../../deps";
 import type { EntityMeta, MultiselectField, SelectOption } from "../types";
 
@@ -66,7 +66,7 @@ export function FormMultiSelectField({
   const [{ value: rawValue }, meta, { setValue, setTouched }] = useField<
     string[]
   >(field.name);
-  const { isSubmitting } = useFormikContext();
+  const { isSubmitting, values: formValues } = useFormikContext<Record<string, unknown>>();
 
   const [options, setOptions] = useState<SelectOption[]>([]);
   const [loading, setLoading] = useState(false);
@@ -139,6 +139,17 @@ export function FormMultiSelectField({
     [creatable, inputValue, options, selectedValues, setValue, setTouched],
   );
 
+  // Resolve the `{fieldName}` filter placeholders from form values so
+  // the fetch only re-runs when the CONTEXT changes (e.g. the category
+  // picker's `{menuId}`), not on every form keystroke.
+  const resolvedFilter = useMemo(() => {
+    if (datasource?.type !== "service" || !entityMeta?.filter) return null;
+    const rawVal = String(entityMeta.filter.value);
+    return rawVal.replace(/\{(\w+)\}/g, (_, key: string) =>
+      key in formValues ? String(formValues[key] ?? "") : `{${key}}`,
+    );
+  }, [datasource, entityMeta, formValues]);
+
   // Load options
   const loadOptions = useCallback(async () => {
     if (!datasource) return;
@@ -152,7 +163,26 @@ export function FormMultiSelectField({
           })),
         );
       } else if (datasource.type === "service") {
-        const res = await getApiClient().get(datasource.endpoint);
+        // Build query params like FormAutocompleteField: searchFields,
+        // an entityMeta filter (with `{fieldName}` placeholders resolved
+        // from form values — e.g. categoryIds filtered by `{menuId}`),
+        // and an orderBy. Without these the picker would fetch every row
+        // of the entity regardless of context.
+        const baseUrl = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
+        const params = new URLSearchParams();
+        if (entityMeta?.searchFields?.length) {
+          params.set("searchFields", entityMeta.searchFields.join(","));
+        }
+        if (entityMeta?.filter && resolvedFilter) {
+          params.set(entityMeta.filter.field, resolvedFilter);
+        }
+        if (entityMeta?.orderBy) {
+          params.set("sortBy", entityMeta.orderBy.field);
+          params.set("sortOrder", entityMeta.orderBy.direction);
+        }
+        const qs = params.toString();
+        const url = `${baseUrl}${datasource.endpoint}${qs ? `?${qs}` : ""}`;
+        const res = await getApiClient().get(url);
         const items = res.data?.data?.data ?? res.data?.data ?? res.data ?? [];
         const arr = Array.isArray(items) ? items : [items];
         setOptions(
@@ -164,7 +194,7 @@ export function FormMultiSelectField({
     } finally {
       setLoading(false);
     }
-  }, [datasource, entityMeta]);
+  }, [datasource, entityMeta, resolvedFilter]);
 
   useEffect(() => {
     loadOptions();

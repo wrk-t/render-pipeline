@@ -1,7 +1,6 @@
 "use client";
 
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
 import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
@@ -12,6 +11,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getApiClient, useRenderUser } from "../../deps";
+import { ColorPickerInput } from "../../dynamic-form/fields/FormColorField";
 import { useSnack } from "../../hooks/useSnack";
 import { Unicon } from "../common/icon/Unicon";
 import { BaseDialog } from "../dialog/BaseDialog";
@@ -38,41 +38,6 @@ const DEFAULT_STYLE = {
 	margin: 2,
 };
 
-const HEX_RE = /^#[0-9a-fA-F]{6}$/;
-
-function ColorInput({
-	label,
-	value,
-	onChange,
-}: {
-	label: string;
-	value: string;
-	onChange: (v: string) => void;
-}) {
-	const swatch = HEX_RE.test(value) ? value : "#000000";
-	return (
-		<Stack spacing={0.5}>
-			<Typography variant="body2">{label}</Typography>
-			<Stack direction="row" spacing={1} className="items-center">
-				<input
-					type="color"
-					value={swatch}
-					onChange={(e) => onChange(e.target.value)}
-					className="h-10 w-10 cursor-pointer rounded-md border border-divider"
-					aria-label={label}
-				/>
-				<TextField
-					size="small"
-					value={value}
-					onChange={(e) => onChange(e.target.value)}
-					placeholder="#4F46E5"
-					className="flex-1"
-				/>
-			</Stack>
-		</Stack>
-	);
-}
-
 export const QrStyleDialog: React.FC<QrStyleDialogProps> = ({
 	open,
 	onClose,
@@ -89,9 +54,9 @@ export const QrStyleDialog: React.FC<QrStyleDialogProps> = ({
 	>([]);
 	const [dotColor, setDotColor] = useState(DEFAULT_STYLE.dotColor);
 	const [bgColor, setBgColor] = useState(DEFAULT_STYLE.bgColor);
-	const [errorCorrection, setErrorCorrection] = useState<
-		"L" | "M" | "Q" | "H"
-	>(DEFAULT_STYLE.errorCorrection);
+	const [errorCorrection, setErrorCorrection] = useState<"L" | "M" | "Q" | "H">(
+		DEFAULT_STYLE.errorCorrection,
+	);
 	const [margin, setMargin] = useState(DEFAULT_STYLE.margin);
 	const [exampleUrl, setExampleUrl] = useState<string | null>(null);
 	const [loadingExample, setLoadingExample] = useState(false);
@@ -109,7 +74,9 @@ export const QrStyleDialog: React.FC<QrStyleDialogProps> = ({
 
 		const resolve = async () => {
 			// Super admins without an active workspace pick a tenant.
-			if (!contextTenantId) {
+			if (contextTenantId) {
+				setTenantId(contextTenantId);
+			} else {
 				try {
 					const res = await getApiClient().get(
 						`${process.env.NEXT_PUBLIC_ENDPOINT ?? ""}/api/v1/tenants?limit=100`,
@@ -124,8 +91,6 @@ export const QrStyleDialog: React.FC<QrStyleDialogProps> = ({
 				} catch {
 					if (!cancelled) setTenantId(null);
 				}
-			} else {
-				setTenantId(contextTenantId);
 			}
 		};
 		void resolve();
@@ -151,11 +116,8 @@ export const QrStyleDialog: React.FC<QrStyleDialogProps> = ({
 				if (cancelled) return;
 				const raw = res.data?.data?.value as string | undefined;
 				if (!raw) return;
-				const parsed = JSON.parse(raw) as Partial<
-					typeof DEFAULT_STYLE
-				>;
-				if (typeof parsed.dotColor === "string")
-					setDotColor(parsed.dotColor);
+				const parsed = JSON.parse(raw) as Partial<typeof DEFAULT_STYLE>;
+				if (typeof parsed.dotColor === "string") setDotColor(parsed.dotColor);
 				if (typeof parsed.bgColor === "string") setBgColor(parsed.bgColor);
 				if (
 					parsed.errorCorrection === "L" ||
@@ -180,7 +142,7 @@ export const QrStyleDialog: React.FC<QrStyleDialogProps> = ({
 
 	// ── Debounced example fetch on every style change ──
 	useEffect(() => {
-		if (!open || !tenantId) return;
+		if (!(open && tenantId)) return;
 		let cancelled = false;
 		const timer = setTimeout(() => {
 			setLoadingExample(true);
@@ -198,11 +160,8 @@ export const QrStyleDialog: React.FC<QrStyleDialogProps> = ({
 					const svg = typeof res.data === "string" ? res.data : "";
 					const bytes = new TextEncoder().encode(svg);
 					let binary = "";
-					for (const byte of bytes)
-						binary += String.fromCharCode(byte);
-					setExampleUrl(
-						`data:image/svg+xml;base64,${btoa(binary)}`,
-					);
+					for (const byte of bytes) binary += String.fromCharCode(byte);
+					setExampleUrl(`data:image/svg+xml;base64,${btoa(binary)}`);
 				})
 				.catch((err: unknown) => {
 					if (!cancelled) {
@@ -281,9 +240,7 @@ export const QrStyleDialog: React.FC<QrStyleDialogProps> = ({
 					<Stack spacing={2} className="w-64 shrink-0">
 						{tenants.length > 0 && (
 							<FormControl size="small" fullWidth>
-								<InputLabel id="qr-style-tenant-label">
-									Tenant
-								</InputLabel>
+								<InputLabel id="qr-style-tenant-label">Tenant</InputLabel>
 								<Select
 									labelId="qr-style-tenant-label"
 									label="Tenant"
@@ -298,28 +255,24 @@ export const QrStyleDialog: React.FC<QrStyleDialogProps> = ({
 								</Select>
 							</FormControl>
 						)}
-						<ColorInput
+						<ColorPickerInput
 							label="Dot color"
 							value={dotColor}
 							onChange={setDotColor}
 						/>
-						<ColorInput
+						<ColorPickerInput
 							label="Background color"
 							value={bgColor}
 							onChange={setBgColor}
 						/>
 						<FormControl size="small" fullWidth>
-							<InputLabel id="qr-style-ec-label">
-								Error correction
-							</InputLabel>
+							<InputLabel id="qr-style-ec-label">Error correction</InputLabel>
 							<Select
 								labelId="qr-style-ec-label"
 								label="Error correction"
 								value={errorCorrection}
 								onChange={(e) =>
-									setErrorCorrection(
-										e.target.value as "L" | "M" | "Q" | "H",
-									)
+									setErrorCorrection(e.target.value as "L" | "M" | "Q" | "H")
 								}
 							>
 								<MenuItem value="L">L — low</MenuItem>
@@ -345,9 +298,7 @@ export const QrStyleDialog: React.FC<QrStyleDialogProps> = ({
 
 					{/* ── Live example ── */}
 					<Stack className="items-center gap-2 self-center">
-						{loadingExample && !exampleUrl && (
-							<CircularProgress size={28} />
-						)}
+						{loadingExample && !exampleUrl && <CircularProgress size={28} />}
 						{exampleUrl && (
 							<img
 								src={exampleUrl}
@@ -356,7 +307,7 @@ export const QrStyleDialog: React.FC<QrStyleDialogProps> = ({
 								style={{ imageRendering: "pixelated" }}
 							/>
 						)}
-						{!loadingExample && !exampleUrl && (
+						{!(loadingExample || exampleUrl) && (
 							<Typography color="textSecondary" variant="body2">
 								No preview
 							</Typography>

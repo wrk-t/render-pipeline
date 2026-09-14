@@ -36,6 +36,11 @@ export interface RenderedComponent {
 	id: number;
 	blueprintId: number;
 	blueprintName: string;
+	/** What the blueprint IS — same-kind components are interchangeable
+	 *  in kind-constrained slots ("nav", "footer", "menu", "hero",
+	 *  "section", "shell", "page", …). Null when the catalog doesn't
+	 *  declare one. */
+	kind?: string | null;
 	name: string;
 	displayName: string;
 	description: string | null;
@@ -52,16 +57,19 @@ export interface RenderedComponent {
 		name: string;
 		displayName?: string;
 		accepts: string[];
+		acceptsKinds?: string[];
 		grid?: string;
 		overridable?: string[];
 	}>;
 	overridable: string[] | null;
 	contract: Record<string, unknown> | null;
-	slotsFilled: Record<string, RenderedElement[]>;
-	tenantId: string | null;
-	isActive: boolean;
-	isSystem: boolean;
-	meta: Record<string, unknown> | null;
+slotsFilled: Record<string, RenderedElement[]>;
+tenantId: string | null;
+isActive: boolean;
+isSystem: boolean;
+meta: Record<string, unknown> | null;
+	/** The blueprint row's meta (config field declarations etc.). */
+	blueprintMeta?: Record<string, unknown> | null;
 }
 
 // ── Param bindings (element-level input resolution) ─────────────

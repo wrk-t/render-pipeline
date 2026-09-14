@@ -86,6 +86,12 @@ export function buildFieldSchema(
 		// arrays so values like `["id1","id2"]` pass instead of failing the
 		// default string schema.
 		schema = yup.array();
+	} else if (fieldType === "map") {
+		// The map picker holds coordinates (numbers).
+		schema = yup.number();
+	} else if (fieldType === "json") {
+		// JSON fields hold arrays/objects/strings — accept anything.
+		schema = yup.mixed();
 	} else {
 		schema = yup.string();
 	}
@@ -223,7 +229,7 @@ export function buildFieldSchema(
 export function buildFormSchema(
 	form: FormRenderResponse,
 ): yup.ObjectSchema<Record<string, unknown>> {
-	const shape: Record<string, yup.AnySchema> = {};
+	const shape: Record<string, unknown> = {};
 
 	const allFields = [
 		...form.sections.flatMap((s) => s.fields ?? []),
@@ -232,13 +238,25 @@ export function buildFormSchema(
 
 	for (const field of allFields) {
 		const rules = extractRenderFieldRules(field);
-		shape[field.name] = buildFieldSchema(
+		const schema = buildFieldSchema(
 			rules.length > 0 ? rules : null,
 			field.type,
 		);
+		// Dotted names ("data.winePairing") build NESTED shapes so Yup
+		// validates the same nested values Formik produces.
+		const parts = field.name.split(".");
+		let node = shape;
+		for (const part of parts.slice(0, -1)) {
+			const existing = node[part];
+			if (typeof existing !== "object" || existing === null) {
+				node[part] = {};
+			}
+			node = node[part] as Record<string, unknown>;
+		}
+		node[parts[parts.length - 1]] = schema;
 	}
 
-	return yup.object(shape);
+	return yup.object(shape as Record<string, yup.AnySchema>);
 }
 
 // ─────────────────────────────────────────────────────────────
