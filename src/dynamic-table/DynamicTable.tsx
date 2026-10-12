@@ -956,8 +956,15 @@ export function DynamicTable({
 		// ── Manual (server-side) controllers ───────────────────
 		manualPagination: isServerSide,
 		manualSorting: isServerSide,
-		// Column filters work client-side; only global search goes to backend
-		manualFiltering: false,
+		// A server-side table has already had its filtering applied by the
+		// request (the builder sends both `search` and every column filter),
+		// so re-applying it client-side can only ever REMOVE rows the server
+		// correctly returned. Global search is the visible case: searching
+		// `0912 555 4242` matches the normalized `+989125554242` on the
+		// server, but the raw term does not contain the stored value, so the
+		// client filter emptied a one-row response into "No results found".
+		// Matches manualPagination/manualSorting: trust the server.
+		manualFiltering: isServerSide,
 		rowCount: isServerSide ? rowCount : undefined,
 		onPaginationChange: isServerSide ? setPagination : undefined,
 		onSortingChange: isServerSide ? setSorting : undefined,
