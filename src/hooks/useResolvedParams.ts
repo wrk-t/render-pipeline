@@ -1,33 +1,37 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useMemo } from "react";
 import { useRenderUser } from "../deps";
 
 /**
- * Merges the current user's workspace tenant into path params so that
- * `{tenantId}` endpoint templates resolve on screens whose route doesn't
- * carry the tenant (e.g. /settings/branding → /api/v1/tenant/{tenantId}/...).
+ * Resolves the tenant for `{tenantId}` endpoint templates.
  *
- * The user's current tenant comes from the identity endpoint (JWT /
- * x-workspace context). Super admins have no tenant, so nothing is injected.
+ * Order:
+ *   1. a route param — the super-admin tenant console at /tenants/:tenantId
+ *   2. `?tenantId=` — the standalone Sites module's tenant selector
+ *   3. the signed-in user's workspace tenant
  *
- * The user's tenant is a FALLBACK only — a tenantId already present in the
- * route params (e.g. the super-admin tenant console at /tenants/:tenantId)
- * always wins, otherwise every tenant's screens would resolve the flags,
- * tables and forms of the current user's own workspace instead of the
- * viewed tenant.
+ * Super admins have no workspace tenant, so the query parameter lets a
+ * standalone screen choose the tenant it manages. `useSearchParams` makes the
+ * resolution reactive: choosing a tenant refreshes every table/form that uses
+ * `{tenantId}`.
  */
 export function useResolvedParams(
 	pathParams?: Record<string, string>,
 ): Record<string, string> {
 	const { data: user } = useRenderUser();
-	const tenantId = (user as any)?.tenant?.id as string | undefined;
+	const tenantId = (user as { tenant?: { id?: string } } | null | undefined)
+		?.tenant?.id;
+	const searchParams = useSearchParams();
+	const queryTenantId = searchParams.get("tenantId") ?? undefined;
 
 	return useMemo(() => {
 		const base = pathParams ?? {};
-		if (!tenantId) return base;
 		// A route-provided tenantId (viewed tenant) is authoritative.
 		if (base.tenantId) return base;
+		if (queryTenantId) return { ...base, tenantId: queryTenantId };
+		if (!tenantId) return base;
 		return { ...base, tenantId };
-	}, [pathParams, tenantId]);
+	}, [pathParams, tenantId, queryTenantId]);
 }

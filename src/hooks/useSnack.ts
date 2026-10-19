@@ -1,3 +1,5 @@
+"use client";
+
 import { useTranslations } from "next-intl";
 import { enqueueSnackbar } from "notistack";
 import { extractErrorMessage } from "./extractErrorMessage";
