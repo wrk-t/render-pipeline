@@ -1,3 +1,5 @@
+"use client";
+
 import { Button, DialogActions, Tooltip } from "@mui/material";
 import { useTranslations } from "next-intl";
 import type { FC } from "react";

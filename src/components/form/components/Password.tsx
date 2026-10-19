@@ -1,5 +1,7 @@
 // external
 
+"use client";
+
 // -- component
 import { IconButton, InputAdornment } from "@mui/material";
 import type { TFormikField } from "@smartpath/typed-formik-mui";
