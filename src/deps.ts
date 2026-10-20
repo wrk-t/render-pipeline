@@ -47,8 +47,6 @@ export interface RenderPipelineDeps {
 	client: AxiosInstance;
 	useGetUser: () => { data?: RenderUser | null };
 	getUserSnapshot: () => RenderUser | null;
-	/** Tenant from the signed-in token — the fallback when /users/me has no tenant. */
-	getTenantId?: () => string | undefined;
 	/** Local font catalog for the font picker (optional — defaults to none). */
 	localFonts?: LocalFontSeed[];
 }
@@ -59,7 +57,7 @@ export function configureRenderPipeline(deps: RenderPipelineDeps): void {
 	configured = deps;
 }
 
-export function requireDeps(): RenderPipelineDeps {
+function requireDeps(): RenderPipelineDeps {
 	if (!configured) {
 		throw new Error(
 			"@wrk-t/render-pipeline: configureRenderPipeline() must be called before rendering (e.g. in the app's client wrapper)",
