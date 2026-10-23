@@ -1,6 +1,7 @@
 "use client";
 
 import Box from "@mui/material/Box";
+import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import {
 	type ReactElement,
@@ -148,6 +149,8 @@ export function TableRenderer({
 	// ── Confirm dialog state ──
 	const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 	const [confirmPayload, setConfirmPayload] = useState<{
+		/** Present when the admin must retype the row's title (CRM-13). */
+		confirmByTitle?: string;
 		endpoint: string;
 		method: string;
 		title: string;
@@ -155,6 +158,8 @@ export function TableRenderer({
 	} | null>(null);
 	const [confirmExtra, setConfirmExtra] = useState("");
 	const [confirmPending, setConfirmPending] = useState(false);
+	/** What the admin typed in a `confirmByTitle` dialog. */
+	const [confirmTyped, setConfirmTyped] = useState("");
 
 	const handleConfirmClose = useCallback(() => {
 		setShowConfirmDialog(false);
@@ -317,7 +322,7 @@ export function TableRenderer({
 					isActive: c.isActive,
 					displayOrder: c.displayOrder,
 				})),
-			[columnEls, userPermissions, workspaceTier],
+		[columnEls, userPermissions, workspaceTier],
 	);
 
 	const tableMetadata = useMemo(
@@ -379,7 +384,11 @@ export function TableRenderer({
 					method: (parsed.method as string) ?? "PATCH",
 					title: (parsed.title as string) ?? "Confirm",
 					message: (parsed.message as string) ?? "Are you sure?",
+					...(typeof parsed.confirmByTitle === "string"
+						? { confirmByTitle: parsed.confirmByTitle }
+						: {}),
 				});
+				setConfirmTyped("");
 				setConfirmExtra(extra);
 				setShowConfirmDialog(true);
 				return;
@@ -515,7 +524,11 @@ export function TableRenderer({
 							await getApiClient().request({
 								url: `${baseUrl}${endpoint}`,
 								method: (confirmPayload.method || "PATCH").toLowerCase(),
-								data: {},
+								// A title-typed confirmation sends the typed value; the API re-validates
+								// it, so the client guard is only UX (CRM-13).
+								data: confirmPayload.confirmByTitle
+									? { confirmTitle: confirmTyped.trim() }
+									: {},
 							});
 							await mutate(() => true);
 							handleConfirmClose();
@@ -527,11 +540,32 @@ export function TableRenderer({
 					}}
 					slotProps={{
 						submitButton: {
-							props: { children: "Confirm", color: "error" as const },
+							props: {
+								children: "Confirm",
+								color: "error" as const,
+								disabled:
+									!!confirmPayload.confirmByTitle &&
+									confirmTyped.trim() !== confirmPayload.confirmByTitle,
+							},
 						},
 					}}
 				>
 					<Typography>{confirmPayload.message}</Typography>
+					{confirmPayload.confirmByTitle && (
+						<TextField
+							fullWidth
+							autoFocus
+							className="mt-4"
+							label="Type the title to confirm"
+							value={confirmTyped}
+							onChange={(event) => setConfirmTyped(event.target.value)}
+							error={
+								confirmTyped.length > 0 &&
+								confirmTyped.trim() !== confirmPayload.confirmByTitle
+							}
+							helperText={confirmPayload.confirmByTitle}
+						/>
+					)}
 				</BaseDialog>
 			)}
 
@@ -769,7 +803,7 @@ function InnerTableWrapper({
 					isActive: c.isActive,
 					displayOrder: c.displayOrder,
 				})),
-			[component, userPermissions, workspaceTier],
+		[component, userPermissions, workspaceTier],
 	);
 
 	const tableMetadata = useMemo(

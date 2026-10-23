@@ -35,7 +35,11 @@ import { useCan } from "../ability";
 import { checkComponentPermission } from "../ability/checkComponentPermission";
 import { checkTier, resolveTier } from "../ability/checkTier";
 import { getApiClient, useRenderUser } from "../deps";
-import type { TableAction, TableMetadata, TableRowCondition } from "../dynamic-form/types";
+import type {
+	TableAction,
+	TableMetadata,
+	TableRowCondition,
+} from "../dynamic-form/types";
 import { useFeatures } from "../hooks/useFeatures";
 import { useResolvedParams } from "../hooks/useResolvedParams";
 import type { QueryParams } from "../query-builder";
@@ -52,45 +56,45 @@ import { TableIcon } from "./TableIcon";
 // Only the fields actually used by buildColumnDef are required.
 // ─────────────────────────────────────────────────────────────
 
-	export interface DynamicTableColumn {
-		/** Column instance id from the backend. */
-		id: number;
-		/** The field name in the response data (maps to MRT accessorKey). */
-		name: string;
-		/** Display overrides (e.g. displayName → column header). */
-		fieldOverrides?: { displayName?: string | null } | null;
-		/** Column display configuration. */
-		columnConfig?: {
-			width?: string | number | null;
-			minWidth?: string | number | null;
-			maxWidth?: string | number | null;
-			align?: "left" | "center" | "right" | "justify" | null;
-			sortable?: boolean | null;
-			filterable?: boolean | null;
-			resizable?: boolean | null;
-			hideable?: boolean | null;
-			editable?: boolean | null;
-			filterType?: "text" | "number" | "select" | "date" | "boolean" | null;
-			/** Select-filter options — static list or service-backed fetch. */
-			filterOptions?: {
-				type?: "static" | "service";
-				options?: Array<{ label?: string; value?: unknown }> | null;
-				endpoint?: string;
-				labelField?: string;
-				valueField?: string;
-			} | null;
-			format?: { type: string } | null;
-		} | null;
-		/** Field datasource (e.g. static select options) — feeds select filters. */
-		datasource?: {
-			type?: string;
+export interface DynamicTableColumn {
+	/** Column instance id from the backend. */
+	id: number;
+	/** The field name in the response data (maps to MRT accessorKey). */
+	name: string;
+	/** Display overrides (e.g. displayName → column header). */
+	fieldOverrides?: { displayName?: string | null } | null;
+	/** Column display configuration. */
+	columnConfig?: {
+		width?: string | number | null;
+		minWidth?: string | number | null;
+		maxWidth?: string | number | null;
+		align?: "left" | "center" | "right" | "justify" | null;
+		sortable?: boolean | null;
+		filterable?: boolean | null;
+		resizable?: boolean | null;
+		hideable?: boolean | null;
+		editable?: boolean | null;
+		filterType?: "text" | "number" | "select" | "date" | "boolean" | null;
+		/** Select-filter options — static list or service-backed fetch. */
+		filterOptions?: {
+			type?: "static" | "service";
 			options?: Array<{ label?: string; value?: unknown }> | null;
+			endpoint?: string;
+			labelField?: string;
+			valueField?: string;
 		} | null;
-		/** Whether the column is active. */
-		isActive?: boolean;
-		/** Display order for sorting columns. */
-		displayOrder: number;
-	}
+		format?: { type: string } | null;
+	} | null;
+	/** Field datasource (e.g. static select options) — feeds select filters. */
+	datasource?: {
+		type?: string;
+		options?: Array<{ label?: string; value?: unknown }> | null;
+	} | null;
+	/** Whether the column is active. */
+	isActive?: boolean;
+	/** Display order for sorting columns. */
+	displayOrder: number;
+}
 
 // ─────────────────────────────────────────────────────────────
 // Props
@@ -155,7 +159,10 @@ export interface DynamicTableProps {
 
 function buildColumnDef(
 	col: DynamicTableColumn,
-	filterSelectOptions?: Array<{ label?: string | number | null; value?: unknown }>,
+	filterSelectOptions?: Array<{
+		label?: string | number | null;
+		value?: unknown;
+	}>,
 ): MRT_ColumnDef<Record<string, unknown>> {
 	const config = col.columnConfig;
 	const overrides = col.fieldOverrides;
@@ -185,8 +192,7 @@ function buildColumnDef(
 				// Prefer the resolved options passed by the caller (columnConfig
 				// filterOptions — static or service-backed); fall back to the
 				// field's static datasource options (the form's options, reused).
-				const options =
-					filterSelectOptions ?? (col.datasource as any)?.options;
+				const options = filterSelectOptions ?? (col.datasource as any)?.options;
 				if (Array.isArray(options) && options.length > 0) {
 					def.filterSelectOptions = options.map(
 						(o: { label?: string; value?: unknown }) => ({
@@ -483,10 +489,7 @@ export function DynamicTable({
 
 	const { data: serviceOptions } = useSWR(
 		serviceFilterSources.length
-			? [
-					"column-filter-options",
-					serviceFilterSources.map((s) => s.endpoint),
-				]
+			? ["column-filter-options", serviceFilterSources.map((s) => s.endpoint)]
 			: null,
 		async ([, endpoints]: [string, string[]]) => {
 			const entries = await Promise.all(
@@ -501,46 +504,40 @@ export function DynamicTable({
 		},
 	);
 
-	const columns = useMemo<MRT_ColumnDef<Record<string, unknown>>[]>(
-		() => {
-			const optionsByColumn = new Map<
-				number,
-				Array<{ label: string; value: string }>
-			>();
-			for (const src of serviceFilterSources) {
-				const rows = (serviceOptions ?? {})[src.endpoint];
-				if (!Array.isArray(rows)) continue;
-				optionsByColumn.set(
-					src.columnId,
-					rows.map((row: any) => ({
-						label: String(
-							row[src.labelField] ?? row.displayName ?? row.name ?? "",
-						),
-						value: String(row[src.valueField] ?? row.id ?? ""),
-					})),
-				);
-			}
+	const columns = useMemo<MRT_ColumnDef<Record<string, unknown>>[]>(() => {
+		const optionsByColumn = new Map<
+			number,
+			Array<{ label: string; value: string }>
+		>();
+		for (const src of serviceFilterSources) {
+			const rows = (serviceOptions ?? {})[src.endpoint];
+			if (!Array.isArray(rows)) continue;
+			optionsByColumn.set(
+				src.columnId,
+				rows.map((row: any) => ({
+					label: String(
+						row[src.labelField] ?? row.displayName ?? row.name ?? "",
+					),
+					value: String(row[src.valueField] ?? row.id ?? ""),
+				})),
+			);
+		}
 
-			return columnInstances
-				.filter((col) => col.isActive !== false)
-				.filter((col) => includeDeleted || col.name !== "deletedAt")
-				.sort((a, b) => a.displayOrder - b.displayOrder)
-				.map((col) => {
-					// Static options come straight from the column config; service
-					// options come from the fetched rows.
-					const staticOpts =
-						col.columnConfig?.filterType === "select" &&
-						col.columnConfig?.filterOptions?.type === "static"
-							? (col.columnConfig.filterOptions.options ?? [])
-							: undefined;
-					return buildColumnDef(
-						col,
-						staticOpts ?? optionsByColumn.get(col.id),
-					);
-				});
-		},
-		[columnInstances, includeDeleted, serviceFilterSources, serviceOptions],
-	);
+		return columnInstances
+			.filter((col) => col.isActive !== false)
+			.filter((col) => includeDeleted || col.name !== "deletedAt")
+			.sort((a, b) => a.displayOrder - b.displayOrder)
+			.map((col) => {
+				// Static options come straight from the column config; service
+				// options come from the fetched rows.
+				const staticOpts =
+					col.columnConfig?.filterType === "select" &&
+					col.columnConfig?.filterOptions?.type === "static"
+						? (col.columnConfig.filterOptions.options ?? [])
+						: undefined;
+				return buildColumnDef(col, staticOpts ?? optionsByColumn.get(col.id));
+			});
+	}, [columnInstances, includeDeleted, serviceFilterSources, serviceOptions]);
 
 	// ── Build the SWR cache key for server-side data ────────────
 	// Same key is used by TableRenderer mutate() after create/update.
@@ -842,6 +839,16 @@ export function DynamicTable({
 						method: action.method ?? "PATCH",
 						title: action.confirm.title,
 						message: action.confirm.message,
+						// A title the admin must retype (CRM-13): resolve `{title}` from the
+						// row here, so the dialog never has to guess.
+						...(action.confirm.confirmByTitle
+							? {
+									confirmByTitle: resolveRowPlaceholders(
+										action.confirm.confirmByTitle,
+										row,
+									),
+								}
+							: {}),
 						successRedirect: action.successRedirect,
 						...rowData,
 					});
@@ -1076,10 +1083,7 @@ export function DynamicTable({
 			(tableMetadata.rowActions ?? [])
 				.filter((action) => {
 					// Feature-flag gating (e.g. staging actions only when enabled)
-					if (
-						action.requiresFeature &&
-						!features[action.requiresFeature]
-					) {
+					if (action.requiresFeature && !features[action.requiresFeature]) {
 						return false;
 					}
 					// Tier gating (e.g. team-only actions)
@@ -1430,10 +1434,9 @@ export function DynamicTable({
 					// Feature-gated navigation: when the flag is OFF and the row
 					// carries a default version, jump to the fallback target.
 					// Packages include `versions`, services include `serviceVersions`.
-					const rowVersions = row.original.versions ?? row.original.serviceVersions;
-					const versions = rowVersions as
-						| Array<{ id?: string }>
-						| undefined;
+					const rowVersions =
+						row.original.versions ?? row.original.serviceVersions;
+					const versions = rowVersions as Array<{ id?: string }> | undefined;
 					if (
 						onClick.fallbackFeature &&
 						onClick.fallbackRedirect &&
@@ -1462,15 +1465,14 @@ export function DynamicTable({
 
 			// First matching row condition wins (e.g. failed rows get a
 			// reddish background).
-			const matchedCondition = (settings.rowConditions ?? []).find(
-				(c) => matchRowCondition(row.original, c),
+			const matchedCondition = (settings.rowConditions ?? []).find((c) =>
+				matchRowCondition(row.original, c),
 			);
 
 			return {
 				sx: {
 					cursor: onClick ? "pointer" : undefined,
-					backgroundColor:
-						matchedCondition?.backgroundColor ?? "#ffffff",
+					backgroundColor: matchedCondition?.backgroundColor ?? "#ffffff",
 				},
 				className: matchedCondition?.className,
 				onClick: onClick ? handleRowClick : undefined,
