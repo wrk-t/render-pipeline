@@ -85,10 +85,14 @@ export function buildFieldSchema(
 		fieldType === "datetime"
 	) {
 		schema = yup.date();
-	} else if (fieldType === "multiselect" || fieldType === "variants") {
-		// Array-valued fields (multi-select ids, variant rows) — validate as
-		// arrays so values like `["id1","id2"]` pass instead of failing the
-		// default string schema.
+	} else if (
+		fieldType === "multiselect" ||
+		fieldType === "variants" ||
+		fieldType === "order-items"
+	) {
+		// Array-valued fields (multi-select ids, variant rows, order item
+		// rows) — validate as arrays so values like `["id1","id2"]` pass
+		// instead of failing the default string schema.
 		schema = yup.array();
 	} else if (fieldType === "map") {
 		// The map picker holds coordinates (numbers).

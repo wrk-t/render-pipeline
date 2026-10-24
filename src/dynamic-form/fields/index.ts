@@ -24,5 +24,6 @@ export { FormTextareaField } from "./FormTextareaField";
 export { FormTextField } from "./FormTextField";
 export { FormTimeField } from "./FormTimeField";
 export { IconPickerField } from "./IconPickerField";
+export { OrderItemsField } from "./OrderItemsField";
 export { VariantEditorField } from "./VariantEditorField";
 export { VariableSuggestField } from "./VariableSuggestField";

@@ -79,6 +79,7 @@ export {
 	FormSwitchField,
 	FormTextareaField,
 	FormTextField,
+	OrderItemsField,
 } from "./dynamic-form/fields";
 export type {
 	EntityMeta,

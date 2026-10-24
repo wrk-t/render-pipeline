@@ -137,6 +137,7 @@ export type FieldType =
 	| "variants"
 	| "icon"
 	| "availability-windows"
+	| "order-items"
 	| "font"
 	| "map";
 
@@ -826,6 +827,21 @@ export interface AvailabilityWindowsField extends FieldBase {
 	};
 }
 
+/**
+ * Order items repeater — picks menu items and quantities for an order.
+ *
+ * The Formik value is `Array<{ menuItemId, quantity, notes? }>`; prices and
+ * names are only a display projection (the server owns pricing).
+ */
+export interface OrderItemsField extends FieldBase {
+  type: "order-items";
+  fieldOverrides?: FieldOverrides | null;
+  uiOverrides: {
+    layout?: FieldLayout;
+    behavior?: { placeholder?: string };
+  };
+}
+
 export interface IconField extends FieldBase {
 	type: "icon";
 	fieldOverrides?: FieldOverrides | null;
@@ -896,6 +912,7 @@ export type RenderField =
 	| VariantField
 	| IconField
 	| AvailabilityWindowsField
+	| OrderItemsField
 	| FontField
 	| MapField;
 
