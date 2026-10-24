@@ -87,7 +87,7 @@ export type ValidationRule =
   | ["Max", number, string?]
   | ["Pattern", string, string?]
   | ["Unique"]
-  | ["Custom", string]
+  | ["Custom", string, string?]
   | ["SameAs", string, string?];
 
 // ── 5. SELECT OPTIONS ──

@@ -3,6 +3,7 @@
 import Autocomplete from "@mui/material/Autocomplete";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import FormHelperText from "@mui/material/FormHelperText";
 import IconButton from "@mui/material/IconButton";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
@@ -141,8 +142,10 @@ export function OrderItemsField({
 		isReadOnly?: boolean;
 	};
 }): ReactElement {
-	const [{ value }, , { setValue }] = useField<OrderItemRow[]>(field.name);
-	const { isSubmitting } = useFormikContext();
+	const [{ value }, meta, { setValue, setTouched }] = useField<OrderItemRow[]>(
+		field.name,
+	);
+	const { isSubmitting, submitCount } = useFormikContext();
 	const labels = useOrderItemsLabels();
 
 	const baseUrl = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
@@ -244,6 +247,7 @@ export function OrderItemsField({
 								onChange={(_event, option) =>
 									updateRow(index, { menuItemId: option?.id ?? "" })
 								}
+								onBlur={() => setTouched(true)}
 								options={options}
 								getOptionLabel={(option) => option.name}
 								isOptionEqualToValue={(option, selected) =>
@@ -286,6 +290,7 @@ export function OrderItemsField({
 									quantity: clampQuantity(event.target.value),
 								})
 							}
+							onBlur={() => setTouched(true)}
 							slotProps={{
 								htmlInput: {
 									min: MIN_QUANTITY,
@@ -304,6 +309,7 @@ export function OrderItemsField({
 							onChange={(event) =>
 								updateRow(index, { notes: event.target.value || undefined })
 							}
+							onBlur={() => setTouched(true)}
 							className="flex-1"
 						/>
 
@@ -341,6 +347,10 @@ export function OrderItemsField({
 					</Typography>
 				)}
 			</Stack>
+
+			{meta.error && (meta.touched || submitCount > 0) && (
+				<FormHelperText error>{meta.error}</FormHelperText>
+			)}
 		</Stack>
 	);
 }

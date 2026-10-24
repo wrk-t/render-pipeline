@@ -198,11 +198,16 @@ export function buildFieldSchema(
 			// ── Custom named validator ───────────────────────────
 			case "Custom": {
 				const validatorName = args[0] as string;
+				// The generic extraction above treats the last arg as the
+				// message, but for a 2-element Custom tuple that arg is the
+				// validator NAME — only a third element is a message.
+				const customMessage =
+					typeof args[1] === "string" && args[1] ? args[1] : undefined;
 				const validatorFn = CUSTOM_VALIDATORS[validatorName];
 				if (validatorFn) {
 					schema = schema.test(
 						validatorName,
-						validatorFn.message,
+						customMessage ?? validatorFn.message,
 						validatorFn.test,
 					);
 				}
@@ -357,6 +362,32 @@ const CUSTOM_VALIDATORS: Record<string, CustomValidator> = {
 	iranianNationalId: {
 		message: "Invalid national ID",
 		test: (value) => typeof value === "string" && /^\d{10}$/.test(value),
+	},
+
+	/**
+	 * Order line items — at least one row, and every row must name a menu
+	 * item and carry an integer quantity between 1 and 99.
+	 */
+	orderItems: {
+		message: "Add at least one item and choose a menu item for every row",
+		test: (value) =>
+			Array.isArray(value) &&
+			value.length > 0 &&
+			value.every((row) => {
+				if (row === null || typeof row !== "object") return false;
+				const item = row as {
+					menuItemId?: unknown;
+					quantity?: unknown;
+				};
+				return (
+					typeof item.menuItemId === "string" &&
+					item.menuItemId.length > 0 &&
+					typeof item.quantity === "number" &&
+					Number.isInteger(item.quantity) &&
+					item.quantity >= 1 &&
+					item.quantity <= 99
+				);
+			}),
 	},
 };
 
