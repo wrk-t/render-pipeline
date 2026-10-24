@@ -37,6 +37,7 @@ function defaultInitialValue(el: RenderedElement): unknown {
 	switch (resolvedType) {
 		case "variants":
 		case "multiselect":
+		case "order-items":
 			return [];
 		case "switch":
 			return false;

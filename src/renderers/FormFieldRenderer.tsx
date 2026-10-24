@@ -33,6 +33,7 @@ import {
 	FormTextareaField,
 	FormTextField,
 	IconPickerField,
+	OrderItemsField,
 	VariantEditorField,
 	FormAvailabilityWindowsField,
 } from "../dynamic-form/fields";
@@ -406,6 +407,17 @@ function FormFieldRendererInner({
 				))
 				.with({ type: "availability-windows" }, (f) => (
 					<FormAvailabilityWindowsField
+						field={
+							{
+								...f,
+								isRequired: conditions.isRequired,
+								isReadOnly: conditions.isDisabled,
+							} as any
+						}
+					/>
+				))
+				.with({ type: "order-items" }, (f) => (
+					<OrderItemsField
 						field={
 							{
 								...f,

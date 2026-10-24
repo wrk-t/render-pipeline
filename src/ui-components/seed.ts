@@ -38,6 +38,7 @@ export const UI_COMPONENT_CUIDS = {
 	colorPicker: 1231,
 	fontPicker: 1232,
 	mapPicker: 1233,
+	orderItems: 1234,
 } as const;
 
 export const UI_COMPONENTS_SEED: UiComponentSeed[] = [
@@ -447,6 +448,21 @@ export const UI_COMPONENTS_SEED: UiComponentSeed[] = [
 		displayOrder: 25,
 		category: "advanced",
 		tags: ["map", "location", "coordinates", "geo"],
+		isSystem: true,
+		isActive: true,
+	},
+	{
+		id: UI_COMPONENT_CUIDS.orderItems,
+		name: "order-items-editor",
+		displayName: "Order Items Editor",
+		description:
+			"Repeatable menu-item picker for order lines (item + quantity + notes)",
+		componentType: "order-items",
+		configProps: {},
+		compatibleFieldTypes: ["json"],
+		displayOrder: 26,
+		category: "advanced",
+		tags: ["orders", "menu-items", "repeater", "line-items"],
 		isSystem: true,
 		isActive: true,
 	},
