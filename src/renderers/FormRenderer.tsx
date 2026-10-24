@@ -3,7 +3,7 @@
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { Form, Formik, type FormikHelpers } from "formik";
+import { Form, Formik, type FormikHelpers, useFormikContext } from "formik";
 import { useRouter } from "next/navigation";
 import { type ReactElement, useEffect, useMemo, useRef } from "react";
 import useSWR from "swr";
@@ -37,6 +37,7 @@ function defaultInitialValue(el: RenderedElement): unknown {
 	switch (resolvedType) {
 		case "variants":
 		case "multiselect":
+		case "order-items":
 			return [];
 		case "switch":
 			return false;
@@ -85,6 +86,34 @@ function getDottedValue(
 		node = (node as Record<string, unknown>)[part];
 	}
 	return node;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// TouchFieldsOnSubmit — after every submit attempt, mark each rendered
+// field touched so validation messages surface even when a field was
+// never blurred. Guards on submitCount so it runs once per submit.
+// ──────────────────────────────────────────────────────────────────
+
+function TouchFieldsOnSubmit({
+	fieldNames,
+}: {
+	fieldNames: string[];
+}): null {
+	const { submitCount, setTouched } = useFormikContext();
+	const lastSubmitCount = useRef(submitCount);
+
+	useEffect(() => {
+		if (submitCount > lastSubmitCount.current) {
+			const touched: Record<string, unknown> = {};
+			for (const name of fieldNames) {
+				if (name) setDottedValue(touched, name, true);
+			}
+			setTouched(touched, false);
+		}
+		lastSubmitCount.current = submitCount;
+	}, [submitCount, fieldNames, setTouched]);
+
+	return null;
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -211,6 +240,14 @@ export function FormRenderer({
   		walkElements(Object.values(component.slotsFilled).flat());
   		return fields;
   	}, [component, context, userPermissions]);
+
+  	const fieldNames = useMemo(
+  		() =>
+  			allFields
+  				.map((field) => field.name ?? "")
+  				.filter((name): name is string => name.length > 0),
+  		[allFields],
+  	);
 
 	  // Submission config lives on the FORM (config.submit) — the submit
 	  // button is just a Button with action: "submit". Legacy seeds that
@@ -527,6 +564,7 @@ export function FormRenderer({
 	        submitFormRef.current = submitForm as unknown as () => Promise<void>;
         return (
           <Form>
+            <TouchFieldsOnSubmit fieldNames={fieldNames} />
             {!onFormReady && component.displayName && (
               <Box className="mb-6">
                 <Typography variant="h5" className="font-bold">
