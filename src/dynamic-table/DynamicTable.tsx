@@ -1119,6 +1119,11 @@ export function DynamicTable({
 								return fieldValue === value;
 							case "ne":
 								return fieldValue !== value;
+							case "in":
+								// The authoring DSL's ConditionOperator includes
+								// "in" (a list of accepted values) — e.g. the
+								// campaign Schedule action on draft OR paused.
+								return Array.isArray(value) && value.includes(fieldValue);
 							case "isEmpty":
 								return (
 									fieldValue === undefined ||
