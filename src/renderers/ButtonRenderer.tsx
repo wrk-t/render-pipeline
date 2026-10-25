@@ -50,6 +50,15 @@ type TConfirmConfig = {
 	 * `{ confirmTitle }` — the API re-validates it (CRM-13/15).
 	 */
 	confirmByTitle?: string;
+	/**
+	 * Fetch the dialog's message before opening it (CRM-24): the first
+	 * confirmation states a live fact ("this goes to 12 customers"), not a static
+	 * warning. `template` uses `{path}` tokens resolved against the response.
+	 */
+	messageFrom?: {
+		endpoint: string;
+		template: string;
+	};
 };
 
 export function ButtonRenderer({
@@ -88,6 +97,12 @@ export function ButtonRenderer({
 	const [confirmOpen, setConfirmOpen] = useState(false);
 	const [confirmTyped, setConfirmTyped] = useState("");
 	const [pending, setPending] = useState(false);
+	/**
+	 * The dialog's message when it has to state a **live** fact (CRM-24's first
+	 * confirmation: "this goes to 12 customers"). `null` until fetched; the static
+	 * `confirm.message` is the fallback.
+	 */
+	const [confirmMessage, setConfirmMessage] = useState<string | null>(null);
 
 	/** `{id}` / `{tenantId}` … resolved from the screen's path params. */
 	const resolve = (template: string): string =>
@@ -96,6 +111,42 @@ export function ButtonRenderer({
 			(_: string, key: string) =>
 				pathParams && key in pathParams ? String(pathParams[key]) : `{${key}}`,
 		);
+
+	/** `{eligibleCount}` / `{excluded.optedOut}` against the fetched payload. */
+	const interpolate = (template: string, data: unknown): string => {
+		const read = (path: string): unknown => {
+			let current: unknown = data;
+			for (const key of path.split(".")) {
+				if (current === null || current === undefined) return undefined;
+				current = (current as Record<string, unknown>)[key];
+			}
+			return current;
+		};
+
+		return template.replace(/\{([\w.]+)\}/g, (whole, path: string) => {
+			const value = read(path);
+			return value === undefined || value === null ? whole : String(value);
+		});
+	};
+
+	/**
+	 * Fetch the live message for the confirmation dialog. A failure is not an
+	 * error the admin should see: the static `message` still explains the action.
+	 */
+	const loadConfirmMessage = async (): Promise<string | null> => {
+		const source = config.confirm?.messageFrom;
+		if (!source) return null;
+
+		try {
+			const res = await getApiClient().request({
+				url: resolve(source.endpoint),
+				method: "get",
+			});
+			return interpolate(source.template, res.data?.data ?? res.data);
+		} catch {
+			return null;
+		}
+	};
 
 	/**
 	 * The typed-title guard: the expected value usually comes from the row /
@@ -164,6 +215,15 @@ export function ButtonRenderer({
 		if (action === "apiCall" && config.endpoint) {
 			if (config.confirm) {
 				setConfirmTyped("");
+				// A confirmation that must state a live fact fetches it first; the
+				// dialog opens either way (the static message is the fallback).
+				if (config.confirm.messageFrom) {
+					setConfirmMessage(null);
+					setConfirmOpen(true);
+					void loadConfirmMessage().then(setConfirmMessage);
+					return;
+				}
+				setConfirmMessage(null);
 				setConfirmOpen(true);
 				return;
 			}
@@ -211,7 +271,9 @@ export function ButtonRenderer({
 						},
 					}}
 				>
-					<Typography>{config.confirm.message}</Typography>
+					<Typography>
+						{confirmMessage ?? config.confirm.message}
+					</Typography>
 					{needsTypedTitle && (
 						<TextField
 							fullWidth
