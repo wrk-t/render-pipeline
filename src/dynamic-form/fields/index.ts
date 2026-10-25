@@ -21,5 +21,6 @@ export { FormSettingValueField } from "./FormSettingValueField";
 export { FormSwitchField } from "./FormSwitchField";
 export { FormTextareaField } from "./FormTextareaField";
 export { FormTextField } from "./FormTextField";
+export { FormTimeField } from "./FormTimeField";
 export { IconPickerField } from "./IconPickerField";
 export { VariantEditorField } from "./VariantEditorField";

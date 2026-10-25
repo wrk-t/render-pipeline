@@ -25,6 +25,10 @@ const NAMED_REGEX: Record<string, RegExp> = {
 	url: /^https?:\/\/.+/,
 	farsi: /^[\u0600-\u06FF\s]+$/,
 	nationalId: /^\d{10}$/,
+	// Time of day, 24-hour. Mirrors the backend's `parseSendTime`, so a value
+	// the form accepts is one the scheduler can read (a native `type="time"`
+	// input already emits this shape; the rule guards API/prefilled values).
+	time: /^([01]?\d|2[0-3]):[0-5]\d$/,
 };
 
 // ─────────────────────────────────────────────────────────────

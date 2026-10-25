@@ -32,6 +32,7 @@ import {
 	FormSwitchField,
 	FormTextareaField,
 	FormTextField,
+	FormTimeField,
 	IconPickerField,
 	VariantEditorField,
 	FormAvailabilityWindowsField,
@@ -382,6 +383,18 @@ function FormFieldRendererInner({
 						}
 					/>
 				))
+				// Time-of-day (`HH:mm`, 24-hour) — e.g. a campaign's send time.
+				.with({ type: "time" }, (f) => (
+					<FormTimeField
+						field={
+							{
+								...f,
+								isRequired: conditions.isRequired,
+								isReadOnly: conditions.isDisabled,
+							} as any
+						}
+					/>
+				))
 				.with({ type: "multiselect" }, (f) => (
 					<FormMultiSelectField
 						field={
@@ -428,7 +441,6 @@ function FormFieldRendererInner({
 				))
 				.with({ type: "radio" }, unimplemented)
 				.with({ type: "datetime" }, unimplemented)
-				.with({ type: "time" }, unimplemented)
 				.with({ type: "file" }, unimplemented)
 				.with({ type: "richtext" }, unimplemented)
 				.exhaustive()}
