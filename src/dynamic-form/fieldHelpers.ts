@@ -6,6 +6,26 @@ import type {
 } from "./types";
 
 /**
+ * Read a value by **path**, so a condition can test a nested form value.
+ *
+ * Formik stores `schedule.frequency` as `{ schedule: { frequency } }`, so a
+ * plain `values[field]` lookup silently sees `undefined` for every nested field
+ * and the condition never fires (CRM-23's send-type fields live on
+ * `schedule.*`). A path with no dot is a normal lookup, so flat fields are
+ * unaffected.
+ */
+function getByPath(values: Record<string, unknown>, path: string): unknown {
+	if (!path.includes(".")) return values[path];
+
+	let current: unknown = values;
+	for (const key of path.split(".")) {
+		if (current === null || current === undefined) return undefined;
+		current = (current as Record<string, unknown>)[key];
+	}
+	return current;
+}
+
+/**
  * Resolve the value to compare against.
  * When `valueType` is "field", the `value` is treated as the name of
  * another field whose value should be used for comparison.
@@ -17,7 +37,7 @@ function resolveConditionValue(
 	if (condition.valueType === "field") {
 		// value references another field name
 		const referencedField = condition.value as string;
-		return values[referencedField];
+		return getByPath(values, referencedField);
 	}
 	return condition.value;
 }
@@ -27,7 +47,7 @@ export function evaluateCondition(
 	values: Record<string, unknown>,
 ): boolean {
 	if (condition.type === "simple") {
-		const fieldValue = values[condition.field];
+		const fieldValue = getByPath(values, condition.field);
 		const resolvedValue = resolveConditionValue(condition, values);
 
 		switch (condition.operator) {
