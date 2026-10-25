@@ -14,6 +14,11 @@ interface Props {
  * (URLs, request bodies, summaries) are truncated with an ellipsis.
  *
  * Objects are stringified as compact JSON before display.
+ *
+ * `format.props.labelMap` maps a stored enum onto its display label
+ * (`{ order_count: "$trl_…" }`). The labels live in the column config, so their
+ * `$trl_` keys are resolved server-side with the rest of the metadata — a list
+ * never shows a raw enum such as `order_count` (CRM-19).
  */
 export function TextCell({ cell }: Props): ReactElement {
 	const value = cell.getValue();
@@ -21,7 +26,12 @@ export function TextCell({ cell }: Props): ReactElement {
 		return <span />;
 	}
 
-	const str = typeof value === "string" ? value : JSON.stringify(value);
+	const fmt = cell?.column?.columnDef?.columnFormat ?? {};
+	const labelMap = (fmt?.props as Record<string, unknown> | undefined)
+		?.labelMap as Record<string, string> | undefined;
+	const mapped = labelMap?.[String(value)];
+
+	const str = mapped ?? (typeof value === "string" ? value : JSON.stringify(value));
 
 	return (
 		<Tooltip title={str} arrow placement="top" enterDelay={400}>
