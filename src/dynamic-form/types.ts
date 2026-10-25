@@ -1111,6 +1111,13 @@ interface TableActionOpenDialog extends TableActionBase {
 		 * - `Record<formField, rowField>` — rename: `{ planId: "id" }`
 		 */
 		rowFields?: string[] | Record<string, string>;
+		/**
+		 * Constant extras for the dialog, on top of `rowFields` (CRM-27): a
+		 * shortcut needs both the row's id *and* a fixed audience type, e.g.
+		 * `{ audienceType: "group", "audienceParams.groupId": "{id}" }`. A string
+		 * may hold a row placeholder; a **dotted** key sets a nested form value.
+		 */
+		extra?: Record<string, string | number | boolean>;
 	};
 }
 

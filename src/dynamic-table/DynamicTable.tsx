@@ -805,10 +805,44 @@ export function DynamicTable({
 	const handleAction = useCallback(
 		(action: TableAction, row?: Record<string, unknown>) => {
 			if (action.action === "openDialog") {
+				// Row-derived dialog extras (CRM-27): a shortcut prefills the form it
+				// opens. `rowFields` copies row values onto form fields (rename-friendly);
+				// `extra` adds constants, and a `"{rowKey}"` placeholder in one resolves
+				// against the row like any other action. Both land in pathParams, which
+				// FormRenderer applies to nested (dotted) field names.
+				const rowExtras: Record<string, string> = {};
+				const rowFieldSpec = action.dialog.rowFields;
+				if (row && rowFieldSpec) {
+					if (Array.isArray(rowFieldSpec)) {
+						for (const field of rowFieldSpec) {
+							if (row[field] !== undefined && row[field] !== null) {
+								rowExtras[field] = String(row[field]);
+							}
+						}
+					} else {
+						for (const [formField, rowField] of Object.entries(
+							rowFieldSpec,
+						)) {
+							const value = row[rowField];
+							if (value !== undefined && value !== null) {
+								rowExtras[formField] = String(value);
+							}
+						}
+					}
+				}
+
+				for (const [key, value] of Object.entries(action.dialog.extra ?? {})) {
+					rowExtras[key] =
+						typeof value === "string"
+							? resolveRowPlaceholders(value, row)
+							: String(value);
+				}
+
 				const extraObj = {
 					_actionId: action.id,
 					...resolvedPathParams,
 					...(row ? { id: row.id as string } : {}),
+					...rowExtras,
 				};
 				setDialogState(
 					action.dialog.context ?? "edit",
