@@ -71,6 +71,8 @@ export function FormMultiSelectField({
   const [options, setOptions] = useState<SelectOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [inputValue, setInputValue] = useState("");
+  // Debounced term for `entityMeta.remoteSearch` pickers (see the effect below).
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Arch elements carry the datasource in fieldOverrides; legacy forms
   // set it on the field itself.
@@ -78,6 +80,8 @@ export function FormMultiSelectField({
   const entityMeta =
     datasource?.type === "service" ? datasource.entityMeta : undefined;
   const creatable = field.creatable === true;
+  const remoteSearch = entityMeta?.remoteSearch;
+  const minSearchLength = remoteSearch?.minSearchLength ?? 2;
 
   // Normalise value to an array
   const selectedValues: string[] = Array.isArray(rawValue)
@@ -180,6 +184,13 @@ export function FormMultiSelectField({
           params.set("sortBy", entityMeta.orderBy.field);
           params.set("sortOrder", entityMeta.orderBy.direction);
         }
+        // Remote search: ask for one page of matching rows instead of the
+        // whole table. Without a term the first page still gives the picker
+        // something to show.
+        if (remoteSearch) {
+          params.set("limit", "20");
+          if (searchTerm) params.set("search", searchTerm);
+        }
         const qs = params.toString();
         const url = `${baseUrl}${datasource.endpoint}${qs ? `?${qs}` : ""}`;
         const res = await getApiClient().get(url);
@@ -194,11 +205,26 @@ export function FormMultiSelectField({
     } finally {
       setLoading(false);
     }
-  }, [datasource, entityMeta, resolvedFilter]);
+  }, [datasource, entityMeta, resolvedFilter, remoteSearch, searchTerm]);
 
   useEffect(() => {
     loadOptions();
   }, [loadOptions]);
+
+  // Debounce typing into a search term. Clearing the box returns to the first
+  // page rather than leaving stale matches behind.
+  useEffect(() => {
+    if (!remoteSearch) return;
+
+    const term = inputValue.trim();
+    if (term.length < minSearchLength) {
+      setSearchTerm("");
+      return;
+    }
+
+    const handle = setTimeout(() => setSearchTerm(term), 300);
+    return () => clearTimeout(handle);
+  }, [inputValue, remoteSearch, minSearchLength]);
 
   const handleChange = useCallback(
     (_: SyntheticEvent, newValue: (string | SelectOption)[]) => {
