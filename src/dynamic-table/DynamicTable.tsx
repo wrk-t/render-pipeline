@@ -850,6 +850,9 @@ export function DynamicTable({
 								}
 							: {}),
 						successRedirect: action.successRedirect,
+						// A static body (e.g. PATCH { isActive: false }) must survive the
+						// confirmation step, not just the direct path (CRM-28).
+						...(action.body ? { body: action.body } : {}),
 						...rowData,
 					});
 					setDialogState(

@@ -376,10 +376,26 @@ export function FormRenderer({
           (a.action === "apiCall" || a.type === "submit") &&
           (!(effectiveContext && a.context) ||
             a.context === effectiveContext) &&
-          a.method !== "GET",
-      ),
+          a.method !== "GET",      ),
     [actions, effectiveContext],
   );
+
+  /**
+   * Does an action-button belong to the form's current context?
+   *
+   * A shared create+edit form declares one submit per context. The submit path
+   * already picked the right one, but the **buttons** were rendered unfiltered —
+   * so a detail page showed CREATE *and* UPDATE, and clicking the first one
+   * POSTed instead of saving the edit (CRM-28: the Active switch "did not
+   * persist" because the click never reached the PATCH). A button with no
+   * `context` is always shown.
+   */
+  const actionInContext = (button: RenderedComponent | null | undefined) => {
+    const actionContext = (button?.config as { context?: string } | null)
+      ?.context;
+    if (!actionContext || !effectiveContext) return true;
+    return actionContext === effectiveContext;
+  };
 
   const stateCtx = useStateContext();
 
@@ -566,13 +582,16 @@ export function FormRenderer({
             			  ))}
 
 	            {/* Actions slot — rendered from the metadata tree
-	                (Button/Link components via their own renderers) */}
+	                (Button/Link components via their own renderers). Only the
+	                current context's buttons: a create+edit form must not offer
+	                both (CRM-28). */}
 	            {!onFormReady &&
 	              (component.slotsFilled["actions"] ?? []).some(
 	                (el) =>
 	                  el.isActive &&
 	                  el.elementType === "component_ref" &&
-	                  el.referencedComponent,
+	                  el.referencedComponent &&
+	                  actionInContext(el.referencedComponent),
 	              ) && (
 	                <Stack direction="row" spacing={2} className="mt-6">
 	                  {(component.slotsFilled["actions"] ?? [])
@@ -580,7 +599,8 @@ export function FormRenderer({
 	                      (el) =>
 	                        el.isActive &&
 	                        el.elementType === "component_ref" &&
-	                        el.referencedComponent,
+	                        el.referencedComponent &&
+	                        actionInContext(el.referencedComponent),
 	                    )
 	                    .sort((a, b) => a.displayOrder - b.displayOrder)
 	                    .map((el) => (

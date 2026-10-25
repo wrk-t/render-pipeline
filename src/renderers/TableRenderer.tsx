@@ -155,6 +155,8 @@ export function TableRenderer({
 		method: string;
 		title: string;
 		message: string;
+		/** Static request body to send after confirming (CRM-28: PATCH {isActive}). */
+		body?: Record<string, unknown>;
 	} | null>(null);
 	const [confirmExtra, setConfirmExtra] = useState("");
 	const [confirmPending, setConfirmPending] = useState(false);
@@ -387,6 +389,9 @@ export function TableRenderer({
 					...(typeof parsed.confirmByTitle === "string"
 						? { confirmByTitle: parsed.confirmByTitle }
 						: {}),
+					...(parsed.body && typeof parsed.body === "object"
+						? { body: parsed.body as Record<string, unknown> }
+						: {}),
 				});
 				setConfirmTyped("");
 				setConfirmExtra(extra);
@@ -524,11 +529,16 @@ export function TableRenderer({
 							await getApiClient().request({
 								url: `${baseUrl}${endpoint}`,
 								method: (confirmPayload.method || "PATCH").toLowerCase(),
-								// A title-typed confirmation sends the typed value; the API re-validates
-								// it, so the client guard is only UX (CRM-13).
-								data: confirmPayload.confirmByTitle
-									? { confirmTitle: confirmTyped.trim() }
-									: {},
+								// A title-typed confirmation sends the typed value; the API
+								// re-validates it, so the client guard is only UX (CRM-13).
+								// A static `body` (e.g. PATCH { isActive: false }) rides along
+								// — a confirmed action used to drop it (CRM-28).
+								data: {
+									...(confirmPayload.body ?? {}),
+									...(confirmPayload.confirmByTitle
+										? { confirmTitle: confirmTyped.trim() }
+										: {}),
+								},
 							});
 							await mutate(() => true);
 							handleConfirmClose();
