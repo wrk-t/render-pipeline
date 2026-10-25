@@ -166,6 +166,15 @@ export interface EntityMeta {
 	 * customer picker (CRM-10) is the first one.
 	 */
 	remoteSearch?: { minSearchLength?: number };
+	/**
+	 * Copy fields from the picked row into other form fields — "use this
+	 * template" fills the message body from the catalog (CRM-17) instead of
+	 * only recording the id. `{ targetField: sourceField }`.
+	 *
+	 * A target that already holds text is never replaced silently: the field
+	 * asks first, so typed content cannot be lost by a click.
+	 */
+	copyFields?: Record<string, string>;
 }
 
 export interface ServiceDatasource {

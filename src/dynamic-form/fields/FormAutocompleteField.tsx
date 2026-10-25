@@ -99,7 +99,8 @@ export function FormAutocompleteField({
 		string | number | null
 	>(field.name);
 
-	const { values: formValues } = useFormikContext<Record<string, unknown>>();
+	const { values: formValues, setFieldValue } =
+		useFormikContext<Record<string, unknown>>();
 
 	// ── Resolve datasource ─────────────────────────────────────
 	const ds = field.fieldOverrides?.datasource as FieldDatasource | undefined;
@@ -247,12 +248,54 @@ export function FormAutocompleteField({
 		}
 	}, [value, options, selectedOption]);
 
+	/**
+	 * "Use this template": copy the picked row's content into the form
+	 * (`copyFields`), so choosing a catalog entry fills the message instead of
+	 * only recording its id (CRM-17).
+	 *
+	 * A target that already holds text is only replaced after the admin says
+	 * so — a click must not silently discard a typed body.
+	 */
+	const copyFromRow = (raw: Record<string, unknown> | undefined): void => {
+		const copyFields = entityMeta?.copyFields;
+		if (!raw || !copyFields) return;
+
+		const writes: Array<[string, string]> = [];
+		let conflicts = 0;
+
+		for (const [target, source] of Object.entries(copyFields)) {
+			const next = raw[source];
+			if (next === undefined || next === null) continue;
+
+			const current = formValues[target];
+			const currentText =
+				typeof current === "string" ? current.trim() : String(current ?? "");
+			if (currentText.length > 0 && currentText !== String(next).trim()) {
+				conflicts += 1;
+			}
+			writes.push([target, String(next)]);
+		}
+
+		if (writes.length === 0) return;
+		if (
+			conflicts > 0 &&
+			!window.confirm(
+				"Replace the content you already typed with this template's?",
+			)
+		) {
+			return;
+		}
+
+		for (const [target, next] of writes) void setFieldValue(target, next);
+	};
+
 	// ── Handle selection — store only the value ────────────────
 	const handleChange = (
 		_event: SyntheticEvent,
 		option: SelectOption | null,
 	): void => {
 		setValue(option ? (option.value as string | number) : null);
+		if (option && entityMeta?.copyFields) copyFromRow(option.raw);
 		// Delay touched to let Formik process the value change first
 		setTimeout(() => setTouched(true), 0);
 	};
