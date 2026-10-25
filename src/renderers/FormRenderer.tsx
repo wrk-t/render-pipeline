@@ -400,6 +400,24 @@ export function FormRenderer({
     return actionContext === effectiveContext;
   };
 
+  /**
+   * A **record fetch** is an `apiCall` + `GET` action: the form reads the row it is
+   * editing from it and must not render it as a button. The submit path already
+   * ignores GET actions; the actions row leaked them until now (CRM-25: the edit
+   * form opened blank because it had no fetch action, and adding one would have
+   * shown a stray button on a detail layout).
+   */
+  const isRecordFetch = (button: RenderedComponent | null | undefined) => {
+    const config = button?.config as
+      | { action?: string; type?: string; method?: string }
+      | null
+      | undefined;
+    return (
+      (config?.action === "apiCall" || config?.type === "submit") &&
+      String(config?.method ?? "").toUpperCase() === "GET"
+    );
+  };
+
   const stateCtx = useStateContext();
 
   	const handleSubmit = async (
@@ -594,7 +612,8 @@ export function FormRenderer({
 	                  el.isActive &&
 	                  el.elementType === "component_ref" &&
 	                  el.referencedComponent &&
-	                  actionInContext(el.referencedComponent),
+	                  actionInContext(el.referencedComponent) &&
+	                  !isRecordFetch(el.referencedComponent),
 	              ) && (
 	                <Stack direction="row" spacing={2} className="mt-6">
 	                  {(component.slotsFilled["actions"] ?? [])
@@ -603,7 +622,8 @@ export function FormRenderer({
 	                        el.isActive &&
 	                        el.elementType === "component_ref" &&
 	                        el.referencedComponent &&
-	                        actionInContext(el.referencedComponent),
+	                        actionInContext(el.referencedComponent) &&
+	                        !isRecordFetch(el.referencedComponent),
 	                    )
 	                    .sort((a, b) => a.displayOrder - b.displayOrder)
 	                    .map((el) => (
