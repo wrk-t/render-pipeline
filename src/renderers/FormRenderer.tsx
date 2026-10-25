@@ -336,10 +336,13 @@ export function FormRenderer({
           (field.overrides as any)?.defaultValue ?? "",
         );
     }
-    // Then, overlay pathParams for matching field names
+    // Then, overlay pathParams for matching field names. A **dotted** key
+    // (`audienceParams.groupId`) prefills a nested value, which is how a row
+    // action opens the campaign form with its audience already chosen (CRM-27).
     if (pathParams) {
       for (const [key, value] of Object.entries(pathParams)) {
-        if (key in values) values[key] = value;
+        if (key.includes(".")) setDottedValue(values, key, value);
+        else if (key in values) values[key] = value;
       }
     }
     // Then, overlay record data for edit mode (dotted names resolve
