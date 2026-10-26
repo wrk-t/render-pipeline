@@ -206,6 +206,16 @@ export function FormRenderer({
 		if (vw?.context && Array.isArray(vw.context)) {
 			if (!(context && vw.context.includes(context))) return false;
 		}
+		// Additional context gate for fields that ALSO carry value conditions
+		// (visibleWhen cannot express both shapes at once).
+		const vic = (el.overrides as any)?.visibleInContexts;
+		if (
+			Array.isArray(vic) &&
+			vic.length > 0 &&
+			!(context && vic.includes(context))
+		) {
+			return false;
+		}
 		// Permission-gated fields (e.g. tenant owner/status — only for
 		// users with the all-scope permission). Hidden fields must also
 		// stay out of validation/initialValues so they don't block submit.
@@ -366,7 +376,16 @@ export function FormRenderer({
 		const editAction = actions.find(
 			(a: any) => a.context === "edit" && a.action === "apiCall",
 		) as any;
-		return editAction?.endpoint ?? null;
+		// A form mounted by an id-less screen (Settings → Messaging) has no
+		// `edit` context, but still edits one record: its GET action is the
+		// record fetch even without the context marker.
+		const fetchAction =
+			editAction ??
+			(actions.find(
+				(a: any) =>
+					a.action === "apiCall" && String(a.method).toUpperCase() === "GET",
+			) as any);
+		return fetchAction?.endpoint ?? null;
 	}, [actions]);
 	const needsRecordId = editEndpoint ? /\{id\}/.test(editEndpoint) : false;
 
@@ -385,8 +404,7 @@ export function FormRenderer({
 	}, [context, actions]);
 
 	const { data: recordData } = useSWR(
-		effectiveContext === "edit" &&
-			editEndpoint &&
+		editEndpoint &&
 			(!needsRecordId ||
 				!!recordId ||
 				!!(
@@ -440,7 +458,9 @@ export function FormRenderer({
 		}
 		// Then, overlay record data for edit mode (dotted names resolve
 		// nested values, e.g. "data.winePairing" ← record.data.winePairing).
-		if (recordData && effectiveContext === "edit") {
+		// The fetch only runs when there is an edit/GET action to read, so a form
+		// mounted on an id-less screen (Settings → Messaging) also opens prefilled.
+		if (recordData) {
 			const src = recordData as Record<string, unknown>;
 			for (const field of allFields) {
 				const name = field.name ?? "";

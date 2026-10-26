@@ -167,6 +167,12 @@ function FormFieldRendererInner({
 	if (vw?.context?.length && !(context && vw.context.includes(context))) {
 		return null;
 	}
+	// A second context gate for fields that also need value conditions (the
+	// `visibleWhen` object and array shapes cannot be combined).
+	const vic = (ov as any)?.visibleInContexts as string[] | undefined;
+	if (vic?.length && !(context && vic.includes(context))) {
+		return null;
+	}
 
 	// Context-based readonly — e.g. readOnlyWhen: {context: ["edit"]}
 	// (the value is assigned at creation and immutable afterwards).

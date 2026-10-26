@@ -15,13 +15,13 @@ import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 import { useField, useFormikContext } from "formik";
 import {
-  type KeyboardEvent,
-  type ReactElement,
-  type SyntheticEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
+	type KeyboardEvent,
+	type ReactElement,
+	type SyntheticEvent,
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
 } from "react";
 import { getApiClient } from "../../deps";
 import type { EntityMeta, MultiselectField, SelectOption } from "../types";
@@ -29,273 +29,293 @@ import type { EntityMeta, MultiselectField, SelectOption } from "../types";
 // ── Helpers ──────────────────────────────────────────────────
 
 function toSelectOption(item: unknown, entityMeta?: EntityMeta): SelectOption {
-  if (item === null || item === undefined) return { label: "", value: "" };
-  const obj = item as Record<string, unknown>;
-  if ("label" in obj && "value" in obj) {
-    return { label: String(obj.label ?? ""), value: obj.value };
-  }
-  const displayField = entityMeta?.displayField;
-  const valueField = entityMeta?.valueField ?? "id";
-  return {
-    label: String(
-      obj[displayField ?? "displayName"] ??
-        obj.displayName ??
-        obj.name ??
-        obj.label ??
-        "",
-    ),
-    value: obj[valueField] ?? obj.id ?? obj.value,
-  };
+	if (item === null || item === undefined) return { label: "", value: "" };
+	const obj = item as Record<string, unknown>;
+	if ("label" in obj && "value" in obj) {
+		return { label: String(obj.label ?? ""), value: obj.value };
+	}
+	const displayField = entityMeta?.displayField;
+	const valueField = entityMeta?.valueField ?? "id";
+	return {
+		label: String(
+			obj[displayField ?? "displayName"] ??
+				obj.displayName ??
+				obj.name ??
+				obj.label ??
+				"",
+		),
+		value: obj[valueField] ?? obj.id ?? obj.value,
+	};
 }
 
 function optionLabel(o: string | SelectOption): string {
-  return typeof o === "string" ? o : o.label;
+	return typeof o === "string" ? o : o.label;
 }
 
 function optionValue(o: string | SelectOption): string {
-  return typeof o === "string" ? o : String(o.value ?? "");
+	return typeof o === "string" ? o : String(o.value ?? "");
 }
+
+/**
+ * A stable empty selection. MUI Autocomplete compares `value` by identity; a
+ * fresh `[]` on every keystroke (or every option fetch) is treated as a value
+ * change and resets the input, which made the field look like a non-typable
+ * select.
+ */
+const EMPTY_SELECTED_OPTIONS: SelectOption[] = [];
 
 // ── Component ────────────────────────────────────────────────
 
 export function FormMultiSelectField({
-  field,
+	field,
 }: {
-  field: MultiselectField;
+	field: MultiselectField;
 }): ReactElement {
-  const [{ value: rawValue }, meta, { setValue, setTouched }] = useField<
-    string[]
-  >(field.name);
-  const { isSubmitting, values: formValues } = useFormikContext<Record<string, unknown>>();
+	const [{ value: rawValue }, meta, { setValue, setTouched }] = useField<
+		string[]
+	>(field.name);
+	const { isSubmitting, values: formValues } =
+		useFormikContext<Record<string, unknown>>();
 
-  const [options, setOptions] = useState<SelectOption[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [inputValue, setInputValue] = useState("");
-  // Debounced term for `entityMeta.remoteSearch` pickers (see the effect below).
-  const [searchTerm, setSearchTerm] = useState("");
+	const [options, setOptions] = useState<SelectOption[]>([]);
+	const [loading, setLoading] = useState(false);
+	const [inputValue, setInputValue] = useState("");
+	// Debounced term for `entityMeta.remoteSearch` pickers (see the effect below).
+	const [searchTerm, setSearchTerm] = useState("");
 
-  // Arch elements carry the datasource in fieldOverrides; legacy forms
-  // set it on the field itself.
-  const datasource = field.fieldOverrides?.datasource ?? field.datasource;
-  const entityMeta =
-    datasource?.type === "service" ? datasource.entityMeta : undefined;
-  const creatable = field.creatable === true;
-  const remoteSearch = entityMeta?.remoteSearch;
-  const minSearchLength = remoteSearch?.minSearchLength ?? 2;
+	// Arch elements carry the datasource in fieldOverrides; legacy forms
+	// set it on the field itself.
+	const datasource = field.fieldOverrides?.datasource ?? field.datasource;
+	const entityMeta =
+		datasource?.type === "service" ? datasource.entityMeta : undefined;
+	const creatable = field.creatable === true;
+	const remoteSearch = entityMeta?.remoteSearch;
+	const minSearchLength = remoteSearch?.minSearchLength ?? 2;
 
-  // Normalise value to an array
-  const selectedValues: string[] = Array.isArray(rawValue)
-    ? rawValue
-    : rawValue
-      ? [rawValue]
-      : [];
+	// Normalise value to an array
+	const selectedValues = useMemo<string[]>(
+		() => (Array.isArray(rawValue) ? rawValue : rawValue ? [rawValue] : []),
+		[rawValue],
+	);
 
-  // Resolve selected values to options — synthesize an option for values
-  // that aren't in the loaded list yet (newly created / prefill ids).
-  const selectedOptions: SelectOption[] = selectedValues.map((v) => {
-    const found = options.find((o) => String(o.value) === v);
-    return found ?? { label: v, value: v };
-  });
+	// Resolve selected values to options — synthesize an option for values
+	// that aren't in the loaded list yet (newly created / prefill ids).
+	//
+	// Memoized: MUI Autocomplete compares `value` by identity. A fresh array on
+	// every keystroke made it believe the selection changed and reset the
+	// input, so the field looked like a non-typable select.
+	const selectedOptions = useMemo<SelectOption[]>(() => {
+		if (selectedValues.length === 0) return EMPTY_SELECTED_OPTIONS;
+		return selectedValues.map((v) => {
+			const found = options.find((o) => String(o.value) === v);
+			return found ?? { label: v, value: v };
+		});
+	}, [selectedValues, options]);
 
-  // Append an "Add …" suggestion for input that matches no existing option.
-  const filterOptions = useCallback(
-    (
-      optionList: SelectOption[],
-      state: { inputValue: string },
-    ): SelectOption[] => {
-      const input = state.inputValue.trim().toLowerCase();
-      const filtered = optionList.filter((o) =>
-        o.label.toLowerCase().includes(input),
-      );
-      if (
-        creatable &&
-        input &&
-        !optionList.some((o) => o.label.toLowerCase() === input)
-      ) {
-        filtered.push({
-          label: `Add "${state.inputValue.trim()}"`,
-          value: state.inputValue.trim(),
-        });
-      }
-      return filtered;
-    },
-    [creatable],
-  );
+	// Append an "Add …" suggestion for input that matches no existing option.
+	const filterOptions = useCallback(
+		(
+			optionList: SelectOption[],
+			state: { inputValue: string },
+		): SelectOption[] => {
+			const input = state.inputValue.trim().toLowerCase();
+			// With a **server-side** search, the API has already matched the term
+			// against every configured field (name, firstName, lastName, phone,
+			// email). Re-filtering on the display label would drop a customer found
+			// by email or a name part that is not in the label.
+			const filtered = remoteSearch
+				? [...optionList]
+				: optionList.filter((o) => o.label.toLowerCase().includes(input));
+			if (
+				creatable &&
+				input &&
+				!optionList.some((o) => o.label.toLowerCase() === input)
+			) {
+				filtered.push({
+					label: `Add "${state.inputValue.trim()}"`,
+					value: state.inputValue.trim(),
+				});
+			}
+			return filtered;
+		},
+		[creatable, remoteSearch],
+	);
 
-  // Free-solo Enter: commit the typed value directly (unless it exactly
-  // matches an existing option, in which case default selection applies).
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLDivElement>) => {
-      if (!creatable || e.key !== "Enter") return;
-      const value = inputValue.trim();
-      if (!value) return;
-      const exists = options.some(
-        (o) => o.label.toLowerCase() === value.toLowerCase(),
-      );
-      if (exists) return; // default behaviour: select the highlighted option
-      e.preventDefault();
-      e.stopPropagation();
-      setOptions((prev) => [...prev, { label: value, value }]);
-      setValue([...selectedValues, value]);
-      setInputValue("");
-      setTimeout(() => setTouched(true), 0);
-    },
-    [creatable, inputValue, options, selectedValues, setValue, setTouched],
-  );
+	// Free-solo Enter: commit the typed value directly (unless it exactly
+	// matches an existing option, in which case default selection applies).
+	const handleKeyDown = useCallback(
+		(e: KeyboardEvent<HTMLDivElement>) => {
+			if (!creatable || e.key !== "Enter") return;
+			const value = inputValue.trim();
+			if (!value) return;
+			const exists = options.some(
+				(o) => o.label.toLowerCase() === value.toLowerCase(),
+			);
+			if (exists) return; // default behaviour: select the highlighted option
+			e.preventDefault();
+			e.stopPropagation();
+			setOptions((prev) => [...prev, { label: value, value }]);
+			setValue([...selectedValues, value]);
+			setInputValue("");
+			setTimeout(() => setTouched(true), 0);
+		},
+		[creatable, inputValue, options, selectedValues, setValue, setTouched],
+	);
 
-  // Resolve the `{fieldName}` filter placeholders from form values so
-  // the fetch only re-runs when the CONTEXT changes (e.g. the category
-  // picker's `{menuId}`), not on every form keystroke.
-  const resolvedFilter = useMemo(() => {
-    if (datasource?.type !== "service" || !entityMeta?.filter) return null;
-    const rawVal = String(entityMeta.filter.value);
-    return rawVal.replace(/\{(\w+)\}/g, (_, key: string) =>
-      key in formValues ? String(formValues[key] ?? "") : `{${key}}`,
-    );
-  }, [datasource, entityMeta, formValues]);
+	// Resolve the `{fieldName}` filter placeholders from form values so
+	// the fetch only re-runs when the CONTEXT changes (e.g. the category
+	// picker's `{menuId}`), not on every form keystroke.
+	const resolvedFilter = useMemo(() => {
+		if (datasource?.type !== "service" || !entityMeta?.filter) return null;
+		const rawVal = String(entityMeta.filter.value);
+		return rawVal.replace(/\{(\w+)\}/g, (_, key: string) =>
+			key in formValues ? String(formValues[key] ?? "") : `{${key}}`,
+		);
+	}, [datasource, entityMeta, formValues]);
 
-  // Load options
-  const loadOptions = useCallback(async () => {
-    if (!datasource) return;
-    setLoading(true);
-    try {
-      if (datasource.type === "static") {
-        setOptions(
-          (datasource.options ?? []).map((o: any) => ({
-            label: String(o.label ?? ""),
-            value: o.value,
-          })),
-        );
-      } else if (datasource.type === "service") {
-        // Build query params like FormAutocompleteField: searchFields,
-        // an entityMeta filter (with `{fieldName}` placeholders resolved
-        // from form values — e.g. categoryIds filtered by `{menuId}`),
-        // and an orderBy. Without these the picker would fetch every row
-        // of the entity regardless of context.
-        const baseUrl = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
-        const params = new URLSearchParams();
-        if (entityMeta?.searchFields?.length) {
-          params.set("searchFields", entityMeta.searchFields.join(","));
-        }
-        if (entityMeta?.filter && resolvedFilter) {
-          params.set(entityMeta.filter.field, resolvedFilter);
-        }
-        if (entityMeta?.orderBy) {
-          params.set("sortBy", entityMeta.orderBy.field);
-          params.set("sortOrder", entityMeta.orderBy.direction);
-        }
-        // Remote search: ask for one page of matching rows instead of the
-        // whole table. Without a term the first page still gives the picker
-        // something to show.
-        if (remoteSearch) {
-          params.set("limit", "20");
-          if (searchTerm) params.set("search", searchTerm);
-        }
-        const qs = params.toString();
-        const url = `${baseUrl}${datasource.endpoint}${qs ? `?${qs}` : ""}`;
-        const res = await getApiClient().get(url);
-        const items = res.data?.data?.data ?? res.data?.data ?? res.data ?? [];
-        const arr = Array.isArray(items) ? items : [items];
-        setOptions(
-          arr.map((item: unknown) => toSelectOption(item, entityMeta)),
-        );
-      }
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-    }
-  }, [datasource, entityMeta, resolvedFilter, remoteSearch, searchTerm]);
+	// Load options
+	const loadOptions = useCallback(async () => {
+		if (!datasource) return;
+		setLoading(true);
+		try {
+			if (datasource.type === "static") {
+				setOptions(
+					(datasource.options ?? []).map((o: any) => ({
+						label: String(o.label ?? ""),
+						value: o.value,
+					})),
+				);
+			} else if (datasource.type === "service") {
+				// Build query params like FormAutocompleteField: searchFields,
+				// an entityMeta filter (with `{fieldName}` placeholders resolved
+				// from form values — e.g. categoryIds filtered by `{menuId}`),
+				// and an orderBy. Without these the picker would fetch every row
+				// of the entity regardless of context.
+				const baseUrl = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
+				const params = new URLSearchParams();
+				if (entityMeta?.searchFields?.length) {
+					params.set("searchFields", entityMeta.searchFields.join(","));
+				}
+				if (entityMeta?.filter && resolvedFilter) {
+					params.set(entityMeta.filter.field, resolvedFilter);
+				}
+				if (entityMeta?.orderBy) {
+					params.set("sortBy", entityMeta.orderBy.field);
+					params.set("sortOrder", entityMeta.orderBy.direction);
+				}
+				// Remote search: ask for one page of matching rows instead of the
+				// whole table. Without a term the first page still gives the picker
+				// something to show.
+				if (remoteSearch) {
+					params.set("limit", "20");
+					if (searchTerm) params.set("search", searchTerm);
+				}
+				const qs = params.toString();
+				const url = `${baseUrl}${datasource.endpoint}${qs ? `?${qs}` : ""}`;
+				const res = await getApiClient().get(url);
+				const items = res.data?.data?.data ?? res.data?.data ?? res.data ?? [];
+				const arr = Array.isArray(items) ? items : [items];
+				setOptions(
+					arr.map((item: unknown) => toSelectOption(item, entityMeta)),
+				);
+			}
+		} catch {
+			// silent
+		} finally {
+			setLoading(false);
+		}
+	}, [datasource, entityMeta, resolvedFilter, remoteSearch, searchTerm]);
 
-  useEffect(() => {
-    loadOptions();
-  }, [loadOptions]);
+	useEffect(() => {
+		loadOptions();
+	}, [loadOptions]);
 
-  // Debounce typing into a search term. Clearing the box returns to the first
-  // page rather than leaving stale matches behind.
-  useEffect(() => {
-    if (!remoteSearch) return;
+	// Debounce typing into a search term. Clearing the box returns to the first
+	// page rather than leaving stale matches behind.
+	useEffect(() => {
+		if (!remoteSearch) return;
 
-    const term = inputValue.trim();
-    if (term.length < minSearchLength) {
-      setSearchTerm("");
-      return;
-    }
+		const term = inputValue.trim();
+		if (term.length < minSearchLength) {
+			setSearchTerm("");
+			return;
+		}
 
-    const handle = setTimeout(() => setSearchTerm(term), 300);
-    return () => clearTimeout(handle);
-  }, [inputValue, remoteSearch, minSearchLength]);
+		const handle = setTimeout(() => setSearchTerm(term), 300);
+		return () => clearTimeout(handle);
+	}, [inputValue, remoteSearch, minSearchLength]);
 
-  const handleChange = useCallback(
-    (_: SyntheticEvent, newValue: (string | SelectOption)[]) => {
-      const ids = newValue.map(optionValue);
-      setValue(ids);
-      setTimeout(() => setTouched(true), 0);
-    },
-    [setValue, setTouched],
-  );
+	const handleChange = useCallback(
+		(_: SyntheticEvent, newValue: (string | SelectOption)[]) => {
+			const ids = newValue.map(optionValue);
+			setValue(ids);
+			setTimeout(() => setTouched(true), 0);
+		},
+		[setValue, setTouched],
+	);
 
-  const handleRemove = useCallback(
-    (removed: SelectOption) => {
-      setValue(selectedValues.filter((v) => v !== String(removed.value)));
-      setTimeout(() => setTouched(true), 0);
-    },
-    [selectedValues, setValue, setTouched],
-  );
+	const handleRemove = useCallback(
+		(removed: SelectOption) => {
+			setValue(selectedValues.filter((v) => v !== String(removed.value)));
+			setTimeout(() => setTouched(true), 0);
+		},
+		[selectedValues, setValue, setTouched],
+	);
 
-  return (
-    <Stack spacing={0.5}>
-      <Autocomplete
-        multiple
-        freeSolo={creatable}
-        options={options}
-        loading={loading}
-        value={selectedOptions}
-        onChange={handleChange}
-        inputValue={inputValue}
-        onInputChange={(_, v) => setInputValue(v)}
-        onKeyDown={handleKeyDown}
-        filterOptions={filterOptions}
-        				disabled={isSubmitting || field.isReadOnly}
-        				getOptionLabel={optionLabel}
-        				isOptionEqualToValue={(o, v) => optionValue(o) === optionValue(v)}
-        renderValue={() => null}
-        renderInput={(params) => (
-          <TextField
-            {...params}
-            label={field.label}
-            error={meta.touched && !!meta.error}
-            helperText={meta.touched && meta.error ? meta.error : undefined}
-            size="small"
-          />
-        )}
-      />
-      {/* Selected options displayed as chips below the input */}
-      {selectedOptions.length > 0 && (
-        <Box
-          sx={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 0.5,
-          }}
-        >
-          {selectedOptions.map((opt) => (
-            <Chip
-              key={String(opt.value)}
-              label={opt.label}
-              size="small"
-              color="primary"
-              variant="outlined"
-              onDelete={field.isReadOnly ? undefined : () => handleRemove(opt)}
-            />
-          ))}
-        </Box>
-      )}
-      {field.description && (
-        <Typography variant="caption" color="text.secondary">
-          {field.description}
-        </Typography>
-      )}
-    </Stack>
-  );
+	return (
+		<Stack spacing={0.5}>
+			<Autocomplete
+				multiple
+				freeSolo={creatable}
+				options={options}
+				loading={loading}
+				value={selectedOptions}
+				onChange={handleChange}
+				inputValue={inputValue}
+				onInputChange={(_, v) => setInputValue(v)}
+				onKeyDown={handleKeyDown}
+				filterOptions={filterOptions}
+				disabled={isSubmitting || field.isReadOnly}
+				getOptionLabel={optionLabel}
+				isOptionEqualToValue={(o, v) => optionValue(o) === optionValue(v)}
+				renderValue={() => null}
+				renderInput={(params) => (
+					<TextField
+						{...params}
+						label={field.label}
+						placeholder={field.uiOverrides?.behavior?.placeholder}
+						error={meta.touched && !!meta.error}
+						helperText={meta.touched && meta.error ? meta.error : undefined}
+						size="small"
+					/>
+				)}
+			/>
+			{/* Selected options displayed as chips below the input */}
+			{selectedOptions.length > 0 && (
+				<Box
+					sx={{
+						display: "flex",
+						flexWrap: "wrap",
+						gap: 0.5,
+					}}
+				>
+					{selectedOptions.map((opt) => (
+						<Chip
+							key={String(opt.value)}
+							label={opt.label}
+							size="small"
+							color="primary"
+							variant="outlined"
+							onDelete={field.isReadOnly ? undefined : () => handleRemove(opt)}
+						/>
+					))}
+				</Box>
+			)}
+			{field.description && (
+				<Typography variant="caption" color="text.secondary">
+					{field.description}
+				</Typography>
+			)}
+		</Stack>
+	);
 }
