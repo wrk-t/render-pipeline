@@ -32,9 +32,13 @@ const STAGE_COLORS: Record<
 export function TabsRenderer({
 	component,
 	pathParams,
+	context,
 }: {
 	component: RenderedComponent;
 	pathParams?: Record<string, string>;
+	/** Dialog/screen context — flows into the active tab's form so
+	 * `visibleWhen`/`readOnlyWhen` context rules still apply there. */
+	context?: string;
 }): ReactElement {
 	const staticTabs: Array<{ label: string; icon?: string }> =
 		(component.config as any)?.tabs ?? [];
@@ -175,6 +179,7 @@ export function TabsRenderer({
 						component={activeContentEl.referencedComponent}
 						pathParams={pathParams}
 						paramBindings={activeContentEl.paramBindings}
+						context={context}
 					/>
 				) : (
 					<Typography variant="body2" color="text.secondary">
