@@ -20,6 +20,7 @@ import {
 	CircularProgress,
 	Chip,
 	Divider,
+	MenuItem,
 	Stack,
 	TextField,
 	Typography,
@@ -66,6 +67,64 @@ function parseConditions(raw: unknown): Record<string, unknown> | null {
 	}
 }
 
+// ── Manual rule builder ─────────────────────────────────────────
+// The assistant is optional (AI_ENDPOINT/AI_API_KEY); without it a tenant
+// still needs a way to define an audience. These are the three aggregates the
+// rule engine supports (see customerSegments.ts) and its operators.
+
+type TManualField = "totalSpent" | "orderCount" | "lastOrderDaysAgo";
+type TManualOp = "eq" | "neq" | "gt" | "gte" | "lt" | "lte";
+
+interface IManualCondition {
+	field: TManualField;
+	op: TManualOp;
+	value: number;
+}
+
+interface IManualRule {
+	match: "all" | "any";
+	rules: IManualCondition[];
+}
+
+const MANUAL_FIELDS: Array<{ value: TManualField; label: string }> = [
+	{ value: "totalSpent", label: "Total spent" },
+	{ value: "orderCount", label: "Number of orders" },
+	{ value: "lastOrderDaysAgo", label: "Days since last order" },
+];
+
+const MANUAL_OPS: Array<{ value: TManualOp; label: string }> = [
+	{ value: "eq", label: "=" },
+	{ value: "neq", label: "≠" },
+	{ value: "gt", label: ">" },
+	{ value: "gte", label: "≥" },
+	{ value: "lt", label: "<" },
+	{ value: "lte", label: "≤" },
+];
+
+function parseManual(raw: unknown): IManualRule {
+	const parsed = parseConditions(raw);
+	const match = parsed?.match === "any" ? "any" : "all";
+	const rawRules = Array.isArray(parsed?.rules) ? parsed.rules : [];
+	const rules = rawRules
+		.filter(
+			(rule): rule is Record<string, unknown> =>
+				rule !== null && typeof rule === "object" && !Array.isArray(rule),
+		)
+		.map((rule) => ({
+			field: (MANUAL_FIELDS.some((entry) => entry.value === rule.field)
+				? rule.field
+				: "orderCount") as TManualField,
+			op: (MANUAL_OPS.some((entry) => entry.value === rule.op)
+				? rule.op
+				: "gte") as TManualOp,
+			value:
+				typeof rule.value === "number" && Number.isFinite(rule.value)
+					? rule.value
+					: 0,
+		}));
+	return { match, rules };
+}
+
 export function AudienceRuleAssistantField({
 	field,
 }: {
@@ -85,9 +144,38 @@ export function AudienceRuleAssistantField({
 	const [sending, setSending] = useState(false);
 	const [draft, setDraft] = useState<IRuleDraft | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [aiEnabled, setAiEnabled] = useState<boolean | null>(null);
+	const [manual, setManual] = useState(false);
+
+	// Ask once whether this deployment has a provider. If it does not, show the
+	// manual builder instead of letting the first message fail with a 503.
+	useEffect(() => {
+		let cancelled = false;
+		void (async () => {
+			try {
+				const res = await getApiClient().get(
+					"/api/v1/ai/rule-authoring/status",
+				);
+				if (!cancelled) setAiEnabled(res.data?.data?.enabled === true);
+			} catch {
+				// Older backend without the status route: keep the chat as-is.
+				if (!cancelled) setAiEnabled(null);
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, []);
 
 	const stored = parseConditions(value);
 	const storedJson = stored ? JSON.stringify(stored, null, 2) : "";
+	const manualRule = parseManual(value);
+	const showManual = aiEnabled === false || manual;
+
+	const commitManual = (next: IManualRule) => {
+		setValue(next.rules.length > 0 ? JSON.stringify(next) : "");
+		setTouched(true, false);
+	};
 
 	// Summarize an existing rule (opening the group) so the page explains what
 	// the audience currently means, not only after a chat turn.
@@ -164,14 +252,177 @@ export function AudienceRuleAssistantField({
 
 	return (
 		<Stack spacing={2}>
-			<Typography variant="subtitle2" className="font-semibold">
-				Describe the audience
-			</Typography>
-			<Typography variant="body2" color="text.secondary">
-				Tell the assistant who should be in this group (e.g. “customers who
-				ordered at least three times and spent more than 100 in the last 60
-				days”). It drafts the rule and explains it; saving the group stores it.
-			</Typography>
+			{aiEnabled === false && (
+				<Alert severity="info">
+					The AI assistant is not configured on this platform. Build the rule
+					manually below — it is validated and saved exactly like an
+					assistant-drafted one.
+				</Alert>
+			)}
+
+			{showManual ? (
+				<Stack spacing={2}>
+					<Typography variant="subtitle2" className="font-semibold">
+						Build the rule
+					</Typography>
+					<Typography variant="body2" color="text.secondary">
+						Combine the order-history conditions below. Only confirmed orders
+						count; pending and cancelled orders are ignored. The group keeps
+						the rule and matches customers on it.
+					</Typography>
+
+					<TextField
+						select
+						size="small"
+						label="Match"
+						value={manualRule.match}
+						onChange={(event) =>
+							commitManual({
+								...manualRule,
+								match: event.target.value as IManualRule["match"],
+							})
+						}
+						className="max-w-56"
+					>
+						<MenuItem value="all">All conditions</MenuItem>
+						<MenuItem value="any">Any condition</MenuItem>
+					</TextField>
+
+					{manualRule.rules.length === 0 && (
+						<Alert severity="warning">
+							Add at least one condition to define this audience.
+						</Alert>
+					)}
+
+					{manualRule.rules.map((rule, index) => (
+						<Stack
+							key={index}
+							direction={{ xs: "column", sm: "row" }}
+							spacing={1}
+							className="items-stretch sm:items-center"
+						>
+							<TextField
+								select
+								size="small"
+								label="Field"
+								value={rule.field}
+								onChange={(event) =>
+									commitManual({
+										...manualRule,
+										rules: manualRule.rules.map((entry, entryIndex) =>
+											entryIndex === index
+												? {
+														...entry,
+														field: event.target.value as TManualField,
+													}
+												: entry,
+										),
+									})
+								}
+								className="min-w-48"
+							>
+								{MANUAL_FIELDS.map((entry) => (
+									<MenuItem key={entry.value} value={entry.value}>
+										{entry.label}
+									</MenuItem>
+								))}
+							</TextField>
+
+							<TextField
+								select
+								size="small"
+								label="Operator"
+								value={rule.op}
+								onChange={(event) =>
+									commitManual({
+										...manualRule,
+										rules: manualRule.rules.map((entry, entryIndex) =>
+											entryIndex === index
+												? { ...entry, op: event.target.value as TManualOp }
+												: entry,
+										),
+									})
+								}
+								className="min-w-24"
+							>
+								{MANUAL_OPS.map((entry) => (
+									<MenuItem key={entry.value} value={entry.value}>
+										{entry.label}
+									</MenuItem>
+								))}
+							</TextField>
+
+							<TextField
+								size="small"
+								type="number"
+								label="Value"
+								value={rule.value}
+								onChange={(event) =>
+									commitManual({
+										...manualRule,
+										rules: manualRule.rules.map((entry, entryIndex) =>
+											entryIndex === index
+												? { ...entry, value: Number(event.target.value) }
+												: entry,
+										),
+									})
+								}
+								className="max-w-28"
+							/>
+
+							<Button
+								color="error"
+								onClick={() =>
+									commitManual({
+										...manualRule,
+										rules: manualRule.rules.filter(
+											(_, entryIndex) => entryIndex !== index,
+										),
+									})
+								}
+							>
+								Remove
+							</Button>
+						</Stack>
+					))}
+
+					<Button
+						variant="outlined"
+						size="small"
+						onClick={() =>
+							commitManual({
+								...manualRule,
+								rules: [
+									...manualRule.rules,
+									{ field: "orderCount", op: "gte", value: 1 },
+								],
+							})
+						}
+					>
+						Add condition
+					</Button>
+				</Stack>
+			) : (
+				<>
+					<Typography variant="subtitle2" className="font-semibold">
+						Describe the audience
+					</Typography>
+					<Typography variant="body2" color="text.secondary">
+						Tell the assistant who should be in this group (e.g. “customers who
+						ordered at least three times and spent more than 100 in the last 60
+						days”). It drafts the rule and explains it; saving the group stores
+						it.
+					</Typography>
+				</>
+			)}
+
+			{aiEnabled !== false && (
+				<Box>
+					<Button size="small" onClick={() => setManual((value) => !value)}>
+						{manual ? "Use the AI assistant" : "Build the rule manually"}
+					</Button>
+				</Box>
+			)}
 
 			{draft && (
 				<Box className="rounded-lg border border-solid border-gray-200 bg-gray-50 p-4">
@@ -217,52 +468,56 @@ export function AudienceRuleAssistantField({
 				</Box>
 			)}
 
-			{turns.length > 0 && (
-				<Box className="max-h-80 overflow-auto rounded-lg border border-solid border-gray-200 p-3">
-					<Stack spacing={1.5}>
-						{turns.map((turn, index) => (
-							<Box
-								key={`${turn.role}-${index}`}
-								className={
-									turn.role === "user"
-										? "self-end rounded-lg bg-blue-50 px-3 py-2"
-										: "self-start rounded-lg bg-gray-50 px-3 py-2"
-								}
-							>
-								<Typography variant="caption" color="text.secondary">
-									{turn.role === "user" ? "You" : "Assistant"}
-								</Typography>
-								<Typography variant="body2" className="whitespace-pre-wrap">
-									{turn.content}
-								</Typography>
-							</Box>
-						))}
+			{!showManual && (
+				<>
+					{turns.length > 0 && (
+						<Box className="max-h-80 overflow-auto rounded-lg border border-solid border-gray-200 p-3">
+							<Stack spacing={1.5}>
+								{turns.map((turn, index) => (
+									<Box
+										key={`${turn.role}-${index}`}
+										className={
+											turn.role === "user"
+												? "self-end rounded-lg bg-blue-50 px-3 py-2"
+												: "self-start rounded-lg bg-gray-50 px-3 py-2"
+										}
+									>
+										<Typography variant="caption" color="text.secondary">
+											{turn.role === "user" ? "You" : "Assistant"}
+										</Typography>
+										<Typography variant="body2" className="whitespace-pre-wrap">
+											{turn.content}
+										</Typography>
+									</Box>
+								))}
+							</Stack>
+						</Box>
+					)}
+
+					{error && <Alert severity="error">{error}</Alert>}
+
+					<Stack direction="row" spacing={1} className="items-end">
+						<TextField
+							fullWidth
+							size="small"
+							multiline
+							minRows={2}
+							placeholder="Who should be in this audience?"
+							value={input}
+							onChange={(event) => setInput(event.target.value)}
+							onKeyDown={onKeyDown}
+							disabled={sending}
+						/>
+						<Button
+							variant="contained"
+							onClick={() => void send()}
+							disabled={sending || input.trim().length === 0}
+						>
+							{sending ? <CircularProgress size={18} color="inherit" /> : "Ask"}
+						</Button>
 					</Stack>
-				</Box>
+				</>
 			)}
-
-			{error && <Alert severity="error">{error}</Alert>}
-
-			<Stack direction="row" spacing={1} className="items-end">
-				<TextField
-					fullWidth
-					size="small"
-					multiline
-					minRows={2}
-					placeholder="Who should be in this audience?"
-					value={input}
-					onChange={(event) => setInput(event.target.value)}
-					onKeyDown={onKeyDown}
-					disabled={sending}
-				/>
-				<Button
-					variant="contained"
-					onClick={() => void send()}
-					disabled={sending || input.trim().length === 0}
-				>
-					{sending ? <CircularProgress size={18} color="inherit" /> : "Ask"}
-				</Button>
-			</Stack>
 
 			{stored && (
 				<>
