@@ -73,6 +73,8 @@ export interface DynamicTableColumn {
 		filterable?: boolean | null;
 		resizable?: boolean | null;
 		hideable?: boolean | null;
+		/** Hide this column when every row on the page has an empty value. */
+		hideWhenEmpty?: boolean | null;
 		editable?: boolean | null;
 		filterType?: "text" | "number" | "select" | "date" | "boolean" | null;
 		/** Select-filter options — static list or service-backed fetch. */
@@ -180,6 +182,12 @@ function buildColumnDef(
 		maxSize: numOrUndefined(config?.maxWidth),
 		...(config?.editable ? { enableEditing: true } : {}),
 	};
+
+	// Internal marker for the page-level empty-column filter below. MRT's
+	// column def has no place for app metadata, so carry it privately.
+	if (config?.hideWhenEmpty) {
+		(def as { __hideWhenEmpty?: boolean }).__hideWhenEmpty = true;
+	}
 
 	// ── Column filter variant ────────────────────────────────────
 	// Map the metadata filterType to an MRT filter UI: select columns
@@ -623,6 +631,27 @@ export function DynamicTable({
 	// ── Decide which data to render ────────────────────────────
 	const data = hasExternalData ? (externalData ?? []) : fetchedData;
 
+	// Some columns only apply to one kind of row (e.g. "Added" exists for a
+	// manual group member, but is null for every rule-resolved member). Hiding
+	// them only when the whole page is empty keeps the table honest without
+	// making the audience mode part of the table schema.
+	const visibleColumns = useMemo(() => {
+		return columns.filter((column) => {
+			if (!(column as { __hideWhenEmpty?: boolean }).__hideWhenEmpty) {
+				return true;
+			}
+			const accessor = String(
+				(column as { accessorKey?: string }).accessorKey ?? column.id ?? "",
+			);
+			return (data as Array<Record<string, unknown>>).some(
+				(row) =>
+					row[accessor] !== null &&
+					row[accessor] !== undefined &&
+					row[accessor] !== "",
+			);
+		});
+	}, [columns, data]);
+
 	// ── Permission check ──────────────────────────────────────
 	const can = useCan();
 	const { data: user } = useRenderUser();
@@ -820,9 +849,7 @@ export function DynamicTable({
 							}
 						}
 					} else {
-						for (const [formField, rowField] of Object.entries(
-							rowFieldSpec,
-						)) {
+						for (const [formField, rowField] of Object.entries(rowFieldSpec)) {
 							const value = row[rowField];
 							if (value !== undefined && value !== null) {
 								rowExtras[formField] = String(value);
@@ -977,7 +1004,7 @@ export function DynamicTable({
 		},
 
 		// ── Core ────────────────────────────────────────────────
-		columns,
+		columns: visibleColumns,
 		data,
 
 		// ── Loading ─────────────────────────────────────────────
