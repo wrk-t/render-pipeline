@@ -65,6 +65,22 @@ export const BaseDialogActions: FC<IBaseDialogActionsProps> = ({
 				</Tooltip>
 			)}
 
+			{slotProps?.submitNowButton?.show !== false &&
+			slotProps?.submitNowButton ? (
+				<Tooltip title={slotProps.submitNowButton.tooltip}>
+					<span>
+						<Button
+							variant="outlined"
+							color="primary"
+							disabled={disabled || isPending}
+							{...slotProps.submitNowButton.props}
+						>
+							{slotProps.submitNowButton.props?.children}
+						</Button>
+					</span>
+				</Tooltip>
+			) : null}
+
 			{slotProps?.submitButton?.show === false ? null : (
 				<Tooltip title={slotProps?.submitButton?.tooltip}>
 					<span>

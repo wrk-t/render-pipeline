@@ -36,6 +36,7 @@ export const BaseDialog: FC<IBaseDialogProps> = ({
 				slotProps={{
 					closeButton: slotProps?.closeButton,
 					submitButton: slotProps?.submitButton,
+					submitNowButton: slotProps?.submitNowButton,
 				}}
 			/>
 		</Dialog>

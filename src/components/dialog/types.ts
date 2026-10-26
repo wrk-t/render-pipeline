@@ -18,6 +18,17 @@ export interface IBaseDialogActionsProps {
 			tooltip?: string | null;
 			props?: Omit<LoadingButtonProps, "onClick">;
 		};
+		/**
+		 * A secondary action next to Submit — the message builder's
+		 * "Send now" (save the draft, confirm, send).
+		 */
+		submitNowButton?: {
+			show?: boolean;
+			tooltip?: string | null;
+			props?: Omit<ButtonProps, "variant"> & {
+				onClick?: () => void;
+			};
+		};
 	};
 }
 

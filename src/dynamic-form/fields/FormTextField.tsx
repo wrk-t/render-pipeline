@@ -8,6 +8,7 @@ import { FastTextField } from "@smartpath/typed-formik-mui";
 import { useField } from "formik";
 import type { ReactElement } from "react";
 import type { TextField as TextFieldType } from "../types";
+import { VariableSuggestField } from "./VariableSuggestField";
 
 export function FormTextField({
 	field,
@@ -16,6 +17,12 @@ export function FormTextField({
 }): ReactElement {
 	const [, meta] = useField(field.name);
 	const hasValue = meta.value !== undefined && meta.value !== "";
+
+	// A subject that may contain `{{variable}}` tokens gets the suggestion
+	// editor (the message template + campaign forms opt in from metadata).
+	if ((field.fieldOverrides as any)?.variableAutocomplete) {
+		return <VariableSuggestField field={field} />;
+	}
 
 	return (
 		<Stack spacing={0.2}>

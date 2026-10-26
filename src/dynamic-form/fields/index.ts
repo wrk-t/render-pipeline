@@ -1,5 +1,6 @@
 export { FormAutocompleteField } from "./FormAutocompleteField";
 export { AssetPickerDialog } from "./AssetPickerDialog";
+export { AudienceRuleAssistantField } from "./AudienceRuleAssistantField";
 export { FormAvailabilityWindowsField } from "./FormAvailabilityWindowsField";
 export { FormCheckboxField } from "./FormCheckboxField";
 export {
@@ -24,3 +25,4 @@ export { FormTextField } from "./FormTextField";
 export { FormTimeField } from "./FormTimeField";
 export { IconPickerField } from "./IconPickerField";
 export { VariantEditorField } from "./VariantEditorField";
+export { VariableSuggestField } from "./VariableSuggestField";

@@ -63,11 +63,11 @@ export interface RenderedComponent {
 	}>;
 	overridable: string[] | null;
 	contract: Record<string, unknown> | null;
-slotsFilled: Record<string, RenderedElement[]>;
-tenantId: string | null;
-isActive: boolean;
-isSystem: boolean;
-meta: Record<string, unknown> | null;
+	slotsFilled: Record<string, RenderedElement[]>;
+	tenantId: string | null;
+	isActive: boolean;
+	isSystem: boolean;
+	meta: Record<string, unknown> | null;
 	/** The blueprint row's meta (config field declarations etc.). */
 	blueprintMeta?: Record<string, unknown> | null;
 }
@@ -102,6 +102,11 @@ export interface FormReadyApi {
 	submitForm: () => Promise<void>;
 	submitLabel: string;
 	closeLabel: string;
+	/**
+	 * A `sendNow` submit: save the record, then confirm and send it (the
+	 * message builder's "Send now" is the dialog's secondary action).
+	 */
+	submitNow?: { label: string; onClick: () => Promise<void> };
 }
 
 /**

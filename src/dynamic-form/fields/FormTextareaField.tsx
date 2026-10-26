@@ -8,6 +8,8 @@ import { FastTextField } from "@smartpath/typed-formik-mui";
 import { useField } from "formik";
 import type { ReactElement } from "react";
 import type { TextareaField } from "../types";
+import { AudienceRuleAssistantField } from "./AudienceRuleAssistantField";
+import { VariableSuggestField } from "./VariableSuggestField";
 
 export function FormTextareaField({
 	field,
@@ -16,6 +18,16 @@ export function FormTextareaField({
 }): ReactElement {
 	const [, meta] = useField(field.name);
 	const hasValue = meta.value !== undefined && meta.value !== "";
+
+	// A group's rule is authored by the AI assistant, not typed as raw JSON.
+	if ((field.fieldOverrides as any)?.ruleAssistant) {
+		return <AudienceRuleAssistantField field={field} />;
+	}
+
+	// The body editor suggests `{{namespace.key}}` tokens as the admin types.
+	if ((field.fieldOverrides as any)?.variableAutocomplete) {
+		return <VariableSuggestField field={field} multiline />;
+	}
 
 	return (
 		<Stack spacing={0.2}>

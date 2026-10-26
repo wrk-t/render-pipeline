@@ -230,6 +230,36 @@ export function buildFieldSchema(
  * // → yup.object({ username: yup.string().required(), … })
  * ```
  */
+/** A plain object node in the shape (a dotted field's parent), not a schema. */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		!(value as { __isYupSchema__?: boolean }).__isYupSchema__
+	);
+}
+
+/**
+ * Yup does **not** accept a plain object as a shape value: `yup.object({ data:
+ * { name: yup.string() } })` stores the inner object verbatim and then calls
+ * `field.resolve(...)` on it during validation, which throws
+ * `TypeError: field.resolve is not a function` (unhandled, inside Formik's
+ * validation promise — so *no* field shows an error and submit silently does
+ * nothing). Nested shapes must be `yup.object(...)` instances, so the dotted
+ * names FormRenderer produces are converted here.
+ */
+function toSchemaNode(
+	node: Record<string, unknown>,
+): yup.ObjectSchema<Record<string, unknown>> {
+	const shape: Record<string, yup.AnySchema> = {};
+	for (const [key, value] of Object.entries(node)) {
+		shape[key] = isPlainObject(value)
+			? toSchemaNode(value)
+			: (value as yup.AnySchema);
+	}
+	return yup.object(shape);
+}
+
 export function buildFormSchema(
 	form: FormRenderResponse,
 ): yup.ObjectSchema<Record<string, unknown>> {
@@ -246,21 +276,19 @@ export function buildFormSchema(
 			rules.length > 0 ? rules : null,
 			field.type,
 		);
-		// Dotted names ("data.winePairing") build NESTED shapes so Yup
-		// validates the same nested values Formik produces.
+		// Dotted names ("data.winePairing", "audienceParams.groupId") build
+		// NESTED shapes so Yup validates the same nested values Formik produces.
 		const parts = field.name.split(".");
 		let node = shape;
 		for (const part of parts.slice(0, -1)) {
 			const existing = node[part];
-			if (typeof existing !== "object" || existing === null) {
-				node[part] = {};
-			}
+			if (!isPlainObject(existing)) node[part] = {};
 			node = node[part] as Record<string, unknown>;
 		}
 		node[parts[parts.length - 1]] = schema;
 	}
 
-	return yup.object(shape as Record<string, yup.AnySchema>);
+	return toSchemaNode(shape);
 }
 
 // ─────────────────────────────────────────────────────────────

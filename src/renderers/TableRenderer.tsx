@@ -1,7 +1,9 @@
 "use client";
 
 import Box from "@mui/material/Box";
+import IconButton from "@mui/material/IconButton";
 import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import {
 	type ReactElement,
@@ -15,6 +17,7 @@ import { checkComponentPermission } from "../ability/checkComponentPermission";
 import { checkTier, resolveTier } from "../ability/checkTier";
 import { AutoComponent } from "../ComponentRenderer";
 import { BaseDialog } from "../components/dialog/BaseDialog";
+import { Unicon } from "../components/common/icon/Unicon";
 import { QrPreviewDialog } from "../components/qr/QrPreviewDialog";
 import { QrStyleDialog } from "../components/qr/QrStyleDialog";
 import { getApiClient, useRenderUser } from "../deps";
@@ -28,6 +31,8 @@ import { DynamicTable } from "../dynamic-table";
 import { useSnack } from "../hooks/useSnack";
 import { resolveUrlTemplate } from "../query-builder";
 import type { RenderedComponent } from "../types";
+import { useRecordData } from "./RecordContext";
+import { matchesCondition } from "./condition";
 
 // State-context + table IDs for the link-operations dialog.
 // These match the seeded package link-ops components (see
@@ -50,7 +55,12 @@ function actionFromComponent(ref: RenderedComponent): TableAction {
 		endpoint?: string;
 		method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 		path?: string;
-		dialog?: { componentId?: number; context?: "create" | "edit" | "view" };
+		dialog?: {
+			componentId?: number;
+			context?: "create" | "edit" | "view";
+			/** Static/row-templated form prefill (CRM-27/29). */
+			extra?: Record<string, unknown>;
+		};
 		confirm?: TableActionConfirm;
 		condition?: TableActionConditions;
 		successRedirect?: string;
@@ -86,6 +96,14 @@ function actionFromComponent(ref: RenderedComponent): TableAction {
 				dialog: {
 					componentId: String(cfg.dialog?.componentId ?? ""),
 					context: cfg.dialog?.context ?? "edit",
+					...(cfg.dialog?.extra
+						? {
+								extra: cfg.dialog.extra as Record<
+									string,
+									string | number | boolean
+								>,
+							}
+						: {}),
 				},
 			};
 		case "navigate":
@@ -145,6 +163,13 @@ export function TableRenderer({
 	const columnEls = component.slotsFilled["columns"] ?? [];
 	const { mutate } = useSWRConfig();
 	const snack = useSnack();
+	/**
+	 * The detail page's record, when this table is mounted inside a layout that
+	 * declares a datasource. A toolbar action may then carry a `condition`
+	 * (e.g. "Add members" only for a manual group); a list page has no record
+	 * and shows every toolbar action, as before.
+	 */
+	const record = useRecordData();
 
 	// ── Confirm dialog state ──
 	const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -200,6 +225,7 @@ export function TableRenderer({
 		submitForm: () => Promise<void>;
 		submitLabel: string;
 		closeLabel: string;
+		submitNow?: { label: string; onClick: () => Promise<void> };
 	} | null>(null);
 	const [, formForceUpdate] = useState(0);
 
@@ -335,10 +361,13 @@ export function TableRenderer({
 			description: component.description,
 			// Toolbar / row actions live in the slots as Button components —
 			// map them to the TableAction shape DynamicTable consumes.
-			toolbarActions: slotActions(component, "toolbar"),
+			toolbarActions: slotActions(component, "toolbar").filter(
+				(action) =>
+					!action.condition || matchesCondition(record, action.condition),
+			),
 			rowActions: slotActions(component, "row-actions"),
 		}),
-		[component],
+		[component, record],
 	);
 
 	// ── Route dialog to appropriate handler ──
@@ -562,6 +591,31 @@ export function TableRenderer({
 				>
 					<Typography>{confirmPayload.message}</Typography>
 					{confirmPayload.confirmByTitle && (
+						<Box className="mt-3 flex items-center gap-2 rounded border border-solid border-gray-300 bg-gray-50 px-3 py-2">
+							<Typography variant="body2" className="select-all font-semibold">
+								{confirmPayload.confirmByTitle}
+							</Typography>
+							<Tooltip title="Copy">
+								<IconButton
+									size="small"
+									aria-label="Copy title"
+									onClick={async () => {
+										try {
+											await navigator.clipboard.writeText(
+												confirmPayload.confirmByTitle ?? "",
+											);
+											await snack.success("Copied");
+										} catch {
+											/* the text is still selectable */
+										}
+									}}
+								>
+									<Unicon name="Copy" size={16} />
+								</IconButton>
+							</Tooltip>
+						</Box>
+					)}
+					{confirmPayload.confirmByTitle && (
 						<TextField
 							fullWidth
 							autoFocus
@@ -684,6 +738,17 @@ export function TableRenderer({
 											children: formApiRef.current?.submitLabel ?? "Submit",
 										},
 									},
+									submitNowButton: formApiRef.current?.submitNow
+										? {
+												show: true,
+												props: {
+													children: formApiRef.current.submitNow.label,
+													onClick: () => {
+														void formApiRef.current?.submitNow?.onClick();
+													},
+												},
+											}
+										: undefined,
 									closeButton: {
 										show: true,
 										props: {
@@ -708,7 +773,8 @@ export function TableRenderer({
 										if (
 											!cur ||
 											cur.submitLabel !== api.submitLabel ||
-											cur.closeLabel !== api.closeLabel
+											cur.closeLabel !== api.closeLabel ||
+											cur.submitNow?.label !== api.submitNow?.label
 										) {
 											formApiRef.current = api;
 											formForceUpdate((n) => n + 1);

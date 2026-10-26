@@ -2,8 +2,11 @@
 
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
+import IconButton from "@mui/material/IconButton";
 import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
+import Box from "@mui/material/Box";
 import { useFormikContext } from "formik";
 import { useRouter } from "next/navigation";
 import { type ReactElement, useState } from "react";
@@ -13,6 +16,8 @@ import { Unicon } from "../components/common/icon/Unicon";
 import { getApiClient } from "../deps";
 import { useSnack } from "../hooks/useSnack";
 import type { RendererProps } from "../types";
+import { useRecordData } from "./RecordContext";
+import { matchesCondition, type TActionCondition } from "./condition";
 
 // ──────────────────────────────────────────────────────────────────
 // ButtonRenderer — standalone Button component, rendered from the
@@ -41,6 +46,14 @@ function useOptionalFormikContext() {
 	}
 }
 
+/**
+ * Evaluate a metadata action `condition` against the detail page's record.
+ *
+ * The layout header used to render every lifecycle button it declared: a
+ * campaign detail page showed Pause *and* Resume at the same time, because the
+ * buttons had no row to test. With the record provided, the condition is the
+ * same one the table's row menu uses.
+ */
 type TConfirmConfig = {
 	title?: string;
 	message?: string;
@@ -83,6 +96,7 @@ export function ButtonRenderer({
 		onSuccess?: "refreshTable" | "refreshAll" | "closeDialog" | "navigate";
 		successRedirect?: string;
 		confirm?: TConfirmConfig;
+		condition?: TActionCondition | TActionCondition[];
 	};
 
 	const action = config.action ?? "button";
@@ -92,6 +106,9 @@ export function ButtonRenderer({
 	// The authoring compiler stores Button icons on the component row's `icon`
 	// column (identity key, stripped from config) — fall back to it.
 	const icon = config.icon ?? component.icon ?? undefined;
+
+	// ── Detail-page record (condition + title resolution) ─────────
+	const record = useRecordData();
 
 	// ── Confirmation + fire state (apiCall only) ──────────────────
 	const [confirmOpen, setConfirmOpen] = useState(false);
@@ -104,13 +121,15 @@ export function ButtonRenderer({
 	 */
 	const [confirmMessage, setConfirmMessage] = useState<string | null>(null);
 
-	/** `{id}` / `{tenantId}` … resolved from the screen's path params. */
+	/** `{id}` / `{title}` … resolved from the screen's path params, then the record. */
 	const resolve = (template: string): string =>
-		template.replace(
-			/\{(\w+)\}/g,
-			(_: string, key: string) =>
-				pathParams && key in pathParams ? String(pathParams[key]) : `{${key}}`,
-		);
+		template.replace(/\{(\w+)\}/g, (_: string, key: string) => {
+			if (pathParams && key in pathParams) return String(pathParams[key]);
+			const fromRecord = record?.[key];
+			if (fromRecord !== undefined && fromRecord !== null)
+				return String(fromRecord);
+			return `{${key}}`;
+		});
 
 	/** `{eligibleCount}` / `{excluded.optedOut}` against the fetched payload. */
 	const interpolate = (template: string, data: unknown): string => {
@@ -179,9 +198,7 @@ export function ButtonRenderer({
 
 			// The API answers with a translated `message` for every action.
 			const message: string | undefined =
-				res.data?.data?.message ??
-				res.data?.message ??
-				config.successMessage;
+				res.data?.data?.message ?? res.data?.message ?? config.successMessage;
 			if (message) await snack.success(message);
 
 			// Every surface reads its own SWR key (list, detail form, the
@@ -238,6 +255,26 @@ export function ButtonRenderer({
 				? confirmTyped.trim() !== expectedTitle
 				: confirmTyped.trim().length === 0));
 
+	/** The destructive confirmation names the record; make the name copyable. */
+	const copyExpectedTitle = async () => {
+		if (!expectedTitle) return;
+		try {
+			await navigator.clipboard.writeText(expectedTitle);
+			await snack.success("Copied");
+		} catch {
+			/* clipboard unavailable — the text is still selectable */
+		}
+	};
+
+	// A lifecycle action that does not apply to this record is not rendered:
+	// Pause and Resume must never appear together (CRM-29). While the detail
+	// record is still loading the condition is unknown, so the button waits
+	// rather than flashing both.
+	if (config.condition) {
+		if (!record) return <></>;
+		if (!matchesCondition(record, config.condition)) return <></>;
+	}
+
 	return (
 		<>
 			<Button
@@ -271,24 +308,43 @@ export function ButtonRenderer({
 						},
 					}}
 				>
-					<Typography>
-						{confirmMessage ?? config.confirm.message}
-					</Typography>
+					<Typography>{confirmMessage ?? config.confirm.message}</Typography>
 					{needsTypedTitle && (
-						<TextField
-							fullWidth
-							autoFocus
-							className="mt-4"
-							label="Type the title to confirm"
-							value={confirmTyped}
-							onChange={(event) => setConfirmTyped(event.target.value)}
-							error={
-								expectedTitle !== null &&
-								confirmTyped.length > 0 &&
-								confirmTyped.trim() !== expectedTitle
-							}
-							helperText={expectedTitle ?? undefined}
-						/>
+						<>
+							{expectedTitle && (
+								<Box className="mt-3 flex items-center gap-2 rounded border border-solid border-gray-300 bg-gray-50 px-3 py-2">
+									<Typography
+										variant="body2"
+										className="select-all font-semibold"
+									>
+										{expectedTitle}
+									</Typography>
+									<Tooltip title="Copy">
+										<IconButton
+											size="small"
+											aria-label="Copy title"
+											onClick={() => void copyExpectedTitle()}
+										>
+											<Unicon name="Copy" size={16} />
+										</IconButton>
+									</Tooltip>
+								</Box>
+							)}
+							<TextField
+								fullWidth
+								autoFocus
+								className="mt-4"
+								label="Type the title to confirm"
+								value={confirmTyped}
+								onChange={(event) => setConfirmTyped(event.target.value)}
+								error={
+									expectedTitle !== null &&
+									confirmTyped.length > 0 &&
+									confirmTyped.trim() !== expectedTitle
+								}
+								helperText={expectedTitle ?? undefined}
+							/>
+						</>
 					)}
 				</BaseDialog>
 			)}
