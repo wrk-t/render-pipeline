@@ -12,22 +12,47 @@ import { useField, useFormikContext } from "formik";
 import type { ReactElement } from "react";
 import type { DateField } from "../types";
 
+// A `date` field is a calendar date, not an instant: the API stores
+// `YYYY-MM-DD` (`isDateOnly` in the backend) and combines it with a separate
+// `time` field + timezone where it needs an instant (CRM-16 — a one-off
+// campaign's `sendDate`). Serializing `toISOString()` here sent a UTC instant
+// whose date can differ from the day the user picked, and the one-off save
+// failed with `errors.message_schedule_send_date`.
+const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})/;
+
+const pad2 = (value: number) => String(value).padStart(2, "0");
+
+/** The calendar date the user sees, in their own timezone. */
+const toDateOnly = (date: Date): string =>
+	`${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+
+/**
+ * Parse a stored value back to the date the picker shows. A `YYYY-MM-DD` string
+ * is read as local midnight (not UTC) so it renders as the same calendar day in
+ * every timezone; anything else (`null`, a legacy ISO instant) falls back to the
+ * runtime parse.
+ */
+const fromStoredDate = (value: unknown): Date | null => {
+	if (typeof value !== "string" || !value) return null;
+	const match = DATE_ONLY.exec(value);
+	if (match) {
+		return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+	}
+	const parsed = new Date(value);
+	return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
 export function FormDateField({ field }: { field: DateField }): ReactElement {
 	const [, meta, helpers] = useField(field.name);
 	const { setFieldValue } = useFormikContext<Record<string, unknown>>();
 
 	const handleChange = (date: Date | null) => {
-		if (date) {
-			const iso = date.toISOString();
-			void setFieldValue(field.name, iso);
-			void helpers.setValue(iso);
-		} else {
-			void setFieldValue(field.name, null);
-			void helpers.setValue(null);
-		}
+		const next = date ? toDateOnly(date) : null;
+		void setFieldValue(field.name, next);
+		void helpers.setValue(next);
 	};
 
-	const value = meta.value ? new Date(meta.value as string) : null;
+	const value = fromStoredDate(meta.value);
 
 	return (
 		<LocalizationProvider dateAdapter={AdapterDateFns}>
