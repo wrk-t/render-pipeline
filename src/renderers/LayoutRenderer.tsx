@@ -87,7 +87,11 @@ export function LayoutRenderer({
 
 	const hasHeader = !!(title || description || actions.length > 0);
 
-	// Vertical gap between content children (e.g. stacked cards).
+	// Vertical gap between content children (e.g. stacked cards). A detail page
+	// stacks its summary/info/form blocks; without a default they touched each
+	// other, so the page read as one dense wall of fields.
+	const contentSpacing =
+		config.spacing ?? (config.fullBleed === true ? 0 : 3);
 	const contentEl = (
 		<LayoutChildren
 			elements={content}
@@ -96,8 +100,8 @@ export function LayoutRenderer({
 		/>
 	);
 	const contentWithSpacing =
-		config.spacing != null && config.spacing > 0 ? (
-			<Stack spacing={config.spacing}>{contentEl}</Stack>
+		contentSpacing > 0 ? (
+			<Stack spacing={contentSpacing}>{contentEl}</Stack>
 		) : (
 			contentEl
 		);
@@ -149,7 +153,7 @@ export function LayoutRenderer({
 				<Paper
 					elevation={config.elevation ?? 1}
 					sx={{
-						p: config.padding ?? 2.5,
+						p: config.padding ?? 3,
 						borderRadius: config.radius ?? 2,
 						flex: 1,
 						minHeight: 0,
