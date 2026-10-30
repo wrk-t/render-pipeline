@@ -175,11 +175,18 @@ export function InfoRenderer({
 	}
 
 	return (
-		<Box className="rounded-lg border border-solid border-gray-200 bg-white p-5">
+		<Box className="rounded-lg border border-solid border-gray-200 bg-white p-6">
 			{component.displayName && (
-				<Typography variant="h6" className="mb-5 font-semibold">
-					{component.displayName}
-				</Typography>
+				// The margin lives on a plain wrapper, not on the Typography:
+				// MUI's own stylesheet sets `margin: 0` on every Typography, and
+				// Tailwind v4 utilities sit in a cascade layer — an unlayered MUI
+				// rule always wins, so `mb-5` on the Typography did nothing and the
+				// title collided with the fields.
+				<div className="mb-5">
+					<Typography variant="h6" className="font-semibold">
+						{component.displayName}
+					</Typography>
+				</div>
 			)}
 			<div className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2 lg:grid-cols-3">
 				{contentElements.map((el) => {
@@ -216,7 +223,12 @@ export function InfoRenderer({
 					return (
 						<div
 							key={el.id}
-							className={fullWidth ? "col-span-full" : undefined}
+							// The label→value gap is the cell's own flex gap: a Tailwind
+							// margin on the value Typography would lose to MUI's reset,
+							// exactly like the heading margin above.
+							className={`flex flex-col gap-1${
+								fullWidth ? " col-span-full" : ""
+							}`}
 						>
 							<Typography
 								variant="caption"
@@ -228,8 +240,8 @@ export function InfoRenderer({
 								variant="body1"
 								className={
 									formatted.multiline
-										? "mt-1 whitespace-pre-wrap break-words leading-7"
-										: "mt-1 break-words leading-7"
+										? "whitespace-pre-wrap break-words"
+										: "break-words"
 								}
 							>
 								{formatted.text}

@@ -162,11 +162,9 @@ export function LayoutRenderer({
 							: {}),
 					}}
 				>
-					<LayoutChildren
-						elements={content}
-						pathParams={pathParams}
-						context={context}
-					/>
+					{/* The spaced wrapper, not the bare children: a detail page stacks
+					    summary/info/form blocks and they must not touch. */}
+					{contentWithSpacing}
 				</Paper>
 			</Stack>
 		</RecordProvider>
