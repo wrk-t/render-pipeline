@@ -2,22 +2,21 @@
 
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
-import IconButton from "@mui/material/IconButton";
 import TextField from "@mui/material/TextField";
-import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import Box from "@mui/material/Box";
 import { useFormikContext } from "formik";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { type ReactElement, useState } from "react";
 import { useSWRConfig } from "swr";
-import { BaseDialog } from "../components/dialog/BaseDialog";
+import { ConfirmPrompt } from "../components/common/CopyableTitle";
 import { Unicon } from "../components/common/icon/Unicon";
+import { BaseDialog } from "../components/dialog/BaseDialog";
 import { getApiClient } from "../deps";
 import { useSnack } from "../hooks/useSnack";
 import type { RendererProps } from "../types";
-import { useRecordData } from "./RecordContext";
 import { matchesCondition, type TActionCondition } from "./condition";
+import { useRecordData } from "./RecordContext";
 
 // ──────────────────────────────────────────────────────────────────
 // ButtonRenderer — standalone Button component, rendered from the
@@ -80,6 +79,7 @@ export function ButtonRenderer({
 	pathParams,
 }: RendererProps): ReactElement {
 	const router = useRouter();
+	const t = useTranslations("");
 	const snack = useSnack();
 	const { mutate } = useSWRConfig();
 	const config = (component.config ?? {}) as {
@@ -251,20 +251,11 @@ export function ButtonRenderer({
 	const confirmDisabled =
 		pending ||
 		(needsTypedTitle &&
-			(expectedTitle !== null
-				? confirmTyped.trim() !== expectedTitle
-				: confirmTyped.trim().length === 0));
+			(expectedTitle === null
+				? confirmTyped.trim().length === 0
+				: confirmTyped.trim() !== expectedTitle));
 
 	/** The destructive confirmation names the record; make the name copyable. */
-	const copyExpectedTitle = async () => {
-		if (!expectedTitle) return;
-		try {
-			await navigator.clipboard.writeText(expectedTitle);
-			await snack.success("Copied");
-		} catch {
-			/* clipboard unavailable — the text is still selectable */
-		}
-	};
 
 	// A lifecycle action that does not apply to this record is not rendered:
 	// Pause and Resume must never appear together (CRM-29). While the detail
@@ -308,43 +299,36 @@ export function ButtonRenderer({
 						},
 					}}
 				>
-					<Typography>{confirmMessage ?? config.confirm.message}</Typography>
+					<Typography component="div" className="leading-7">
+						{/* The typed title sits inside the sentence (and copies on click);
+						    a separate title box plus helper text made the user read the
+						    instruction in one place and copy the value in another. */}
+						<ConfirmPrompt
+							message={
+								needsTypedTitle
+									? // ConfirmPrompt fills the token below, so the token itself is
+										// passed as the value: next-intl refuses to format a message
+										// whose placeholder has no argument and would return the key.
+										`${config.confirm.message ?? ""} ${t("common.confirmTypeTitle", { title: "{title}" })}`.trim()
+									: (confirmMessage ?? config.confirm.message ?? "")
+							}
+							title={expectedTitle}
+						/>
+					</Typography>
 					{needsTypedTitle && (
-						<>
-							{expectedTitle && (
-								<Box className="mt-3 flex items-center gap-2 rounded border border-solid border-gray-300 bg-gray-50 px-3 py-2">
-									<Typography
-										variant="body2"
-										className="select-all font-semibold"
-									>
-										{expectedTitle}
-									</Typography>
-									<Tooltip title="Copy">
-										<IconButton
-											size="small"
-											aria-label="Copy title"
-											onClick={() => void copyExpectedTitle()}
-										>
-											<Unicon name="Copy" size={16} />
-										</IconButton>
-									</Tooltip>
-								</Box>
-							)}
-							<TextField
-								fullWidth
-								autoFocus
-								className="mt-4"
-								label="Type the title to confirm"
-								value={confirmTyped}
-								onChange={(event) => setConfirmTyped(event.target.value)}
-								error={
-									expectedTitle !== null &&
-									confirmTyped.length > 0 &&
-									confirmTyped.trim() !== expectedTitle
-								}
-								helperText={expectedTitle ?? undefined}
-							/>
-						</>
+						<TextField
+							fullWidth
+							autoFocus
+							className="mt-4"
+							label="Type the title to confirm"
+							value={confirmTyped}
+							onChange={(event) => setConfirmTyped(event.target.value)}
+							error={
+								expectedTitle !== null &&
+								confirmTyped.length > 0 &&
+								confirmTyped.trim() !== expectedTitle
+							}
+						/>
 					)}
 				</BaseDialog>
 			)}

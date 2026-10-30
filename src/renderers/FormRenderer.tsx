@@ -1,10 +1,8 @@
 "use client";
 
 import Box from "@mui/material/Box";
-import IconButton from "@mui/material/IconButton";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
-import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { AxiosError } from "axios";
 import {
@@ -19,7 +17,7 @@ import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { checkComponentPermission } from "../ability/checkComponentPermission";
 import { ComponentRenderer } from "../ComponentRenderer";
-import { Unicon } from "../components/common/icon/Unicon";
+import { ConfirmPrompt } from "../components/common/CopyableTitle";
 import { BaseDialog } from "../components/dialog/BaseDialog";
 import { getApiClient, useRenderUser } from "../deps";
 import { buildFormSchema } from "../dynamic-form/buildValidationSchema";
@@ -478,9 +476,15 @@ export function FormRenderer({
 	// for the current values — a conditional field that is hidden must not
 	// block the form with its `Required` rule (`audienceParams.groupId` is
 	// required only for a group audience, `schedule.weekdays` only weekly…).
-	const validateForm = (values: Record<string, unknown>) => {
+	//
+	// `sendNow` skips the schedule fields entirely: "send it right now" has no
+	// date or time, so those required rules must not stop the confirmation.
+	const validateForm = (values: Record<string, unknown>, sendNow = false) => {
 		const fields = allFields
 			.filter((field) => {
+				if (sendNow && (field.name ?? "").startsWith("schedule.")) {
+					return false;
+				}
 				const conditions = (field.overrides as any)?.visibleWhen;
 				if (!Array.isArray(conditions) || conditions.length === 0) return true;
 				return allConditionsMatch(conditions, values);
@@ -663,6 +667,17 @@ export function FormRenderer({
 				payload = mapped;
 			}
 
+			// "Send now" is not a schedule: the draft is created without a run
+			// time, so an empty (never filled) schedule must not go to the API —
+			// it would fail its own "pick a date and time" validation.
+			if (mode === "sendNow" && payload && typeof payload === "object") {
+				const { schedule: _schedule, ...rest } = payload as Record<
+					string,
+					unknown
+				>;
+				payload = rest;
+			}
+
 			const res = await getApiClient().request({
 				url: endpoint,
 				method: (submitAction.method ?? "POST").toLowerCase(),
@@ -810,7 +825,11 @@ export function FormRenderer({
 	return (
 		<Formik
 			initialValues={initialValues}
-			validate={validateForm}
+			validate={(values) =>
+				// The mode is set by the footer button immediately before the
+				// submit, so validation knows whether "send now" is in play.
+				validateForm(values, submitModeRef.current === "sendNow")
+			}
 			onSubmit={handleSubmit}
 			enableReinitialize
 		>
@@ -919,40 +938,12 @@ export function FormRenderer({
 									},
 								}}
 							>
-								<Typography>{pendingSend.message}</Typography>
-								{pendingSend.title && (
-									<Box className="mt-3 flex items-center gap-2 rounded border border-solid border-gray-300 bg-gray-50 px-3 py-2">
-										<Box className="flex-1">
-											<Typography variant="caption" color="text.secondary">
-												Message title
-											</Typography>
-											<Typography
-												variant="body2"
-												className="select-all font-semibold"
-											>
-												{pendingSend.title}
-											</Typography>
-										</Box>
-										<Tooltip title="Copy">
-											<IconButton
-												size="small"
-												aria-label="Copy title"
-												onClick={async () => {
-													try {
-														await navigator.clipboard.writeText(
-															pendingSend.title,
-														);
-														await snack.success("Copied");
-													} catch {
-														/* the text is still selectable */
-													}
-												}}
-											>
-												<Unicon name="Copy" size={16} />
-											</IconButton>
-										</Tooltip>
-									</Box>
-								)}
+								<Typography component="div" className="leading-7">
+									<ConfirmPrompt
+										message={pendingSend.message}
+										title={pendingSend.title}
+									/>
+								</Typography>
 								<TextField
 									fullWidth
 									autoFocus
@@ -964,7 +955,6 @@ export function FormRenderer({
 										sendTyped.length > 0 &&
 										sendTyped.trim() !== pendingSend.title
 									}
-									helperText={pendingSend.title}
 								/>
 							</BaseDialog>
 						)}
