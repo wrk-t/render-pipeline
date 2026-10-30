@@ -1,5 +1,5 @@
-// ═══════════════════════════════════════════════════════════════
-// AudienceRuleAssistantField — the AI rule builder for a group's
+﻿// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// AudienceRuleAssistantField â€” the AI rule builder for a group's
 // "Define a rule" audience mode.
 //
 // The manager describes who should be in the group in words; the
@@ -9,16 +9,16 @@
 //
 // The summary is **ours** (generated from the canonical rule), so it can never
 // disagree with what will be saved. The raw JSON is shown only to a platform
-// super admin — a tenant sees the summary and the conversation.
-// ═══════════════════════════════════════════════════════════════
+// super admin â€” a tenant sees the summary and the conversation.
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 "use client";
 
 import {
 	Alert,
 	Box,
 	Button,
-	CircularProgress,
 	Chip,
+	CircularProgress,
 	Divider,
 	MenuItem,
 	Stack,
@@ -67,18 +67,33 @@ function parseConditions(raw: unknown): Record<string, unknown> | null {
 	}
 }
 
-// ── Manual rule builder ─────────────────────────────────────────
+// â”€â”€ Manual rule builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // The assistant is optional (AI_ENDPOINT/AI_API_KEY); without it a tenant
-// still needs a way to define an audience. These are the three aggregates the
-// rule engine supports (see customerSegments.ts) and its operators.
+// still needs a way to define an audience. These are the aggregates the rule
+// engine supports (see customerSegments.ts) and its operators, together with
+// the qualifiers each field accepts â€” a product filter and the look-back
+// window are what make "ordered tea in the last 3 months" expressible.
 
-type TManualField = "totalSpent" | "orderCount" | "lastOrderDaysAgo";
+type TManualField =
+	| "totalSpent"
+	| "orderCount"
+	| "lastOrderDaysAgo"
+	| "firstOrderDaysAgo"
+	| "averageOrderValue"
+	| "orderedItemCount"
+	| "orderedCategoryCount";
 type TManualOp = "eq" | "neq" | "gt" | "gte" | "lt" | "lte";
 
 interface IManualCondition {
 	field: TManualField;
 	op: TManualOp;
 	value: number;
+	/** Product the rule counts, for `orderedItemCount`. */
+	menuItemId?: string;
+	/** Category the rule counts, for `orderedCategoryCount`. */
+	menuCategoryId?: string;
+	/** Only orders inside the last N days count. */
+	withinDays?: number;
 }
 
 interface IManualRule {
@@ -86,20 +101,77 @@ interface IManualRule {
 	rules: IManualCondition[];
 }
 
+/**
+ * Which qualifier a field takes â€” mirrors `CUSTOMER_SEGMENT_FIELD_QUALIFIERS`
+ * on the server. The server is the authority; this map only decides which
+ * inputs the builder shows.
+ */
+const MANUAL_QUALIFIERS: Record<
+	TManualField,
+	{ menuItem: boolean; menuCategory: boolean; withinDays: boolean }
+> = {
+	totalSpent: { menuItem: false, menuCategory: false, withinDays: true },
+	orderCount: { menuItem: false, menuCategory: false, withinDays: true },
+	lastOrderDaysAgo: { menuItem: false, menuCategory: false, withinDays: false },
+	firstOrderDaysAgo: {
+		menuItem: false,
+		menuCategory: false,
+		withinDays: false,
+	},
+	averageOrderValue: { menuItem: false, menuCategory: false, withinDays: true },
+	orderedItemCount: { menuItem: true, menuCategory: false, withinDays: true },
+	orderedCategoryCount: {
+		menuItem: false,
+		menuCategory: true,
+		withinDays: true,
+	},
+};
+
 const MANUAL_FIELDS: Array<{ value: TManualField; label: string }> = [
 	{ value: "totalSpent", label: "Total spent" },
 	{ value: "orderCount", label: "Number of orders" },
 	{ value: "lastOrderDaysAgo", label: "Days since last order" },
+	{ value: "firstOrderDaysAgo", label: "Days since first order" },
+	{ value: "averageOrderValue", label: "Average order value" },
+	{ value: "orderedItemCount", label: "Orders containing a product" },
+	{ value: "orderedCategoryCount", label: "Orders containing a category" },
 ];
 
 const MANUAL_OPS: Array<{ value: TManualOp; label: string }> = [
 	{ value: "eq", label: "=" },
-	{ value: "neq", label: "≠" },
+	{ value: "neq", label: "â‰ " },
 	{ value: "gt", label: ">" },
-	{ value: "gte", label: "≥" },
+	{ value: "gte", label: "â‰¥" },
 	{ value: "lt", label: "<" },
-	{ value: "lte", label: "≤" },
+	{ value: "lte", label: "â‰¤" },
 ];
+
+/**
+ * Copy the qualifiers a field accepts off a stored rule.
+ *
+ * Qualifiers the field does not take are dropped, so switching a product rule
+ * back to `orderCount` cannot leave a stale id behind (the engine would reject
+ * it, and ignoring it would silently change the meaning).
+ */
+function withQualifiers(
+	source: Record<string, unknown>,
+	base: IManualCondition,
+): IManualCondition {
+	const qualifiers = MANUAL_QUALIFIERS[base.field];
+	const next: IManualCondition = { ...base };
+
+	if (qualifiers.menuItem && typeof source.menuItemId === "string") {
+		next.menuItemId = source.menuItemId;
+	}
+	if (qualifiers.menuCategory && typeof source.menuCategoryId === "string") {
+		next.menuCategoryId = source.menuCategoryId;
+	}
+	if (qualifiers.withinDays && typeof source.withinDays === "number") {
+		next.withinDays = source.withinDays;
+	}
+
+	return next;
+}
 
 function parseManual(raw: unknown): IManualRule {
 	const parsed = parseConditions(raw);
@@ -110,19 +182,61 @@ function parseManual(raw: unknown): IManualRule {
 			(rule): rule is Record<string, unknown> =>
 				rule !== null && typeof rule === "object" && !Array.isArray(rule),
 		)
-		.map((rule) => ({
-			field: (MANUAL_FIELDS.some((entry) => entry.value === rule.field)
-				? rule.field
-				: "orderCount") as TManualField,
-			op: (MANUAL_OPS.some((entry) => entry.value === rule.op)
-				? rule.op
-				: "gte") as TManualOp,
-			value:
-				typeof rule.value === "number" && Number.isFinite(rule.value)
-					? rule.value
-					: 0,
-		}));
+		.map((rule) => {
+			const field = (
+				MANUAL_FIELDS.some((entry) => entry.value === rule.field)
+					? rule.field
+					: "orderCount"
+			) as TManualField;
+
+			return withQualifiers(rule, {
+				field,
+				op: (MANUAL_OPS.some((entry) => entry.value === rule.op)
+					? rule.op
+					: "gte") as TManualOp,
+				value:
+					typeof rule.value === "number" && Number.isFinite(rule.value)
+						? rule.value
+						: 0,
+			});
+		});
 	return { match, rules };
+}
+
+/** The same rule on another aggregate, keeping only the qualifiers it takes. */
+function switchField(
+	rule: IManualCondition,
+	field: TManualField,
+): IManualCondition {
+	return withQualifiers(rule as unknown as Record<string, unknown>, {
+		field,
+		op: rule.op,
+		value: rule.value,
+	});
+}
+
+/**
+ * The shop's products and categories, for the picker.
+ *
+ * A rule stores ids (so renaming a product keeps it meaningful), so the builder
+ * needs the catalog to let a manager choose. Bounded like the assistant's read.
+ */
+async function loadCatalog(): Promise<{
+	items: Array<{ id: string; name: string }>;
+	categories: Array<{ id: string; name: string }>;
+}> {
+	const pick = (payload: unknown) =>
+		((payload as { data?: { data?: unknown } })?.data?.data ?? []) as Array<{
+			id: string;
+			name: string;
+		}>;
+
+	const [items, categories] = await Promise.all([
+		getApiClient().get("/api/v1/menu-items", { params: { limit: 200 } }),
+		getApiClient().get("/api/v1/menu-categories", { params: { limit: 100 } }),
+	]);
+
+	return { items: pick(items.data), categories: pick(categories.data) };
 }
 
 export function AudienceRuleAssistantField({
@@ -171,6 +285,34 @@ export function AudienceRuleAssistantField({
 	const storedJson = stored ? JSON.stringify(stored, null, 2) : "";
 	const manualRule = parseManual(value);
 	const showManual = aiEnabled === false || manual;
+
+	// The product picker needs the shop's own catalog: a rule stores a menu id,
+	// never a name. Read it once, only when a rule actually asks for a product.
+	const needsCatalog = manualRule.rules.some((rule) => {
+		const qualifiers = MANUAL_QUALIFIERS[rule.field];
+		return qualifiers.menuItem || qualifiers.menuCategory;
+	});
+	const [catalog, setCatalog] = useState<{
+		items: Array<{ id: string; name: string }>;
+		categories: Array<{ id: string; name: string }>;
+	} | null>(null);
+
+	useEffect(() => {
+		if (!needsCatalog || catalog !== null) return;
+		let cancelled = false;
+		loadCatalog()
+			.then((next) => {
+				if (!cancelled) setCatalog(next);
+			})
+			.catch(() => {
+				// Without the catalog the picker is empty; the assistant path (which
+				// receives the catalog server-side) still works.
+				if (!cancelled) setCatalog({ items: [], categories: [] });
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [needsCatalog, catalog]);
 
 	const commitManual = (next: IManualRule) => {
 		setValue(next.rules.length > 0 ? JSON.stringify(next) : "");
@@ -255,7 +397,7 @@ export function AudienceRuleAssistantField({
 			{aiEnabled === false && (
 				<Alert severity="info">
 					The AI assistant is not configured on this platform. Build the rule
-					manually below — it is validated and saved exactly like an
+					manually below â€” it is validated and saved exactly like an
 					assistant-drafted one.
 				</Alert>
 			)}
@@ -267,8 +409,8 @@ export function AudienceRuleAssistantField({
 					</Typography>
 					<Typography variant="body2" color="text.secondary">
 						Combine the order-history conditions below. Only confirmed orders
-						count; pending and cancelled orders are ignored. The group keeps
-						the rule and matches customers on it.
+						count; pending and cancelled orders are ignored. The group keeps the
+						rule and matches customers on it.
 					</Typography>
 
 					<TextField
@@ -294,97 +436,183 @@ export function AudienceRuleAssistantField({
 						</Alert>
 					)}
 
-					{manualRule.rules.map((rule, index) => (
-						<Stack
-							key={index}
-							direction={{ xs: "column", sm: "row" }}
-							spacing={1}
-							className="items-stretch sm:items-center"
-						>
-							<TextField
-								select
-								size="small"
-								label="Field"
-								value={rule.field}
-								onChange={(event) =>
-									commitManual({
-										...manualRule,
-										rules: manualRule.rules.map((entry, entryIndex) =>
-											entryIndex === index
-												? {
-														...entry,
-														field: event.target.value as TManualField,
-													}
-												: entry,
-										),
-									})
-								}
-								className="min-w-48"
+					{manualRule.rules.map((rule, index) => {
+						const qualifiers = MANUAL_QUALIFIERS[rule.field];
+						return (
+							<Stack
+								key={index}
+								direction={{ xs: "column", sm: "row" }}
+								spacing={1}
+								className="flex-wrap items-stretch sm:items-center"
 							>
-								{MANUAL_FIELDS.map((entry) => (
-									<MenuItem key={entry.value} value={entry.value}>
-										{entry.label}
-									</MenuItem>
-								))}
-							</TextField>
+								<TextField
+									select
+									size="small"
+									label="Field"
+									value={rule.field}
+									onChange={(event) => {
+										const field = event.target.value as TManualField;
+										// Switching field drops the qualifiers the new field does
+										// not take â€” a stale product id would be rejected by the
+										// engine, and a silent one would change the meaning.
+										commitManual({
+											...manualRule,
+											rules: manualRule.rules.map((entry, entryIndex) =>
+												entryIndex === index
+													? switchField(entry, field)
+													: entry,
+											),
+										});
+									}}
+									className="min-w-56"
+								>
+									{MANUAL_FIELDS.map((entry) => (
+										<MenuItem key={entry.value} value={entry.value}>
+											{entry.label}
+										</MenuItem>
+									))}
+								</TextField>
 
-							<TextField
-								select
-								size="small"
-								label="Operator"
-								value={rule.op}
-								onChange={(event) =>
-									commitManual({
-										...manualRule,
-										rules: manualRule.rules.map((entry, entryIndex) =>
-											entryIndex === index
-												? { ...entry, op: event.target.value as TManualOp }
-												: entry,
-										),
-									})
-								}
-								className="min-w-24"
-							>
-								{MANUAL_OPS.map((entry) => (
-									<MenuItem key={entry.value} value={entry.value}>
-										{entry.label}
-									</MenuItem>
-								))}
-							</TextField>
+								<TextField
+									select
+									size="small"
+									label="Operator"
+									value={rule.op}
+									onChange={(event) =>
+										commitManual({
+											...manualRule,
+											rules: manualRule.rules.map((entry, entryIndex) =>
+												entryIndex === index
+													? { ...entry, op: event.target.value as TManualOp }
+													: entry,
+											),
+										})
+									}
+									className="min-w-28"
+								>
+									{MANUAL_OPS.map((entry) => (
+										<MenuItem key={entry.value} value={entry.value}>
+											{entry.label}
+										</MenuItem>
+									))}
+								</TextField>
 
-							<TextField
-								size="small"
-								type="number"
-								label="Value"
-								value={rule.value}
-								onChange={(event) =>
-									commitManual({
-										...manualRule,
-										rules: manualRule.rules.map((entry, entryIndex) =>
-											entryIndex === index
-												? { ...entry, value: Number(event.target.value) }
-												: entry,
-										),
-									})
-								}
-								className="max-w-28"
-							/>
+								<TextField
+									size="small"
+									type="number"
+									label="Value"
+									value={rule.value}
+									onChange={(event) =>
+										commitManual({
+											...manualRule,
+											rules: manualRule.rules.map((entry, entryIndex) =>
+												entryIndex === index
+													? { ...entry, value: Number(event.target.value) }
+													: entry,
+											),
+										})
+									}
+									className="max-w-28"
+								/>
 
-							<Button
-								color="error"
-								onClick={() =>
-									commitManual({
-										...manualRule,
-										rules: manualRule.rules.filter(
-											(_, entryIndex) => entryIndex !== index,
-										),
-									})
-								}
-							>
-								Remove
-							</Button>
-						</Stack>
-					))}
+								{qualifiers.menuItem && (
+									<TextField
+										select
+										size="small"
+										label="Product"
+										value={rule.menuItemId ?? ""}
+										error={!rule.menuItemId}
+										helperText={rule.menuItemId ? undefined : "Pick a product"}
+										onChange={(event) =>
+											commitManual({
+												...manualRule,
+												rules: manualRule.rules.map((entry, entryIndex) =>
+													entryIndex === index
+														? { ...entry, menuItemId: event.target.value }
+														: entry,
+												),
+											})
+										}
+										className="min-w-56"
+									>
+										{(catalog?.items ?? []).map((item) => (
+											<MenuItem key={item.id} value={item.id}>
+												{item.name}
+											</MenuItem>
+										))}
+									</TextField>
+								)}
+
+								{qualifiers.menuCategory && (
+									<TextField
+										select
+										size="small"
+										label="Category"
+										value={rule.menuCategoryId ?? ""}
+										error={!rule.menuCategoryId}
+										helperText={
+											rule.menuCategoryId ? undefined : "Pick a category"
+										}
+										onChange={(event) =>
+											commitManual({
+												...manualRule,
+												rules: manualRule.rules.map((entry, entryIndex) =>
+													entryIndex === index
+														? { ...entry, menuCategoryId: event.target.value }
+														: entry,
+												),
+											})
+										}
+										className="min-w-56"
+									>
+										{(catalog?.categories ?? []).map((category) => (
+											<MenuItem key={category.id} value={category.id}>
+												{category.name}
+											</MenuItem>
+										))}
+									</TextField>
+								)}
+
+								{qualifiers.withinDays && (
+									<TextField
+										size="small"
+										type="number"
+										label="Within days"
+										placeholder="all time"
+										value={rule.withinDays ?? ""}
+										onChange={(event) => {
+											const raw = event.target.value;
+											commitManual({
+												...manualRule,
+												rules: manualRule.rules.map((entry, entryIndex) => {
+													if (entryIndex !== index) return entry;
+													const { withinDays: _old, ...rest } = entry;
+													return raw === ""
+														? rest
+														: { ...rest, withinDays: Number(raw) };
+												}),
+											});
+										}}
+										className="max-w-36"
+									/>
+								)}
+
+								<Button
+									color="error"
+									onClick={() =>
+										commitManual({
+											...manualRule,
+											rules: manualRule.rules.filter(
+												(_, entryIndex) => entryIndex !== index,
+											),
+										})
+									}
+								>
+									Remove
+								</Button>
+							</Stack>
+						);
+					})}
 
 					<Button
 						variant="outlined"
@@ -408,10 +636,10 @@ export function AudienceRuleAssistantField({
 						Describe the audience
 					</Typography>
 					<Typography variant="body2" color="text.secondary">
-						Tell the assistant who should be in this group (e.g. “customers who
-						ordered at least three times and spent more than 100 in the last 60
-						days”). It drafts the rule and explains it; saving the group stores
-						it.
+						Tell the assistant who should be in this group (e.g. â€œcustomers
+						who ordered at least three times and spent more than 100 in the last
+						60 daysâ€). It drafts the rule and explains it; saving the group
+						stores it.
 					</Typography>
 				</>
 			)}
@@ -439,14 +667,14 @@ export function AudienceRuleAssistantField({
 						<Stack spacing={0.5} className="mt-2">
 							{draft.lines.map((line) => (
 								<Typography key={line} variant="body2" color="text.secondary">
-									• {line}
+									â€¢ {line}
 								</Typography>
 							))}
 						</Stack>
 					)}
 					{draft.errors.length > 0 && (
 						<Alert severity="error" className="mt-3">
-							{draft.errors.map((entry) => entry.message).join(" · ")}
+							{draft.errors.map((entry) => entry.message).join(" Â· ")}
 						</Alert>
 					)}
 					{isSuperAdmin && storedJson && (
