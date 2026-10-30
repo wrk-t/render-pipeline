@@ -6,6 +6,7 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
+import { AxiosError } from "axios";
 import {
 	Form,
 	Formik,
@@ -13,13 +14,13 @@ import {
 	useFormikContext,
 	yupToFormErrors,
 } from "formik";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { checkComponentPermission } from "../ability/checkComponentPermission";
 import { ComponentRenderer } from "../ComponentRenderer";
-import { BaseDialog } from "../components/dialog/BaseDialog";
 import { Unicon } from "../components/common/icon/Unicon";
+import { BaseDialog } from "../components/dialog/BaseDialog";
 import { getApiClient, useRenderUser } from "../deps";
 import { buildFormSchema } from "../dynamic-form/buildValidationSchema";
 import {
@@ -33,7 +34,6 @@ import { useSnack } from "../hooks/useSnack";
 import type { RenderedComponent, RenderedElement } from "../types";
 import { adaptField, UI_TYPE_MAP } from "./FormFieldRenderer";
 import { useStateContext } from "./StateContextRenderer";
-import { AxiosError } from "axios";
 
 // ──────────────────────────────────────────────────────────────────
 // Field adapter imported from FormFieldRenderer (shared location)
@@ -180,6 +180,7 @@ export function FormRenderer({
 }): ReactElement {
 	const snack = useSnack();
 	const router = useRouter();
+	const pathname = usePathname();
 	const { data: user } = useRenderUser();
 	const { features } = useFeatures();
 	const userPermissions: Array<{ resource: string; scope?: string }> =
@@ -550,7 +551,7 @@ export function FormRenderer({
 	const actionInContext = (button: RenderedComponent | null | undefined) => {
 		const actionContext = (button?.config as { context?: string } | null)
 			?.context;
-		if (!actionContext || !effectiveContext) return true;
+		if (!(actionContext && effectiveContext)) return true;
 		return actionContext === effectiveContext;
 	};
 
@@ -573,6 +574,26 @@ export function FormRenderer({
 	};
 
 	const stateCtx = useStateContext();
+
+	/**
+	 * A form mounted by a **detail page** (not a dialog) renders its own action
+	 * row, including the metadata's `close` button. That button had no handler
+	 * there — `onClose` is only provided by dialogs — so "Close" did nothing on
+	 * the page. Fall back to the parent route (the list the detail page was
+	 * opened from), which is where a close should land.
+	 */
+	const closeTarget = useMemo(() => {
+		if (!pathname) return null;
+		const parent = pathname.replace(/\/[^/]+\/?$/, "");
+		return parent && parent !== pathname ? parent : null;
+	}, [pathname]);
+
+	const handleClose = onClose
+		? onClose
+		: () => {
+				if (closeTarget) router.push(closeTarget);
+				else router.back();
+			};
 
 	// ── "Save then send" (the message builder's Send now) ─────────
 	// The submitted action picks its own mode through this ref: Formik's
@@ -816,26 +837,33 @@ export function FormRenderer({
 								</Box>
 							)}
 
-							{/* Render all content elements through ComponentRenderer */}
-							{contentElements
-								.filter(
-									(el) =>
-										el.elementType === "component_ref" &&
-										el.referencedComponent &&
-										isVisible(el) &&
-										isComponentVisible(el.referencedComponent),
-								)
-								.sort((a, b) => a.displayOrder - b.displayOrder)
-								.map((el) => (
-									<Box key={el.id}>
-										<ComponentRenderer
-											component={el.referencedComponent!}
-											pathParams={pathParams}
-											paramBindings={el.paramBindings}
-											context={context}
-										/>
-									</Box>
-								))}
+							{/* Render all content elements through ComponentRenderer.
+							    They are the form's sections, so the stack is what keeps
+							    one section's title from sitting on the previous field —
+							    the gap belongs to the form, not to each section. It is
+							    wider than a section's inner spacing (3) so a title reads
+							    as a new group, not as another field. */}
+							<Stack spacing={4}>
+								{contentElements
+									.filter(
+										(el) =>
+											el.elementType === "component_ref" &&
+											el.referencedComponent &&
+											isVisible(el) &&
+											isComponentVisible(el.referencedComponent),
+									)
+									.sort((a, b) => a.displayOrder - b.displayOrder)
+									.map((el) => (
+										<Box key={el.id}>
+											<ComponentRenderer
+												component={el.referencedComponent!}
+												pathParams={pathParams}
+												paramBindings={el.paramBindings}
+												context={context}
+											/>
+										</Box>
+									))}
+							</Stack>
 
 							{/* Actions slot — rendered from the metadata tree
 	                (Button/Link components via their own renderers). Only the
@@ -869,7 +897,7 @@ export function FormRenderer({
 													component={el.referencedComponent!}
 													pathParams={pathParams}
 													paramBindings={el.paramBindings}
-													onClose={onClose}
+													onClose={handleClose}
 												/>
 											))}
 									</Stack>
