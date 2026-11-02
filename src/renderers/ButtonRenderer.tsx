@@ -97,6 +97,8 @@ export function ButtonRenderer({
 		successRedirect?: string;
 		confirm?: TConfirmConfig;
 		condition?: TActionCondition | TActionCondition[];
+		/** Stretch to the container's width (a form's single submit). */
+		fullWidth?: boolean;
 	};
 
 	const action = config.action ?? "button";
@@ -274,6 +276,7 @@ export function ButtonRenderer({
 				color={config.color as never}
 				disabled={submitting || pending}
 				onClick={onClick}
+				fullWidth={config.fullWidth === true}
 			>
 				{submitting || pending ? (
 					<CircularProgress size={20} color="inherit" />
