@@ -79,6 +79,13 @@ export const ICON_EXPORT = {
 	ArrowBack: "UilArrowLeft",
 	ArrowDropDown: "UilAngleDown",
 	ArrowDropUp: "UilAngleUp",
+	// Chevrons — Unicons' `Angle*` glyphs are the same chevron; these names
+	// state the direction at the call site (`ChevronRight` reads better than
+	// `NavigateNext` for a plain disclosure arrow).
+	ChevronDown: "UilAngleDown",
+	ChevronUp: "UilAngleUp",
+	ChevronLeft: "UilAngleLeft",
+	ChevronRight: "UilAngleRight",
 	Close: "UilTimes",
 	Done: "UilCheck",
 	Info: "UilInfoCircle",
