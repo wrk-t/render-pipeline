@@ -40,6 +40,9 @@ import { matchesCondition } from "./condition";
 const LINK_OPS_STATE_CTX_ID = "489";
 const LINK_OPS_TABLE_ID = "488";
 
+/** Matches the `tv-dialog-off` animation (900ms) plus a frame of slack. */
+const FORM_DIALOG_EXIT_MS = 920;
+
 /**
  * Map a toolbar/row-action Button component (from the table's
  * `toolbar` / `row-actions` slots) to the TableAction shape
@@ -229,13 +232,25 @@ export function TableRenderer({
 	} | null>(null);
 	const [, formForceUpdate] = useState(0);
 
+	/**
+	 * Closing must keep the dialog MOUNTED while it animates out: the CRT
+	 * power-off is a CSS animation on the paper, and the old
+	 * `showFormDialog && …` render condition unmounted it instantly, so no
+	 * exit ever ran. The visible flag flips now; the payload is dropped when
+	 * the animation ends (`FORM_DIALOG_EXIT_MS` ≈ `tv-dialog-off`).
+	 */
+	const formCloseTimer = useRef<number | null>(null);
+
 	const handleFormClose = useCallback(() => {
 		setShowFormDialog(false);
-		setFormComponentId(null);
-		setFormContext("create");
-		setFormRecordId(undefined);
-		setFormDialogTitle("");
-		setFormExtra("");
+		if (formCloseTimer.current) window.clearTimeout(formCloseTimer.current);
+		formCloseTimer.current = window.setTimeout(() => {
+			setFormComponentId(null);
+			setFormContext("create");
+			setFormRecordId(undefined);
+			setFormDialogTitle("");
+			setFormExtra("");
+		}, FORM_DIALOG_EXIT_MS);
 		formApiRef.current = null;
 		mutate(() => true);
 	}, [mutate]);
@@ -708,8 +723,9 @@ export function TableRenderer({
 				</>
 			)}
 
-			{/* Create / Edit form dialog */}
-			{showFormDialog && formComponentId && (
+			{/* Create / Edit form dialog — rendered while the payload lives, not
+			    while it is open, so closing can animate out. */}
+			{formComponentId && (
 				<>
 					{(() => {
 						let extras: Record<string, string> = {};
@@ -726,7 +742,7 @@ export function TableRenderer({
 
 						return (
 							<BaseDialog
-								isOpen
+								isOpen={showFormDialog}
 								title={formDialogTitle}
 								onClose={handleFormClose}
 								isPending={false}
