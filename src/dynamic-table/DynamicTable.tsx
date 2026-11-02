@@ -19,6 +19,7 @@ import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
+import { useTheme } from "@mui/material/styles";
 import {
 	MaterialReactTable,
 	MRT_ActionMenuItem,
@@ -461,6 +462,7 @@ export function DynamicTable({
 	const hasExternalData = externalData !== undefined;
 	const { push } = useRouter();
 	const { mutate: globalMutate } = useSWRConfig();
+	const muiTheme = useTheme();
 
 	// ── Server-side state ──────────────────────────────────────
 	const [pagination, setPagination] = useState<MRT_PaginationState>({
@@ -999,6 +1001,14 @@ export function DynamicTable({
 	// in BOTH directions.
 
 	const table = useMaterialReactTable({
+		// MRT paints its table paper with `background.default` (the page
+		// colour), which reads as a white sheet dropped on a themed card.
+		// Use the theme's paper surface so the table sits on the same surface
+		// as the card it lives in, and picks up any palette change.
+		mrtTheme: {
+			baseBackgroundColor: muiTheme.palette.background.paper,
+		},
+
 		muiTableHeadRowProps() {
 			return { sx: { boxShadow: "none" } };
 		},
@@ -1541,7 +1551,12 @@ export function DynamicTable({
 			return {
 				sx: {
 					cursor: onClick ? "pointer" : undefined,
-					backgroundColor: matchedCondition?.backgroundColor ?? "#ffffff",
+					// Rows sit on the table's surface, not on a hardcoded white
+					// sheet — the theme's paper colour keeps the table on the
+					// same surface as the card it lives in.
+					backgroundColor:
+						matchedCondition?.backgroundColor ??
+						muiTheme.palette.background.paper,
 				},
 				className: matchedCondition?.className,
 				onClick: onClick ? handleRowClick : undefined,
