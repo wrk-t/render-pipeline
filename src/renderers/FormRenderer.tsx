@@ -797,7 +797,9 @@ export function FormRenderer({
 		return (
 			<Box>
 				{!onFormReady && component.displayName && (
-					<Typography variant="h5" className="mb-4 font-bold">
+					// `sx` for the same reason as the header above: Tailwind
+					// classes in this package never reach the stylesheet.
+					<Typography variant="h5" sx={{ mb: 2, fontWeight: 700 }}>
 						{component.displayName}
 					</Typography>
 				)}
@@ -840,15 +842,20 @@ export function FormRenderer({
 						<Form>
 							<FormSideEffects specs={resetSpecs} />
 							{!onFormReady && component.displayName && (
-								<Box className="mb-6">
-									<Typography variant="h5" className="font-bold">
+								// Spacing is `sx`, not Tailwind: this package is built to
+								// `dist/` and imported from node_modules, which Tailwind
+								// does not scan — `className="mb-6"` here compiles to
+								// nothing, which left the description sitting on the
+								// first field's floating label.
+								<Box sx={{ mb: 3 }}>
+									<Typography variant="h5" sx={{ fontWeight: 700 }}>
 										{component.displayName}
 									</Typography>
 									{component.description && (
 										<Typography
 											variant="body2"
 											color="text.secondary"
-											className="mt-1"
+											sx={{ mt: 0.5 }}
 										>
 											{component.description}
 										</Typography>
