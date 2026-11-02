@@ -1453,15 +1453,21 @@ export function DynamicTable({
 			sx: {
 				border: settings.bordered ? "1px solid" : "none",
 				borderColor: "divider",
-				// borderRadius: "8px",
+				// The panel draws the border, so the radius has to live here —
+				// a radius on the container alone is clipped by this surface.
+				// Passed as a string: `sx` multiplies a numeric `borderRadius`
+				// by `shape.borderRadius`, which would give 4 units × 4 = 64px.
+				borderRadius: `${Number(muiTheme.shape.borderRadius) * 4}px`,
+				// Clip the flush table so its square cell corners cannot poke
+				// out of the rounded panel.
+				overflow: "hidden",
 			},
 		},
 
-		muiTableContainerProps: {
-			sx: {
-				borderRadius: "0px",
-			},
-		},
+		// The table sits flush inside the paper, so the concentric rule makes
+		// the inner radius equal the outer one. The container is left to the
+		// theme (`MuiTableContainer` uses the same box tier) instead of
+		// restating a radius here, which only drifted from it.
 
 		// ── Striped rows (alternating background) ──────────────
 		muiTableBodyRowProps: ({ row }) => {

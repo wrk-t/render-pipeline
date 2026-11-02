@@ -154,7 +154,10 @@ export function LayoutRenderer({
 					elevation={config.elevation ?? 1}
 					sx={{
 						p: config.padding ?? 3,
-						borderRadius: config.radius ?? 2,
+						// 4 theme units = the box tier (16px on a 4px base): a page
+						// card is a surface, one step above the 8px control radius
+						// it contains.
+						borderRadius: config.radius ?? 4,
 						flex: 1,
 						minHeight: 0,
 						...(config.maxWidth != null
