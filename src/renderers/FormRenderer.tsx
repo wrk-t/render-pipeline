@@ -257,6 +257,10 @@ export function FormRenderer({
 	const snack = useSnack();
 	// Translated fallbacks for messages Yup generates itself (required/type).
 	const t = useTranslations("validation");
+	// Dialog-footer fallbacks. A form without a metadata `close` action used to
+	// fall back to the English "Close" here, which then overrode the translated
+	// default in BaseDialogActions.
+	const tc = useTranslations("common");
 	const router = useRouter();
 	const pathname = usePathname();
 	const { data: user } = useRenderUser();
@@ -842,8 +846,8 @@ export function FormRenderer({
 	);
 
 	// Resolve action labels for the dialog footer
-	const submitLabel = (primaryApiActions[0] as any)?.label ?? "Submit";
-	const closeLabel = (closeActions[0] as any)?.label ?? "Close";
+	const submitLabel = (primaryApiActions[0] as any)?.label ?? tc("submit");
+	const closeLabel = (closeActions[0] as any)?.label ?? tc("close");
 
 	// Ref to hold Formik's submitForm for the parent dialog
 	const submitFormRef = useRef<(() => Promise<void>) | null>(null);

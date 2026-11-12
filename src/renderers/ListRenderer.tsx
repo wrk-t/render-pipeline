@@ -535,13 +535,13 @@ export function ListRenderer({
 						submitButton: {
 							show: !!formApiRef.current,
 							props: {
-								children: formApiRef.current?.submitLabel ?? "Submit",
+								children: formApiRef.current?.submitLabel,
 							},
 						},
 						closeButton: {
 							show: true,
 							props: {
-								children: formApiRef.current?.closeLabel ?? "Close",
+								children: formApiRef.current?.closeLabel,
 							},
 						},
 					}}

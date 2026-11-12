@@ -775,7 +775,7 @@ export function TableRenderer({
 									submitButton: {
 										show: !!formApiRef.current,
 										props: {
-											children: formApiRef.current?.submitLabel ?? "Submit",
+											children: formApiRef.current?.submitLabel,
 										},
 									},
 									submitNowButton: formApiRef.current?.submitNow
@@ -792,7 +792,7 @@ export function TableRenderer({
 									closeButton: {
 										show: true,
 										props: {
-											children: formApiRef.current?.closeLabel ?? "Close",
+											children: formApiRef.current?.closeLabel,
 										},
 									},
 								}}

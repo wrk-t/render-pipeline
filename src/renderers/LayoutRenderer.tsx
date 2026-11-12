@@ -152,7 +152,7 @@ export function LayoutRenderer({
 				)}
 				<Paper
 					elevation={config.elevation ?? 1}
-					sx={{
+					sx={(theme) => ({
 						p: config.padding ?? 3,
 						// 4 theme units = the box tier (16px on a 4px base): a page
 						// card is a surface, one step above the 8px control radius
@@ -160,10 +160,17 @@ export function LayoutRenderer({
 						borderRadius: config.radius ?? 4,
 						flex: 1,
 						minHeight: 0,
+						// MUI's dark elevation-1 adds a 5% white film. The table
+						// paper inside this card has no film, so the card looked a
+						// lighter brown than the table it wraps. Drop the film in
+						// dark mode so both are the same paper colour.
+						...(theme.palette.mode === "dark"
+							? { backgroundImage: "none" }
+							: {}),
 						...(config.maxWidth != null
 							? { maxWidth: config.maxWidth, mx: "auto", width: "100%" }
 							: {}),
-					}}
+					})}
 				>
 					{/* The spaced wrapper, not the bare children: a detail page stacks
 					    summary/info/form blocks and they must not touch. */}

@@ -46,7 +46,7 @@ export const BaseDialogActions: FC<IBaseDialogActionsProps> = ({
 	}, [submit]);
 
 	return (
-		<DialogActions className="p-4!">
+		<DialogActions sx={{ px: 3, py: 2 }}>
 			{slotProps?.closeButton?.show === false ? null : (
 				<Tooltip title={slotProps?.closeButton?.tooltip}>
 					<span>

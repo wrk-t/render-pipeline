@@ -15,10 +15,13 @@ export const BaseDialogHeader: FC<IDialogHeaderProps> = ({
 	disabled,
 	showCloseButton = true,
 }) => (
-	<Box className="rounded-tl-sm rounded-tr-sm pl-6 pr-4 py-3">
-		<Stack direction="row" className="justify-between p-0 items-center">
-			<DialogTitle id="customized-dialog-title" className="p-0!">
-				<Typography className="capitalize">{title}</Typography>
+	<Box sx={{ px: 3, py: 1.5 }} className="rounded-tl-sm rounded-tr-sm">
+		<Stack
+			direction="row"
+			sx={{ alignItems: "center", justifyContent: "space-between" }}
+		>
+			<DialogTitle id="customized-dialog-title" sx={{ p: 0 }}>
+				<Typography sx={{ textTransform: "capitalize" }}>{title}</Typography>
 			</DialogTitle>
 
 			{showCloseButton ? (
@@ -26,7 +29,9 @@ export const BaseDialogHeader: FC<IDialogHeaderProps> = ({
 					aria-label="close"
 					disabled={disabled}
 					onClick={onClose ?? onClose}
-					sx={{margin: "0px 24px"}}
+					// The button has 8px of its own padding; pull it back so the
+					// glyph lands on the content's 24px padding line on both sides.
+					sx={{ marginInlineEnd: "-8px" }}
 					size="small"
 				>
 					<Unicon name="CloseRounded" />

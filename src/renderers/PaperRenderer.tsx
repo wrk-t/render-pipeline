@@ -46,14 +46,19 @@ export function PaperRenderer({
 			elevation={config.elevation ?? 1}
 			variant={config.variant}
 			square={config.square}
-			sx={{
+			sx={(theme) => ({
 				p: config.padding ?? 2.5,
 				borderRadius: config.radius ?? 2,
 				height: "100%",
+				// Match the table paper nested inside: MUI's dark elevation-1
+				// white film made the card a lighter brown than the table.
+				...(theme.palette.mode === "dark"
+					? { backgroundImage: "none" }
+					: {}),
 				...(config.maxWidth != null
 					? { maxWidth: config.maxWidth, mx: "auto" }
 					: {}),
-			}}
+			})}
 		>
 			{children}
 		</Paper>
