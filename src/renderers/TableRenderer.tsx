@@ -230,7 +230,20 @@ export function TableRenderer({
 		closeLabel: string;
 		submitNow?: { label: string; onClick: () => Promise<void> };
 	} | null>(null);
+	/** True only while the form dialog is open (a closing form must not re-register). */
+	const formDialogOpenRef = useRef(false);
 	const [, formForceUpdate] = useState(0);
+
+	/**
+	 * The footer button calls the CURRENT form's submit through this stable
+	 * wrapper. Passing `formApiRef.current?.submitForm` directly froze the
+	 * function from the render it was captured in: after close/reopen the
+	 * footer called the unmounted form's submit, so the new form never
+	 * validated and showed no errors.
+	 */
+	const submitCurrentForm = useCallback(() => {
+		void formApiRef.current?.submitForm();
+	}, []);
 
 	/**
 	 * Closing must keep the dialog MOUNTED while it animates out: the CRT
@@ -242,6 +255,10 @@ export function TableRenderer({
 	const formCloseTimer = useRef<number | null>(null);
 
 	const handleFormClose = useCallback(() => {
+		// Mark closed BEFORE the exit animation: the form stays mounted while it
+		// animates out and its onFormReady effect runs again, which used to
+		// re-register the old form after this reset.
+		formDialogOpenRef.current = false;
 		setShowFormDialog(false);
 		if (formCloseTimer.current) window.clearTimeout(formCloseTimer.current);
 		formCloseTimer.current = window.setTimeout(() => {
@@ -499,6 +516,13 @@ export function TableRenderer({
 						typeof tableMetadata.title === "string"
 							? tableMetadata.title.replace(/^\$trl_/, "")
 							: "Record";
+					// A quick close→open must cancel the previous exit timer, or it
+					// clears the freshly opened dialog's payload mid-animation.
+					if (formCloseTimer.current) {
+						window.clearTimeout(formCloseTimer.current);
+						formCloseTimer.current = null;
+					}
+					formDialogOpenRef.current = true;
 					setFormComponentId(componentId);
 					// Use "edit" context for actual form rendering so FormRenderer can
 					// find edit actions (GET endpoints) to fetch record data.
@@ -746,7 +770,7 @@ export function TableRenderer({
 								title={formDialogTitle}
 								onClose={handleFormClose}
 								isPending={false}
-								onSubmit={formApiRef.current?.submitForm}
+								onSubmit={submitCurrentForm}
 								slotProps={{
 									submitButton: {
 										show: !!formApiRef.current,
@@ -785,14 +809,20 @@ export function TableRenderer({
 											: undefined
 									}
 									onFormReady={(api) => {
+										// Ignore a form that reports ready while its dialog is
+										// already closing; it is about to unmount.
+										if (!formDialogOpenRef.current) return;
 										const cur = formApiRef.current;
+										// Always point at the LATEST form. Only re-render when
+										// the footer labels actually change, so this cannot loop
+										// (onFormReady is a fresh callback on every render).
+										formApiRef.current = api;
 										if (
 											!cur ||
 											cur.submitLabel !== api.submitLabel ||
 											cur.closeLabel !== api.closeLabel ||
 											cur.submitNow?.label !== api.submitNow?.label
 										) {
-											formApiRef.current = api;
 											formForceUpdate((n) => n + 1);
 										}
 									}}

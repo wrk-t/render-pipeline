@@ -13,16 +13,22 @@ interface Props {
  * Format config: { type: "image" }
  *
  * Backend-served uploads (`/uploads/…`) are prefixed with the API
- * endpoint; front static paths (`/images/…`) and absolute URLs are
- * used as-is. The cell is a full-width flex container so the
- * thumbnail stays centered regardless of the column's text-align.
+ * endpoint; front static paths (`/images/…`) and other absolute URLs are
+ * used as-is. Absolute `/uploads/…` URLs written before the upload API
+ * returned relative paths also resolve against the current API origin, so
+ * a legacy production URL still shows its file in a dev instance. The cell
+ * is a full-width flex container so the thumbnail stays centered regardless
+ * of the column's text-align.
  */
 function resolveImageUrl(url: string): string {
-	if (url.startsWith("/uploads/")) {
-		const base = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
-		return `${base}${url}`;
+	const base = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
+	try {
+		const parsed = new URL(url, "http://uploads.local");
+		if (!parsed.pathname.startsWith("/uploads/")) return url;
+		return `${base}${parsed.pathname}${parsed.search}`;
+	} catch {
+		return url;
 	}
-	return url;
 }
 
 export function ImageCell({ cell }: Props): ReactElement {

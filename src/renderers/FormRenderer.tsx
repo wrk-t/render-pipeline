@@ -13,6 +13,7 @@ import {
 	yupToFormErrors,
 } from "formik";
 import { usePathname, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { checkComponentPermission } from "../ability/checkComponentPermission";
@@ -101,6 +102,57 @@ function getDottedValue(
 	return node;
 }
 
+/** Copy plain values so payload cleanup never mutates Formik's `values`. */
+function cloneFormValues<T>(value: T): T {
+	if (Array.isArray(value)) {
+		return value.map(cloneFormValues) as T;
+	}
+	if (
+		value !== null &&
+		typeof value === "object" &&
+		Object.getPrototypeOf(value) === Object.prototype
+	) {
+		return Object.fromEntries(
+			Object.entries(value).map(([key, child]) => [
+				key,
+				cloneFormValues(child),
+			]),
+		) as T;
+	}
+	return value;
+}
+
+function deleteDottedValue(
+	obj: Record<string, unknown>,
+	dottedName: string,
+): void {
+	const parts = dottedName.split(".");
+	let node = obj;
+	for (const part of parts.slice(0, -1)) {
+		const child = node[part];
+		if (child === null || typeof child !== "object" || Array.isArray(child)) {
+			return;
+		}
+		node = child as Record<string, unknown>;
+	}
+	delete node[parts[parts.length - 1]];
+}
+
+/**
+ * The form types whose untouched value is `""` but whose API contract is a
+ * number or date. A blank one must be omitted, not sent: the DTO validates
+ * `displayOrder` as a number and rejected `""` with a 400 after the client
+ * schema had already accepted the form.
+ */
+const EMPTY_OMITTED_TYPES = new Set(["number", "date", "datetime", "map"]);
+
+function isValueOmittedWhenBlank(field: RenderedElement): boolean {
+	const type = field.uiComponentId
+		? (UI_TYPE_MAP[field.uiComponentId] ?? field.type ?? "text")
+		: (field.type ?? "text");
+	return EMPTY_OMITTED_TYPES.has(type);
+}
+
 // ──────────────────────────────────────────────────────────────────
 // FormSideEffects — metadata-declared field resets.
 //
@@ -148,6 +200,32 @@ function FormSideEffects({
 }
 
 // ──────────────────────────────────────────────────────────────────
+// MarkTouchedOnSubmit — reveal field errors after a submit attempt.
+//
+// The Formik MUI fields only render `helperText` when `touched[name]` is
+// true. Formik does not mark fields touched on submit, so submitting an
+// untouched empty form validated (and blocked the POST) but showed no
+// message at all. Once the first submit is attempted, mark every field
+// touched; the validation errors then become visible.
+// ──────────────────────────────────────────────────────────────────
+
+function MarkTouchedOnSubmit({ names }: { names: string[] }): null {
+	const { submitCount, setTouched } =
+		useFormikContext<Record<string, unknown>>();
+	const handledSubmit = useRef(0);
+
+	useEffect(() => {
+		if (submitCount <= handledSubmit.current) return;
+		handledSubmit.current = submitCount;
+		const touched: Record<string, boolean> = {};
+		for (const name of names) touched[name] = true;
+		setTouched(touched, false);
+	}, [names, setTouched, submitCount]);
+
+	return null;
+}
+
+// ──────────────────────────────────────────────────────────────────
 // FormRenderer
 // ──────────────────────────────────────────────────────────────────
 
@@ -177,6 +255,8 @@ export function FormRenderer({
 	pathParams?: Record<string, string>;
 }): ReactElement {
 	const snack = useSnack();
+	// Translated fallbacks for messages Yup generates itself (required/type).
+	const t = useTranslations("validation");
 	const router = useRouter();
 	const pathname = usePathname();
 	const { data: user } = useRenderUser();
@@ -286,6 +366,16 @@ export function FormRenderer({
 		walkElements(Object.values(component.slotsFilled).flat());
 		return fields;
 	}, [component, context, userPermissions]);
+
+	// Names of the currently visible fields — a failed submit marks them all
+	// touched so their validation messages appear (see MarkTouchedOnSubmit).
+	const fieldNames = useMemo(
+		() =>
+			allFields
+				.map((field) => field.name)
+				.filter((name): name is string => Boolean(name)),
+		[allFields],
+	);
 
 	/**
 	 * Field-to-field side effects declared by the metadata: a controlling field
@@ -500,10 +590,17 @@ export function FormRenderer({
 			});
 
 		if (fields.length === 0) return {};
-		const schema = buildFormSchema({
-			sections: [],
-			ungroupedFields: fields,
-		} as any);
+		const schema = buildFormSchema(
+			{
+				sections: [],
+				ungroupedFields: fields,
+			} as any,
+			{
+				required: t("required"),
+				number: t("number"),
+				date: t("date"),
+			},
+		);
 		try {
 			schema.validateSync(values, { abortEarly: false });
 			return {};
@@ -648,7 +745,20 @@ export function FormRenderer({
 							operationIds:
 								(stateCtx.getValue("selectedIds") as string[]) ?? [],
 						}
-					: values;
+					: cloneFormValues(values);
+
+			// A blank number/date input is `""` in Formik but an invalid value
+			// for the API (`displayOrder` failed its number DTO). Omit it so the
+			// column default — or, on PATCH, the stored value — applies.
+			if (!(contextName && stateCtx)) {
+				for (const field of allFields) {
+					const name = field.name;
+					if (!name || !isValueOmittedWhenBlank(field)) continue;
+					if (getDottedValue(payload, name) === "") {
+						deleteDottedValue(payload, name);
+					}
+				}
+			}
 
 			// Apply fieldMap: rename payload keys (e.g. tenantId → ownerTenantId)
 			const fieldMap = (submitAction as any).fieldMap as
@@ -841,6 +951,7 @@ export function FormRenderer({
 					<>
 						<Form>
 							<FormSideEffects specs={resetSpecs} />
+							<MarkTouchedOnSubmit names={fieldNames} />
 							{!onFormReady && component.displayName && (
 								// Spacing is `sx`, not Tailwind: this package is built to
 								// `dist/` and imported from node_modules, which Tailwind

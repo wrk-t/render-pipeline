@@ -42,6 +42,23 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/**
+ * Backend uploads are served at `/uploads/...`. Resolve both the relative
+ * value the API returns now and absolute URLs written by older versions
+ * against the API origin, so a dev instance never tries to load the
+ * production host.
+ */
+function resolveUploadPreview(value: string): string {
+  const base = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
+  try {
+    const url = new URL(value, "http://uploads.local");
+    if (!url.pathname.startsWith("/uploads/")) return value;
+    return `${base}${url.pathname}${url.search}`;
+  } catch {
+    return value;
+  }
+}
+
 // ─────────────────────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────────────────────
@@ -104,10 +121,7 @@ export function FormImageField({ field }: { field: ImageField }): ReactElement {
   // (the front origin does not serve them).
   const previewSrc: string | null = useMemo(() => {
     if (value instanceof File) return URL.createObjectURL(value);
-    if (typeof value === "string" && value.startsWith("/uploads/")) {
-      const base = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
-      return `${base}${value}`;
-    }
+    if (typeof value === "string") return resolveUploadPreview(value);
     return value ?? null;
   }, [value]);
 
@@ -307,16 +321,12 @@ export function FormImageField({ field }: { field: ImageField }): ReactElement {
                 objectFit: "contain",
               }}
               onError={(e) => {
-                console.error(
+                // A broken image URL is a data problem, not an application
+                // crash; `warn` avoids the Next dev error overlay.
+                console.warn(
                   "[FormImageField] Failed to load image:",
                   previewSrc,
                   e,
-                );
-              }}
-              onLoad={() => {
-                console.log(
-                  "[FormImageField] Image loaded successfully:",
-                  previewSrc,
                 );
               }}
             />

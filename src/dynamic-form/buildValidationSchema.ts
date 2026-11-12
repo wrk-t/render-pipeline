@@ -14,6 +14,20 @@ import type {
 	ValidationRule,
 } from "./types";
 
+/**
+ * Host-supplied translations for the messages Yup generates itself.
+ *
+ * Seeded rules already carry their translated message, but a rule derived
+ * from the field (`isRequired`, `type: "number"`) has none — without these
+ * the UI fell back to Yup's English defaults ("name is a required field",
+ * "displayOrder must be a `number` type…").
+ */
+export interface ValidationMessages {
+	required?: string;
+	number?: string;
+	date?: string;
+}
+
 // ─────────────────────────────────────────────────────────────
 // Regex helpers (mirrored from FormLocaleProvider so custom
 // `Pattern` rules can reference them by name)
@@ -59,15 +73,32 @@ function interpolateMessage(
 export function buildFieldSchema(
 	rules: ValidationRule[] | null | undefined,
 	fieldType?: FieldType,
+	messages?: ValidationMessages,
 ): yup.AnySchema {
 	// ── 1. Pick the base type ──────────────────────────────────
 	let schema: yup.AnySchema;
 
 	const hasNumberRule = rules?.some((r) => r[0] === "IsNumber");
 	const isNumericType = fieldType === "number";
+	const isDateType =
+		rules?.some((r) => r[0] === "IsDate") ||
+		fieldType === "date" ||
+		fieldType === "datetime";
+
+	/**
+	 * An untouched numeric/date input holds `""` (see FormRenderer's
+	 * `defaultInitialValue`). Yup casts that to `NaN`/`Invalid Date` and fails
+	 * the type check *before* `required` can run, so an optional `displayOrder`
+	 * was rejected and a required `price` showed a cast error instead of
+	 * "required". Treat the empty input as absent (`null`), which `required`
+	 * still rejects with its own (translated) message.
+	 */
+	const emptyToNull = (value: unknown, originalValue: unknown): unknown =>
+		originalValue === "" ? null : value;
 
 	if (hasNumberRule || isNumericType) {
-		schema = yup.number();
+		schema = yup.number().transform(emptyToNull);
+		if (messages?.number) schema = schema.typeError(messages.number);
 	} else if (
 		rules?.some((r) => r[0] === "IsBoolean") ||
 		fieldType === "switch"
@@ -79,12 +110,9 @@ export function buildFieldSchema(
 			if (value === undefined || value === null) return false;
 			return Boolean(value);
 		});
-	} else if (
-		rules?.some((r) => r[0] === "IsDate") ||
-		fieldType === "date" ||
-		fieldType === "datetime"
-	) {
-		schema = yup.date();
+	} else if (isDateType) {
+		schema = yup.date().transform(emptyToNull);
+		if (messages?.date) schema = schema.typeError(messages.date);
 	} else if (
 		fieldType === "multiselect" ||
 		fieldType === "variants" ||
@@ -96,7 +124,8 @@ export function buildFieldSchema(
 		schema = yup.array();
 	} else if (fieldType === "map") {
 		// The map picker holds coordinates (numbers).
-		schema = yup.number();
+		schema = yup.number().transform(emptyToNull);
+		if (messages?.number) schema = schema.typeError(messages.number);
 	} else if (fieldType === "json") {
 		// JSON fields hold arrays/objects/strings — accept anything.
 		schema = yup.mixed();
@@ -113,7 +142,26 @@ export function buildFieldSchema(
 	schema = schema.nullable();
 
 	// ── 3. Apply each rule in order ────────────────────────────
-	for (const rule of rules ?? []) {
+	//
+	// Yup appends every `.required()` call as its own `required` test, and the
+	// first failing test wins. `extractRenderFieldRules` emits the derived
+	// `["Required"]` (from isRequired) AND the seeded
+	// `["Required", "<translated message>"]`, so the untranslated default
+	// shadowed the translation. Apply only the best Required rule — one that
+	// carries a message wins — and fall back to the host-supplied translation.
+	const ruleList = rules ?? [];
+	let requiredRuleIndex = -1;
+	for (let i = 0; i < ruleList.length; i++) {
+		if (ruleList[i][0] !== "Required") continue;
+		if (ruleList[i].length > 1 || requiredRuleIndex === -1) {
+			requiredRuleIndex = i;
+		}
+	}
+
+	for (let i = 0; i < ruleList.length; i++) {
+		const rule = ruleList[i];
+		if (rule[0] === "Required" && i !== requiredRuleIndex) continue;
+
 		const [keyword, ...args] = rule;
 		// The last arg is the translated message if it's a string
 		const last = args.length > 0 ? args[args.length - 1] : undefined;
@@ -123,7 +171,7 @@ export function buildFieldSchema(
 		switch (keyword) {
 			// ── Required ─────────────────────────────────────────
 			case "Required": {
-				schema = schema.required(message);
+				schema = schema.required(message ?? messages?.required);
 				break;
 			}
 
@@ -271,6 +319,7 @@ function toSchemaNode(
 
 export function buildFormSchema(
 	form: FormRenderResponse,
+	messages?: ValidationMessages,
 ): yup.ObjectSchema<Record<string, unknown>> {
 	const shape: Record<string, unknown> = {};
 
@@ -284,6 +333,7 @@ export function buildFormSchema(
 		const schema = buildFieldSchema(
 			rules.length > 0 ? rules : null,
 			field.type,
+			messages,
 		);
 		// Dotted names ("data.winePairing", "audienceParams.groupId") build
 		// NESTED shapes so Yup validates the same nested values Formik produces.
