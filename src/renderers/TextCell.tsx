@@ -31,7 +31,15 @@ export function TextCell({ cell }: Props): ReactElement {
 		?.labelMap as Record<string, string> | undefined;
 	const mapped = labelMap?.[String(value)];
 
-	const str = mapped ?? (typeof value === "string" ? value : JSON.stringify(value));
+	const str =
+		mapped ??
+		(typeof value === "boolean"
+			? value
+				? "Yes"
+				: "No"
+			: typeof value === "string"
+				? value
+				: JSON.stringify(value));
 
 	return (
 		<Tooltip title={str} arrow placement="top" enterDelay={400}>

@@ -25,12 +25,20 @@ import {
 	MRT_ActionMenuItem,
 	type MRT_ColumnDef,
 	type MRT_ColumnFiltersState,
+	type MRT_ColumnPinningState,
 	type MRT_PaginationState,
 	type MRT_SortingState,
 	useMaterialReactTable,
 } from "material-react-table";
 import { useRouter } from "next/navigation";
-import { type ReactElement, useCallback, useMemo, useState } from "react";
+import {
+	type KeyboardEvent as ReactKeyboardEvent,
+	type MouseEvent as ReactMouseEvent,
+	type ReactElement,
+	useCallback,
+	useMemo,
+	useState,
+} from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { useCan } from "../ability";
 import { checkComponentPermission } from "../ability/checkComponentPermission";
@@ -46,6 +54,7 @@ import { useResolvedParams } from "../hooks/useResolvedParams";
 import type { QueryParams } from "../query-builder";
 import { resolveUrlTemplate } from "../query-builder";
 import { columnCellRenderers } from "../renderers/columnCellRenderers";
+import { TextCell } from "../renderers/TextCell";
 import { useDateRange } from "../renderers/DateRangeContext";
 import { TableIcon } from "./TableIcon";
 
@@ -160,6 +169,13 @@ export interface DynamicTableProps {
 // Helpers – map a DynamicTableColumn → MRT_ColumnDef
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * Platform default rows per page. A table may override it in its seed only
+ * with a recorded reason (e.g. a month of calendar days), so page size no
+ * longer drifts per screen (25 / 50 / 100 / 10).
+ */
+const DEFAULT_PAGE_SIZE = 25;
+
 function buildColumnDef(
 	col: DynamicTableColumn,
 	filterSelectOptions?: Array<{
@@ -240,16 +256,12 @@ function buildColumnDef(
 		}
 	}
 
-	// Default cell: stringify non-string values so booleans (which React
-	// renders as nothing) and objects never show up as empty cells.
+	// Default cell: the shared text renderer stringifies non-string values
+	// (booleans, objects) and truncates a long value with an ellipsis while
+	// revealing it in a tooltip — a wide text column can no longer force the
+	// table to overflow instead of clipping.
 	if (!def.Cell) {
-		def.Cell = ({ cell }: any) => {
-			const value = cell.getValue();
-			if (value === null || value === undefined) return "";
-			if (typeof value === "boolean") return value ? "Yes" : "No";
-			if (typeof value === "object") return JSON.stringify(value);
-			return String(value);
-		};
+		def.Cell = TextCell as any;
 	}
 
 	// Alignment — default to center
@@ -308,6 +320,21 @@ function matchRowCondition(
 		default:
 			return false;
 	}
+}
+
+/**
+ * True when a click inside a table row belongs to a control (row-action menu,
+ * selection checkbox, a link or a cell widget) rather than to the row itself.
+ * The row opens its detail route; its controls must keep their own click and
+ * must not also navigate.
+ */
+function isRowControlTarget(target: EventTarget | null): boolean {
+	if (!(target instanceof Element)) return true;
+	return Boolean(
+		target.closest(
+			'button, a, input, select, textarea, label, [role="button"], [role="link"], [role="checkbox"], [role="menuitem"], [role="switch"]',
+		),
+	);
 }
 
 /**
@@ -465,9 +492,14 @@ export function DynamicTable({
 	const muiTheme = useTheme();
 
 	// ── Server-side state ──────────────────────────────────────
+	// One platform page size (25). A seed may override it only with a
+	// recorded reason; the renderer falls back to the platform default when
+	// a table does not declare one.
+	const initialPageSize =
+		datasource.pagination?.defaultPageSize ?? DEFAULT_PAGE_SIZE;
 	const [pagination, setPagination] = useState<MRT_PaginationState>({
 		pageIndex: 0,
-		pageSize: datasource.pagination.defaultPageSize,
+		pageSize: initialPageSize,
 	});
 	const [sorting, setSorting] = useState<MRT_SortingState>([]);
 	const [globalFilter, setGlobalFilter] = useState("");
@@ -653,6 +685,38 @@ export function DynamicTable({
 			);
 		});
 	}, [columns, data]);
+
+	// ── Pinned columns ─────────────────────────────────────────
+	// The identity column stays at the logical START and the row-action menu
+	// at the logical END, so both remain visible while the wide value columns
+	// scroll. Pinning the first column also keeps the row's own identity in
+	// view when the detail columns overflow at 1280px.
+	const pinnedLeftColumnIds = useMemo(() => {
+		const first = visibleColumns[0] as
+			| { accessorKey?: string; id?: string }
+			| undefined;
+		const firstId = first?.accessorKey ?? first?.id;
+		const ids = firstId ? [firstId] : [];
+		// The selection checkbox leads the row and must stay visible with it.
+		return selection?.enabled ? ["mrt-row-select", ...ids] : ids;
+	}, [visibleColumns, selection?.enabled]);
+
+	// Additional pins the user chose from the column menu. The two edges above
+	// are always merged back in, so a user action can never hide the row
+	// actions or the identity column.
+	const [userColumnPinning, setUserColumnPinning] =
+		useState<MRT_ColumnPinningState>({});
+	const columnPinning = useMemo<MRT_ColumnPinningState>(
+		() => ({
+			left: Array.from(
+				new Set([...pinnedLeftColumnIds, ...(userColumnPinning.left ?? [])]),
+			),
+			right: Array.from(
+				new Set([...(userColumnPinning.right ?? []), "mrt-row-actions"]),
+			),
+		}),
+		[userColumnPinning, pinnedLeftColumnIds],
+	);
 
 	// ── Permission check ──────────────────────────────────────
 	const can = useCan();
@@ -994,6 +1058,44 @@ export function DynamicTable({
 		],
 	);
 
+	/**
+	 * The detail route a row opens when the table declares one — the
+	 * `navigate` target, or the legacy `redirect` template (feature-gated
+	 * fallback included). Returns undefined when a row click opens a dialog or
+	 * fires an API call: only a real destination is a link, so middle-click
+	 * and keyboard open cannot invent one.
+	 */
+	const resolveRowHref = useCallback(
+		(row: Record<string, unknown>): string | undefined => {
+			const onClick = tableMetadata.onRowClick;
+			if (!onClick) return undefined;
+			if (onClick.action === "navigate" && onClick.path) {
+				return resolveRowPlaceholders(onClick.path.replace(/^~\//, "/"), row);
+			}
+			if (onClick.action === "openDialog" || onClick.action === "apiCall") {
+				return undefined;
+			}
+			// Legacy redirect/endpoint format.
+			let redirect = onClick.redirect;
+			if (!redirect) return undefined;
+			// Feature-gated navigation: when the flag is OFF and the row carries
+			// a default version, use the fallback target instead.
+			const versions = (row.versions ?? row.serviceVersions) as
+				| Array<{ id?: string }>
+				| undefined;
+			if (
+				onClick.fallbackFeature &&
+				onClick.fallbackRedirect &&
+				!features[onClick.fallbackFeature] &&
+				versions?.length
+			) {
+				redirect = onClick.fallbackRedirect;
+			}
+			return resolveRowPlaceholders(redirect.replace(/^~\//, "/"), row);
+		},
+		[tableMetadata.onRowClick, resolveRowPlaceholders, features],
+	);
+
 	// ── Build the MRT instance ─────────────────────────────────
 	// Row actions pin to the logical END of the table — the right edge
 	// in LTR, the left edge in RTL. MRT treats pinning sides as logical
@@ -1026,13 +1128,22 @@ export function DynamicTable({
 			sorting: isServerSide ? sorting : undefined,
 			globalFilter: isServerSide ? globalFilter : undefined,
 			columnFilters: isServerSide ? columnFilters : undefined,
-			// Row actions pin to the logical END of the table — the right
-			// edge in LTR, the left edge in RTL. MRT treats pinning sides as
-			// logical and flips them for RTL tables, so "right" pins to the
-			// visual end in BOTH directions.
-			// Row-action menu is pinned right so it never scrolls away.
-			columnPinning: { right: ["mrt-row-actions"] },
+			// Both edges are pinned: the identity column at the logical START,
+			// the row-action menu at the logical END; MRT flips "left"/"right"
+			// for RTL tables, so each stays at its visual edge in either
+			// direction. The action menu therefore never scrolls out of view,
+			// while the first column keeps identifying each row.
+			columnPinning,
 		},
+
+		// Pinning is what makes the actions reachable at 1280px: the right
+		// column stays sticky over the horizontally scrolling value columns.
+		// (MRT's `enableColumnPinning` default is false, so the state alone
+		// would be ignored.)
+		enableColumnPinning: true,
+		// Keep the column menu's pin buttons working; the two mandatory pins
+		// are merged back in by `columnPinning` above.
+		onColumnPinningChange: setUserColumnPinning,
 
 		// ── Manual (server-side) controllers ───────────────────
 		manualPagination: isServerSide,
@@ -1054,16 +1165,26 @@ export function DynamicTable({
 
 		// ── Page size options from the contract ────────────────
 		paginationDisplayMode: "pages",
+		// Honour a seeded override's options — a deliberate page size outside
+		// MRT's defaults (e.g. 31 calendar days) would otherwise select blank.
+		...(datasource.pagination?.pageSizeOptions?.length
+			? {
+					muiPaginationProps: {
+						rowsPerPageOptions: datasource.pagination.pageSizeOptions,
+					},
+				}
+			: {}),
 
 		// ── Initial state (density) ────────────────────────────
 		initialState: {
 			density: toMrtDensity(settings.density),
-			pagination: isServerSide
-				? {
-						pageIndex: 0,
-						pageSize: datasource.pagination.defaultPageSize,
-					}
-				: undefined,
+			// Client-side tables use MRT's initial state (server-side tables are
+			// controlled above); both start at the platform page size so a
+			// client-side list cannot drift to MRT's default of 10.
+			pagination: {
+				pageIndex: 0,
+				pageSize: initialPageSize,
+			},
 		},
 
 		// ── Sorting ─────────────────────────────────────────────
@@ -1469,10 +1590,13 @@ export function DynamicTable({
 		// theme (`MuiTableContainer` uses the same box tier) instead of
 		// restating a radius here, which only drifted from it.
 
-		// ── Striped rows (alternating background) ──────────────
+		// ── Rows ────────────────────────────────────────────────
 		muiTableBodyRowProps: ({ row }) => {
 			const onClick = tableMetadata.onRowClick;
-			const rowId = String(row.original.id ?? "");
+			// The detail route this row declares, when the table declares one.
+			// Only a navigation yields a URL — openDialog/apiCall rows stay
+			// click-only, so a middle click cannot open a page that does not exist.
+			const detailHref = resolveRowHref(row.original);
 
 			const handleRowClick = () => {
 				if (!onClick) return;
@@ -1481,8 +1605,7 @@ export function DynamicTable({
 
 				// New action-discriminant format: navigate / apiCall / openDialog
 				if (onClick.action === "navigate" && onClick.path) {
-					const normalized = onClick.path.replace(/^~\//, "/");
-					push(resolveRowPlaceholders(normalized, row.original));
+					if (detailHref) push(detailHref);
 					return;
 				}
 				if (onClick.action === "apiCall" && onClick.endpoint) {
@@ -1513,27 +1636,10 @@ export function DynamicTable({
 					return;
 				}
 
-				// Legacy redirect/endpoint format
+				// Legacy redirect/endpoint format. The redirect — including its
+				// feature-gated fallback — is resolved once by `resolveRowHref`.
 				if (onClick.redirect) {
-					let redirect = onClick.redirect;
-					// Feature-gated navigation: when the flag is OFF and the row
-					// carries a default version, jump to the fallback target.
-					// Packages include `versions`, services include `serviceVersions`.
-					const rowVersions =
-						row.original.versions ?? row.original.serviceVersions;
-					const versions = rowVersions as Array<{ id?: string }> | undefined;
-					if (
-						onClick.fallbackFeature &&
-						onClick.fallbackRedirect &&
-						!features[onClick.fallbackFeature] &&
-						versions?.length
-					) {
-						redirect = onClick.fallbackRedirect;
-					}
-					// Strip ~/ prefix (root-relative shorthand)
-					redirect = redirect.replace(/^~\//, "/");
-					const url = resolveRowPlaceholders(redirect, row.original);
-					push(url);
+					if (detailHref) push(detailHref);
 				} else if (onClick.endpoint) {
 					const baseUrl = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
 					const endpoint = resolveRowPlaceholders(
@@ -1563,9 +1669,48 @@ export function DynamicTable({
 					backgroundColor:
 						matchedCondition?.backgroundColor ??
 						muiTheme.palette.background.paper,
+					// A detail row is keyboard focusable; show where focus is.
+					...(detailHref
+						? {
+								"&:focus-visible": {
+									outline: `2px solid ${muiTheme.palette.primary.main}`,
+									outlineOffset: "-2px",
+								},
+							}
+						: {}),
 				},
 				className: matchedCondition?.className,
-				onClick: onClick ? handleRowClick : undefined,
+				// A row with a detail route behaves like a link: focusable, Enter
+				// opens it, middle-click opens it in a new tab. Clicks on the
+				// row's own controls (action menu, selection checkbox, cell
+				// widgets) are excluded, so those keep working without navigating.
+				...(detailHref
+					? {
+							tabIndex: 0,
+							onKeyDown: (event: ReactKeyboardEvent<HTMLTableRowElement>) => {
+								if (event.key !== "Enter") return;
+								// Enter belongs to a focused control (action button,
+								// link, checkbox); on the row or one of its cells it
+								// opens the detail route. MRT makes cells focusable,
+								// so the event usually targets a cell, not the row.
+								if (isRowControlTarget(event.target)) return;
+								event.preventDefault();
+								handleRowClick();
+							},
+							onAuxClick: (event: ReactMouseEvent<HTMLTableRowElement>) => {
+								if (event.button !== 1) return;
+								if (isRowControlTarget(event.target)) return;
+								event.preventDefault();
+								window.open(detailHref, "_blank", "noopener,noreferrer");
+							},
+						}
+					: {}),
+				onClick: onClick
+					? (event: ReactMouseEvent<HTMLTableRowElement>) => {
+							if (isRowControlTarget(event.target)) return;
+							handleRowClick();
+						}
+					: undefined,
 			};
 		},
 	});
