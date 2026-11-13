@@ -1,6 +1,8 @@
 "use client";
 
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import CircularProgress from "@mui/material/CircularProgress";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
@@ -9,6 +11,8 @@ import {
 	Form,
 	Formik,
 	type FormikHelpers,
+	getIn,
+	setIn,
 	useFormikContext,
 	yupToFormErrors,
 } from "formik";
@@ -153,6 +157,118 @@ function isValueOmittedWhenBlank(field: RenderedElement): boolean {
 	return EMPTY_OMITTED_TYPES.has(type);
 }
 
+/** A value that satisfies no `Required` rule: absent, blank or an empty list. */
+function isBlankValue(value: unknown): boolean {
+	if (value === undefined || value === null) return true;
+	if (typeof value === "string") return value.trim() === "";
+	if (Array.isArray(value)) return value.length === 0;
+	return false;
+}
+
+/**
+ * Labels of the required fields that still have no value, in form order.
+ *
+ * Used by the submit hint so a submit that cannot succeed says *what* is
+ * missing instead of silently doing nothing (the audit's "Save stays disabled
+ * and no reason is shown"). The same list can be shown as a tooltip on a
+ * disabled primary button.
+ */
+function missingRequiredLabels(
+	fields: RenderedElement[],
+	values: Record<string, unknown>,
+): string[] {
+	const labels: string[] = [];
+	for (const field of fields) {
+		const name = field.name;
+		if (!name) continue;
+		const adapted = adaptField(field) as {
+			label?: string;
+			isRequired?: boolean;
+		};
+		const requiredNow =
+			Boolean(adapted.isRequired) ||
+			anyConditionMatches((field.overrides as any)?.requiredWhen, values);
+		if (!requiredNow) continue;
+		if (!isBlankValue(getDottedValue(values, name))) continue;
+		const label = String(adapted.label || name);
+		if (!labels.includes(label)) labels.push(label);
+	}
+	return labels;
+}
+
+/**
+ * Scroll the first invalid field into view and focus it.
+ *
+ * Validation used to paint the field red somewhere off-screen (dialog bodies
+ * scroll); the user saw nothing happen. The lookup is deliberately generic:
+ * by input `name`, then by id, then by MUI's label association, so it works
+ * for text inputs, selects and pickers without each field component opting in.
+ */
+function focusInvalidField(
+	root: ParentNode,
+	name: string,
+	label: string,
+): void {
+	const escaped = name.replace(/"/g, '\\"');
+	const byName = root.querySelector<HTMLElement>(`[name="${escaped}"]`);
+	const byId = root.querySelector<HTMLElement>(`[id="${escaped}"]`);
+	const byLabel = root.querySelector<HTMLElement>(
+		`[aria-labelledby~="field-select-${escaped}"]`,
+	);
+	const labelEl = Array.from(root.querySelectorAll("label")).find((element) =>
+		(element.textContent ?? "").trim().startsWith(label),
+	);
+	const control =
+		byName?.closest<HTMLElement>(".MuiFormControl-root") ??
+		byId?.closest<HTMLElement>(".MuiFormControl-root") ??
+		byLabel?.closest<HTMLElement>(".MuiFormControl-root") ??
+		labelEl?.closest<HTMLElement>(".MuiFormControl-root");
+	const focusable =
+		control?.querySelector<HTMLElement>(
+			"[role=combobox], input:not([aria-hidden=true]), textarea, select, button",
+		) ??
+		byName ??
+		byId ??
+		byLabel;
+	(control ?? focusable)?.scrollIntoView({
+		behavior: "smooth",
+		block: "center",
+	});
+	focusable?.focus({ preventScroll: true });
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Action shape — the metadata has used three spellings over time:
+//   { action: "submit" }            the current authoring Button
+//   { type: "submit" }              the legacy form-action tuple
+//   { action: "apiCall", method }   the renderer's internal FormAction
+// All three are submits when deciding context, visibility and the footer.
+// ──────────────────────────────────────────────────────────────────
+
+interface ActionLike {
+	action?: string;
+	type?: string;
+	method?: string;
+	context?: string;
+}
+
+function isSubmitAction(action: ActionLike | null | undefined): boolean {
+	if (!action) return false;
+	return (
+		action.action === "apiCall" ||
+		action.action === "submit" ||
+		action.type === "submit"
+	);
+}
+
+/** A submit that writes (excludes the legacy `GET` record-fetch action). */
+function isFormSubmit(action: ActionLike | null | undefined): boolean {
+	return (
+		isSubmitAction(action) &&
+		String(action?.method ?? "POST").toUpperCase() !== "GET"
+	);
+}
+
 // ──────────────────────────────────────────────────────────────────
 // FormSideEffects — metadata-declared field resets.
 //
@@ -217,12 +333,87 @@ function MarkTouchedOnSubmit({ names }: { names: string[] }): null {
 	useEffect(() => {
 		if (submitCount <= handledSubmit.current) return;
 		handledSubmit.current = submitCount;
-		const touched: Record<string, boolean> = {};
-		for (const name of names) touched[name] = true;
-		setTouched(touched, false);
+		const touched: Record<string, unknown> = {};
+		// Nested (dotted) names must be set with `setIn`: Formik reads
+		// `touched.data.name`, so a literal `"data.name"` key never matched and
+		// template fields showed no message after a failed submit.
+		for (const name of names) setIn(touched, name, true);
+		setTouched(touched as Record<string, boolean>, false);
 	}, [names, setTouched, submitCount]);
 
 	return null;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// FocusFirstError — put the user on the field that blocked the submit.
+//
+// Field errors are rendered under the field, but in a long form (or a
+// scrolling dialog body) the first one can be far from the submit button.
+// After a failed submit, scroll it into view and focus it, so "nothing
+// happened" is never the whole answer.
+// ──────────────────────────────────────────────────────────────────
+
+function FocusFirstError({ fields }: { fields: RenderedElement[] }): null {
+	const { submitCount, errors } = useFormikContext<Record<string, unknown>>();
+	const handledSubmit = useRef(0);
+
+	useEffect(() => {
+		// Do not consume the attempt until the error list exists: Formik
+		// dispatches SUBMIT_ATTEMPT first and SET_ERRORS after the async
+		// validation, so the first effect run still sees an empty `errors`.
+		if (submitCount === 0 || submitCount === handledSubmit.current) return;
+		const firstInvalid = fields.find((field) =>
+			Boolean(field.name && getIn(errors, field.name)),
+		);
+		if (!firstInvalid?.name) return;
+		handledSubmit.current = submitCount;
+		const label = String(
+			(adaptField(firstInvalid) as { label?: string }).label ??
+				firstInvalid.name,
+		);
+
+		// Let Formik paint the touched/error state before scrolling to it.
+		const timer = setTimeout(() => {
+			focusInvalidField(
+				document.querySelector("[data-dynamic-form]") ?? document.body,
+				firstInvalid.name as string,
+				label,
+			);
+		}, 0);
+		return () => clearTimeout(timer);
+	}, [errors, fields, submitCount]);
+
+	return null;
+}
+
+/**
+ * The helper next to the submit that names the fields still missing.
+ *
+ * Shown only after a submit attempt (not while the user is still filling the
+ * form), and only when there is something to list.
+ */
+function MissingFieldsHint({
+	fields,
+}: {
+	fields: RenderedElement[];
+}): ReactElement | null {
+	const { values, submitCount } = useFormikContext<Record<string, unknown>>();
+	const t = useTranslations();
+
+	if (submitCount === 0) return null;
+	const missing = missingRequiredLabels(fields, values);
+	if (missing.length === 0) return null;
+
+	const list = missing.join(", ");
+	const message = t.has("menuBuilder.missing")
+		? t("menuBuilder.missing", { fields: list })
+		: `Still needed: ${list}`;
+
+	return (
+		<Typography variant="caption" color="text.secondary">
+			{message}
+		</Typography>
+	);
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -255,8 +446,18 @@ export function FormRenderer({
 	pathParams?: Record<string, string>;
 }): ReactElement {
 	const snack = useSnack();
-	// Translated fallbacks for messages Yup generates itself (required/type).
-	const t = useTranslations("validation");
+	// Fallbacks for messages Yup generates itself (required/type). The host may
+	// not ship a `validation` namespace, in which case `t("required")` would
+	// render the literal key under the field — a missing translation is worse
+	// than the English default, so check before asking.
+	const t = useTranslations();
+	const validationMessage = (
+		key: "required" | "number" | "date",
+		fallback: string,
+	): string => {
+		const path = `validation.${key}`;
+		return t.has(path) ? t(path) : fallback;
+	};
 	// Dialog-footer fallbacks. A form without a metadata `close` action used to
 	// fall back to the English "Close" here, which then overrode the translated
 	// default in BaseDialogActions.
@@ -423,6 +624,8 @@ export function FormRenderer({
 			const cfg = (ref.config ?? {}) as {
 				label?: string;
 				action?: string;
+				/** Legacy submit spelling (form-action tuple). */
+				type?: string;
 				path?: string;
 				endpoint?: string;
 				method?: "POST" | "PUT" | "PATCH";
@@ -439,7 +642,7 @@ export function FormRenderer({
 			if (ref.blueprintName === "link") {
 				out.push({ action: "link", label, path: cfg.path ?? "/" });
 			} else if (ref.blueprintName === "button") {
-				if (cfg.action === "submit") {
+				if (cfg.action === "submit" || cfg.type === "submit") {
 					out.push({
 						action: "apiCall",
 						label,
@@ -465,37 +668,85 @@ export function FormRenderer({
 		return out;
 	}, [component.slotsFilled, submitCfg]);
 
+	/**
+	 * The actions slot is the normal home of the submit button, but a form may
+	 * declare its submission on the FORM (`config.submit`) while the slot holds
+	 * no submit at all — older seeds did exactly that, and the screen rendered
+	 * with no Save (the UX-8 audit). Synthesize the API action from the form's
+	 * own submit config so the renderer always owes the user a visible submit.
+	 */
+	const formActions = useMemo<FormAction[]>(() => {
+		const hasApiSubmit = actions.some((action) =>
+			isFormSubmit(action as ActionLike),
+		);
+		if (hasApiSubmit || !submitCfg?.endpoint) return actions;
+		return [
+			...actions,
+			{
+				action: "apiCall",
+				label: tc("submit"),
+				endpoint: submitCfg.endpoint,
+				method: submitCfg.method ?? "POST",
+				context: submitCfg.context,
+				successMessage: submitCfg.successMessage,
+				successRedirect: submitCfg.successRedirect,
+				...(submitCfg.stateContext
+					? { stateContext: submitCfg.stateContext }
+					: {}),
+				...(submitCfg.fieldMap ? { fieldMap: submitCfg.fieldMap } : {}),
+			} as any,
+		];
+	}, [actions, submitCfg, tc]);
+
 	// ── Fetch record data for edit mode ──
 	const editEndpoint = useMemo(() => {
-		const editAction = actions.find(
-			(a: any) => a.context === "edit" && a.action === "apiCall",
+		const editAction = formActions.find(
+			(action) =>
+				action.context === "edit" && isFormSubmit(action as ActionLike),
 		) as any;
 		// A form mounted by an id-less screen (Settings → Messaging) has no
 		// `edit` context, but still edits one record: its GET action is the
 		// record fetch even without the context marker.
 		const fetchAction =
 			editAction ??
-			(actions.find(
-				(a: any) =>
-					a.action === "apiCall" && String(a.method).toUpperCase() === "GET",
+			(formActions.find(
+				(action) =>
+					isSubmitAction(action as ActionLike) &&
+					String((action as ActionLike).method).toUpperCase() === "GET",
 			) as any);
 		return fetchAction?.endpoint ?? null;
-	}, [actions]);
+	}, [formActions]);
 	const needsRecordId = editEndpoint ? /\{id\}/.test(editEndpoint) : false;
 
-	// Derive effective context from actions if not explicitly provided.
+	// Derive effective context from the form's own submit actions.
+	//
+	// A detail screen passes `context="edit"` only when its path pattern carries
+	// `:id`; a screen that uses another param (`:menuId`) or none at all
+	// (Settings → Currency) passes `"create"`. A form whose only submit is an
+	// `edit` action is still an edit form — otherwise the action was filtered
+	// out and the screen rendered no Save at all (UX-8, Menu Information and
+	// Settings → Currency). The screen's context wins only when the form really
+	// has an action for it (so a create+edit dialog still picks the right one).
 	const effectiveContext = useMemo(() => {
-		if (context) return context;
-		const editAction = actions.find(
-			(a: any) => a.context === "edit" && a.action === "apiCall",
-		) as any;
-		if (editAction) return "edit";
-		const createAction = actions.find(
-			(a: any) => a.context === "create" && a.action === "apiCall",
-		) as any;
-		if (createAction) return "create";
+		const submitContexts = Array.from(
+			new Set(
+				formActions
+					.filter((action) => isFormSubmit(action as ActionLike))
+					.map((action: any) => action.context)
+					.filter((value): value is string => Boolean(value)),
+			),
+		);
+		if (
+			context &&
+			(submitContexts.length === 0 || submitContexts.includes(context))
+		) {
+			return context;
+		}
+		if (submitContexts.length === 1) return submitContexts[0];
+		if (submitContexts.includes("edit")) return "edit";
+		if (submitContexts.includes("create")) return "create";
 		return context ?? "create";
-	}, [context, actions]);
+	}, [context, formActions]);
 
 	const { data: recordData } = useSWR(
 		editEndpoint &&
@@ -600,9 +851,9 @@ export function FormRenderer({
 				ungroupedFields: fields,
 			} as any,
 			{
-				required: t("required"),
-				number: t("number"),
-				date: t("date"),
+				required: validationMessage("required", "This field is required"),
+				number: validationMessage("number", "Enter a number"),
+				date: validationMessage("date", "Enter a valid date"),
 			},
 		);
 		try {
@@ -619,14 +870,13 @@ export function FormRenderer({
 	// Filter actions by context if provided (exclude GET-only "fetch" actions from submit buttons)
 	const visibleApiActions = useMemo(
 		() =>
-			actions.filter(
-				(a: any) =>
-					(a.action === "apiCall" || a.type === "submit") &&
-					(!(effectiveContext && a.context) ||
-						a.context === effectiveContext) &&
-					a.method !== "GET",
+			formActions.filter(
+				(action: any) =>
+					isFormSubmit(action as ActionLike) &&
+					(!(effectiveContext && action.context) ||
+						action.context === effectiveContext),
 			),
-		[actions, effectiveContext],
+		[formActions, effectiveContext],
 	);
 
 	/**
@@ -661,19 +911,15 @@ export function FormRenderer({
 	};
 
 	/**
-	 * A **record fetch** is an `apiCall` + `GET` action: the form reads the row it is
-	 * editing from it and must not render it as a button. The submit path already
-	 * ignores GET actions; the actions row leaked them until now (CRM-25: the edit
-	 * form opened blank because it had no fetch action, and adding one would have
-	 * shown a stray button on a detail layout).
+	 * A **record fetch** is a submit-shaped action with `GET`: the form reads the
+	 * row it is editing from it and must not render it as a button. The submit
+	 * path already ignores GET actions; the actions row leaked them until now
+	 * (CRM-25: the edit form opened blank because it had no fetch action).
 	 */
 	const isRecordFetch = (button: RenderedComponent | null | undefined) => {
-		const config = button?.config as
-			| { action?: string; type?: string; method?: string }
-			| null
-			| undefined;
+		const config = button?.config as ActionLike | null | undefined;
 		return (
-			(config?.action === "apiCall" || config?.type === "submit") &&
+			isSubmitAction(config) &&
 			String(config?.method ?? "").toUpperCase() === "GET"
 		);
 	};
@@ -841,7 +1087,7 @@ export function FormRenderer({
 	};
 
 	// Close actions (non-submit buttons)
-	const closeActions = actions.filter(
+	const closeActions = formActions.filter(
 		(a: any) => a.action === "close" || a.action === "cancel",
 	);
 
@@ -949,13 +1195,40 @@ export function FormRenderer({
 			onSubmit={handleSubmit}
 			enableReinitialize
 		>
-			{({ submitForm }) => {
+			{({ submitForm, isSubmitting }) => {
 				submitFormRef.current = submitForm as unknown as () => Promise<void>;
+				// Only the current context's buttons: a create+edit form must not
+				// offer both (CRM-28). `sendNow` is a footer action, not part of
+				// the in-form action row.
+				const actionButtons = (component.slotsFilled["actions"] ?? [])
+					.filter(
+						(el) =>
+							el.isActive &&
+							el.elementType === "component_ref" &&
+							el.referencedComponent &&
+							!(el.referencedComponent.config as any)?.sendNow &&
+							actionInContext(el.referencedComponent) &&
+							!isRecordFetch(el.referencedComponent),
+					)
+					.sort((a, b) => a.displayOrder - b.displayOrder);
+				const hasSubmitButton = actionButtons.some((el) => {
+					const config = el.referencedComponent?.config as
+						| ActionLike
+						| null
+						| undefined;
+					return config?.action === "submit" || config?.type === "submit";
+				});
+				// An edit form always shows a submit: if the metadata only slots
+				// a Close (or no action at all) but the form/submit action exists,
+				// render the primary button ourselves.
+				const showFallbackSubmit =
+					!onFormReady && primaryApiActions.length > 0 && !hasSubmitButton;
 				return (
 					<>
-						<Form>
+						<Form data-dynamic-form>
 							<FormSideEffects specs={resetSpecs} />
 							<MarkTouchedOnSubmit names={fieldNames} />
+							<FocusFirstError fields={allFields} />
 							{!onFormReady && component.displayName && (
 								// Spacing is `sx`, not Tailwind: this package is built to
 								// `dist/` and imported from node_modules, which Tailwind
@@ -1011,38 +1284,37 @@ export function FormRenderer({
 	                current context's buttons: a create+edit form must not offer
 	                both (CRM-28). */}
 							{!onFormReady &&
-								(component.slotsFilled["actions"] ?? []).some(
-									(el) =>
-										el.isActive &&
-										el.elementType === "component_ref" &&
-										el.referencedComponent &&
-										!(el.referencedComponent.config as any)?.sendNow &&
-										actionInContext(el.referencedComponent) &&
-										!isRecordFetch(el.referencedComponent),
-								) && (
-									<Stack direction="row" spacing={2} className="mt-6">
-										{(component.slotsFilled["actions"] ?? [])
-											.filter(
-												(el) =>
-													el.isActive &&
-													el.elementType === "component_ref" &&
-													el.referencedComponent &&
-													!(el.referencedComponent.config as any)?.sendNow &&
-													actionInContext(el.referencedComponent) &&
-													!isRecordFetch(el.referencedComponent),
-											)
-											.sort((a, b) => a.displayOrder - b.displayOrder)
-											.map((el) => (
-												<ComponentRenderer
-													key={el.id}
-													component={el.referencedComponent!}
-													pathParams={pathParams}
-													paramBindings={el.paramBindings}
-													onClose={handleClose}
-												/>
-											))}
+								(actionButtons.length > 0 || showFallbackSubmit) && (
+									<Stack
+										direction="row"
+										spacing={2}
+										sx={{ mt: 3, alignItems: "center", flexWrap: "wrap" }}
+									>
+										{actionButtons.map((el) => (
+											<ComponentRenderer
+												key={el.id}
+												component={el.referencedComponent!}
+												pathParams={pathParams}
+												paramBindings={el.paramBindings}
+												onClose={handleClose}
+											/>
+										))}
+										{showFallbackSubmit && (
+											<Button
+												type="submit"
+												variant="contained"
+												disabled={isSubmitting}
+											>
+												{isSubmitting ? (
+													<CircularProgress size={20} color="inherit" />
+												) : (
+													submitLabel
+												)}
+											</Button>
+										)}
 									</Stack>
 								)}
+							<MissingFieldsHint fields={allFields} />
 						</Form>
 						{pendingSend && (
 							<BaseDialog
@@ -1057,6 +1329,12 @@ export function FormRenderer({
 											children: "Send now",
 											disabled: sendTyped.trim() !== pendingSend.title,
 										},
+										// A disabled primary explains itself: the
+										// confirmation is one typed title away.
+										tooltip:
+											sendTyped.trim() !== pendingSend.title
+												? tc("confirmTypeTitle", { title: pendingSend.title })
+												: null,
 									},
 								}}
 							>

@@ -6,9 +6,10 @@
 
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
+import FormHelperText from "@mui/material/FormHelperText";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { useFormikContext } from "formik";
+import { useField, useFormikContext } from "formik";
 import type { ReactElement } from "react";
 import type { CheckboxField } from "../types";
 
@@ -18,7 +19,9 @@ export function FormCheckboxField({
 	field: CheckboxField;
 }): ReactElement {
 	const { values, setFieldValue } = useFormikContext<Record<string, unknown>>();
+	const [, meta] = useField(field.name);
 	const checked = Boolean(values[field.name]);
+	const isError = Boolean(meta.touched && meta.error);
 
 	return (
 		<Stack spacing={0.2}>
@@ -34,6 +37,7 @@ export function FormCheckboxField({
 				label={field.label}
 				className="ml-0!"
 			/>
+			{isError && <FormHelperText error>{meta.error}</FormHelperText>}
 			{field.fieldOverrides?.description ? (
 				<Typography variant="caption" color="text.secondary" className="pl-3">
 					{field.fieldOverrides.description}

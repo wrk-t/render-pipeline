@@ -191,6 +191,15 @@ export function OrderItemsField({
 		return item ? sum + item.price * row.quantity : sum;
 	}, 0);
 
+	/**
+	 * Quantity 2 of one item is TWO items, not one line. The counter used to
+	 * count rows, so one line of two read like a single item.
+	 */
+	const totalQuantity = rows.reduce(
+		(sum, row) => (row.menuItemId ? sum + (Number(row.quantity) || 0) : sum),
+		0,
+	);
+
 	return (
 		<Stack spacing={1}>
 			<Typography variant="body2">
@@ -343,7 +352,8 @@ export function OrderItemsField({
 				</Box>
 				{rows.length > 0 && (
 					<Typography variant="body2" className="font-medium">
-						{labels.total}: {formatAmount(orderTotal)}
+						{labels.quantity}: {totalQuantity} · {labels.total}:{" "}
+						{formatAmount(orderTotal)}
 					</Typography>
 				)}
 			</Stack>

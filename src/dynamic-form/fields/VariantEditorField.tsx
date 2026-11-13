@@ -4,6 +4,7 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
+import FormHelperText from "@mui/material/FormHelperText";
 import IconButton from "@mui/material/IconButton";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
@@ -35,7 +36,7 @@ export function VariantEditorField({
 		isReadOnly?: boolean;
 	};
 }): ReactElement {
-	const [{ value }, , { setValue }] = useField<VariantRow[]>(field.name);
+	const [{ value }, meta, { setValue }] = useField<VariantRow[]>(field.name);
 	const { isSubmitting } = useFormikContext();
 
 	const rows: VariantRow[] = Array.isArray(value) ? value : [];
@@ -74,12 +75,7 @@ export function VariantEditorField({
 			)}
 
 			{rows.map((row, i) => (
-				<Stack
-					key={i}
-					direction="row"
-					spacing={1}
-					className="items-center"
-				>
+				<Stack key={i} direction="row" spacing={1} className="items-center">
 					<TextField
 						size="small"
 						label="Label"
@@ -105,9 +101,7 @@ export function VariantEditorField({
 								size="small"
 								checked={row.isDefault}
 								disabled={disabled}
-								onChange={(e) =>
-									updateRow(i, { isDefault: e.target.checked })
-								}
+								onChange={(e) => updateRow(i, { isDefault: e.target.checked })}
 							/>
 						}
 						label="Default"
@@ -134,6 +128,9 @@ export function VariantEditorField({
 					Add variant
 				</Button>
 			</Box>
+			{meta.touched && meta.error && (
+				<FormHelperText error>{meta.error}</FormHelperText>
+			)}
 		</Stack>
 	);
 }

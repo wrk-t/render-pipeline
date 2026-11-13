@@ -17,6 +17,7 @@
 
 import {
 	FormControl,
+	FormHelperText,
 	InputLabel,
 	MenuItem,
 	Select,
@@ -157,6 +158,7 @@ export function FormSelectField({
 			>
 				<InputLabel id={`field-select-${field.name}`}>{field.label}</InputLabel>
 				<Select
+					name={field.name}
 					labelId={`field-select-${field.name}`}
 					label={field.label}
 					value={value ?? ""}
@@ -172,6 +174,7 @@ export function FormSelectField({
 						</MenuItem>
 					))}
 				</Select>
+				{isError && <FormHelperText error>{meta.error}</FormHelperText>}
 			</FormControl>
 			{field.fieldOverrides?.description ? (
 				<Typography variant="caption" color="text.secondary" className="pl-3">
