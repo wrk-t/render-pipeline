@@ -834,12 +834,12 @@ export interface AvailabilityWindowsField extends FieldBase {
  * names are only a display projection (the server owns pricing).
  */
 export interface OrderItemsField extends FieldBase {
-  type: "order-items";
-  fieldOverrides?: FieldOverrides | null;
-  uiOverrides: {
-    layout?: FieldLayout;
-    behavior?: { placeholder?: string };
-  };
+	type: "order-items";
+	fieldOverrides?: FieldOverrides | null;
+	uiOverrides: {
+		layout?: FieldLayout;
+		behavior?: { placeholder?: string };
+	};
 }
 
 export interface IconField extends FieldBase {
@@ -1215,6 +1215,28 @@ export interface TableSettings {
 	columnToggle: boolean;
 	/** Conditional row styling (e.g. red background for failed entries). */
 	rowConditions?: TableRowCondition[];
+	/**
+	 * Optional small-screen presentation. When set, a phone renders a list of
+	 * compact cards (title + subtitle + status + the row actions) instead of a
+	 * wide table; `sm` and up keeps the normal table. Each key is a column
+	 * accessor (the field name on the row).
+	 */
+	mobileCard?: TableMobileCard | null;
+}
+
+/** The column subset a phone card shows — all accessors, not labels. */
+export interface TableMobileCard {
+	/** Big line: the row's identity (e.g. `customerName`, `name`). */
+	title: string;
+	/** Optional second line (e.g. `customerPhone`, `description`). */
+	subtitle?: string;
+	/** Optional accessor rendered as a chip (e.g. `status`). */
+	status?: string;
+	/**
+	 * Render the table's row actions on the card. Defaults to `true`; set
+	 * `false` for a read-only list.
+	 */
+	actions?: boolean;
 }
 
 export interface TableEmptyState {

@@ -209,9 +209,9 @@ export function ListRenderer({
 		undefined,
 	);
 	const [formDialogTitle, setFormDialogTitle] = useState("");
-	const [formPathParams, setFormPathParams] = useState<
-		Record<string, string>
-	>({});
+	const [formPathParams, setFormPathParams] = useState<Record<string, string>>(
+		{},
+	);
 
 	const formApiRef = useRef<{
 		submitForm: () => Promise<void>;
@@ -251,9 +251,7 @@ export function ListRenderer({
 						? dialog.title.replace(/^\$trl_/, "")
 						: null;
 				setFormComponentId(
-					(dialog?.componentId as string | undefined) ??
-						dialog?.formId ??
-						"",
+					(dialog?.componentId as string | undefined) ?? dialog?.formId ?? "",
 				);
 				setFormContext(context === "view" ? "edit" : context);
 				setFormRecordId(
@@ -362,16 +360,43 @@ export function ListRenderer({
 			{/* ── Header + toolbar actions ── */}
 			{(title || visibleToolbarActions.length > 0) && (
 				<Stack
-					direction="row"
-					className="mb-3 w-full items-center justify-between"
+					sx={{
+						mb: 1.5,
+						width: "100%",
+						gap: 2,
+						flexDirection: "column",
+						alignItems: "flex-start",
+						"@media (min-width:768px)": {
+							flexDirection: "row",
+							alignItems: "center",
+							justifyContent: "space-between",
+						},
+					}}
 				>
 					{title && (
-						<Typography variant="h6" className="font-bold">
+						<Typography
+							variant="h6"
+							sx={{ minWidth: 0, fontWeight: 700, wordBreak: "break-word" }}
+						>
 							{title}
 						</Typography>
 					)}
 					{visibleToolbarActions.length > 0 && (
-						<Stack direction="row" spacing={1}>
+						<Stack
+							sx={{
+								gap: 2,
+								width: "100%",
+								flexDirection: "column",
+								alignItems: "stretch",
+								"& .MuiButton-root": { width: "100%" },
+								"@media (min-width:600px)": {
+									width: "auto",
+									flexDirection: "row",
+									alignItems: "center",
+									"& .MuiButton-root": { width: "auto" },
+								},
+							}}
+						>
 							{visibleToolbarActions.map((action) => (
 								<Button
 									key={action.id}
@@ -455,7 +480,8 @@ export function ListRenderer({
 												{String(item.description)}
 											</Typography>
 										) : null}
-										{item[valueField] !== undefined && item[valueField] !== null ? (
+										{item[valueField] !== undefined &&
+										item[valueField] !== null ? (
 											<Typography variant="body2" className="break-all">
 												{String(item[valueField])}
 											</Typography>

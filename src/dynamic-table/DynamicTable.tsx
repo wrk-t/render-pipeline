@@ -14,11 +14,12 @@
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
-import { Stack } from "@mui/material";
+import { Box, Stack, Typography } from "@mui/material";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import { useTheme } from "@mui/material/styles";
 import {
 	MaterialReactTable,
@@ -490,6 +491,11 @@ export function DynamicTable({
 	const { push } = useRouter();
 	const { mutate: globalMutate } = useSWRConfig();
 	const muiTheme = useTheme();
+	// The opt-in mobile cards replace the table on phones only (MUI sm=600,
+	// the same edge the DSL dialogs go full-screen at).
+	const isPhone = useMediaQuery(muiTheme.breakpoints.down("sm"), {
+		noSsr: true,
+	});
 
 	// ── Server-side state ──────────────────────────────────────
 	// One platform page size (25). A seed may override it only with a
@@ -1102,6 +1108,102 @@ export function DynamicTable({
 	// and flips them for RTL tables, so "right" pins to the visual end
 	// in BOTH directions.
 
+	/**
+	 * The actions this row can see. Used by the action menu AND by the phone
+	 * card, so the two presentations cannot drift apart.
+	 */
+	const visibleRowActions = useCallback(
+		(row: Record<string, unknown>): TableAction[] =>
+			(tableMetadata.rowActions ?? []).filter((action) => {
+				// Feature-flag gating (e.g. staging actions only when enabled)
+				if (action.requiresFeature && !features[action.requiresFeature]) {
+					return false;
+				}
+				// Tier gating (e.g. team-only actions)
+				if (!checkTier((action as any).requiredTier, workspaceTier)) {
+					return false;
+				}
+				// Permission check
+				if (
+					action.permissions?.length &&
+					!action.permissions.some(checkPermission)
+				) {
+					return false;
+				}
+				// Scope-aware visibility (e.g. super-admin-only actions)
+				if (
+					(action as any).visibleToPermissions?.length &&
+					!checkComponentPermission(
+						userPermissions,
+						(action as any).visibleToPermissions,
+					)
+				) {
+					return false;
+				}
+				// If the action has a condition, evaluate it against the row data
+				if (!action.condition) return true;
+				const conditions = Array.isArray(action.condition)
+					? action.condition
+					: [action.condition];
+				return conditions.every(({ field, operator, value }) => {
+					const fieldValue = row[field];
+					switch (operator) {
+						case "eq":
+							return fieldValue === value;
+						case "ne":
+							return fieldValue !== value;
+						case "in":
+							// The authoring DSL's ConditionOperator includes
+							// "in" (a list of accepted values) — e.g. the
+							// campaign Schedule action on draft OR paused.
+							return Array.isArray(value) && value.includes(fieldValue);
+						case "isEmpty":
+							return (
+								fieldValue === undefined ||
+								fieldValue === null ||
+								fieldValue === ""
+							);
+						case "notEmpty":
+							return (
+								fieldValue !== undefined &&
+								fieldValue !== null &&
+								fieldValue !== ""
+							);
+						default:
+							return true;
+					}
+				});
+			}),
+		[
+			tableMetadata.rowActions,
+			features,
+			workspaceTier,
+			checkPermission,
+			userPermissions,
+		],
+	);
+
+	/** Run a row action through the same dispatcher the menu uses. */
+	const dispatchAction = useCallback(
+		(action: TableAction, row?: Record<string, unknown>) => {
+			if (
+				action.action === "openDialog" ||
+				action.action === "navigate" ||
+				action.action === "apiCall" ||
+				action.action === "custom"
+			) {
+				handleAction(action, row);
+				return;
+			}
+			if ("redirect" in action && action.redirect) {
+				handleRedirect(action.redirect, row);
+				return;
+			}
+			if (row) onRowAction?.(action.id, row);
+		},
+		[handleAction, handleRedirect, onRowAction],
+	);
+
 	const table = useMaterialReactTable({
 		// MRT paints its table paper with `background.default` (the page
 		// colour), which reads as a white sheet dropped on a themed card.
@@ -1275,98 +1377,23 @@ export function DynamicTable({
 			},
 		},
 		renderRowActionMenuItems: ({ closeMenu, row, table }) =>
-			(tableMetadata.rowActions ?? [])
-				.filter((action) => {
-					// Feature-flag gating (e.g. staging actions only when enabled)
-					if (action.requiresFeature && !features[action.requiresFeature]) {
-						return false;
+			visibleRowActions(row.original).map((action) => (
+				<MRT_ActionMenuItem
+					key={action.id}
+					label={action.label}
+					icon={
+						action.icon ? <TableIcon name={action.icon} size={18} /> : undefined
 					}
-					// Tier gating (e.g. team-only actions)
-					if (!checkTier((action as any).requiredTier, workspaceTier)) {
-						return false;
-					}
-					// Permission check
-					if (
-						action.permissions?.length &&
-						!action.permissions.some(checkPermission)
-					) {
-						return false;
-					}
-					// Scope-aware visibility (e.g. super-admin-only actions)
-					if (
-						(action as any).visibleToPermissions?.length &&
-						!checkComponentPermission(
-							userPermissions,
-							(action as any).visibleToPermissions,
-						)
-					) {
-						return false;
-					}
-					// If the action has a condition, evaluate it against the row data
-					if (!action.condition) return true;
-					const conditions = Array.isArray(action.condition)
-						? action.condition
-						: [action.condition];
-					return conditions.every(({ field, operator, value }) => {
-						const fieldValue = row.original[field];
-						switch (operator) {
-							case "eq":
-								return fieldValue === value;
-							case "ne":
-								return fieldValue !== value;
-							case "in":
-								// The authoring DSL's ConditionOperator includes
-								// "in" (a list of accepted values) — e.g. the
-								// campaign Schedule action on draft OR paused.
-								return Array.isArray(value) && value.includes(fieldValue);
-							case "isEmpty":
-								return (
-									fieldValue === undefined ||
-									fieldValue === null ||
-									fieldValue === ""
-								);
-							case "notEmpty":
-								return (
-									fieldValue !== undefined &&
-									fieldValue !== null &&
-									fieldValue !== ""
-								);
-							default:
-								return true;
-						}
-					});
-				})
-				.map((action) => (
-					<MRT_ActionMenuItem
-						key={action.id}
-						label={action.label}
-						icon={
-							action.icon ? (
-								<TableIcon name={action.icon} size={18} />
-							) : undefined
-						}
-						table={table}
-						onClick={() => {
-							if (action.action === "openDialog") {
-								handleAction(action, row.original);
-							} else if (action.action === "navigate") {
-								handleAction(action, row.original);
-							} else if (action.action === "apiCall") {
-								handleAction(action, row.original);
-							} else if (action.action === "custom") {
-								handleAction(action, row.original);
-							} else if (action.redirect) {
-								handleRedirect(action.redirect, row.original);
-							} else {
-								onRowAction?.(action.id, row.original);
-							}
-							closeMenu();
-						}}
-						style={{
-							color: action.color ? `${action.color}.main` : undefined,
-						}}
-					/>
-				)),
+					table={table}
+					onClick={() => {
+						dispatchAction(action, row.original);
+						closeMenu();
+					}}
+					style={{
+						color: action.color ? `${action.color}.main` : undefined,
+					}}
+				/>
+			)),
 
 		// ── Toolbar actions ──────────────────────────────────────
 		renderTopToolbarCustomActions: subRow
@@ -1380,7 +1407,17 @@ export function DynamicTable({
 							<Stack
 								direction="row"
 								spacing={1}
-								className="self-center items-center"
+								sx={{
+									width: "100%",
+									flexWrap: "wrap",
+									alignItems: "center",
+									alignSelf: "center",
+									"& .MuiButton-root": { width: "100%" },
+									"@media (min-width:600px)": {
+										width: "auto",
+										"& .MuiButton-root": { width: "auto" },
+									},
+								}}
 							>
 								<Chip
 									label={`${selectedCount} selected`}
@@ -1438,65 +1475,39 @@ export function DynamicTable({
 					}
 
 					return (
-						<Stack direction="row" spacing={0.5} className="self-center">
-							{topActions
-								.filter(
-									(a) =>
-										a.action !== "linkSelected" &&
-										a.action !== "unlinkSelected",
-								)
-								.map((action) => (
-									<Button
-										key={action.id}
-										variant="contained"
-										size="small"
-										color={(action.color as any) ?? "primary"}
-										startIcon={
-											action.icon ? <TableIcon name={action.icon} /> : undefined
-										}
-										onClick={() => {
-											if (action.action === "openDialog") {
-												handleAction(action);
-											} else if (action.action === "navigate") {
-												handleAction(action);
-											} else if (action.action === "apiCall") {
-												handleAction(action);
-											} else if (action.action === "custom") {
-												handleAction(action);
-											} else if (
-												action.action === "linkSelected" ||
-												action.action === "unlinkSelected"
-											) {
-												// Handled by selection bar — no-op here
-											} else if (action.redirect) {
-												handleRedirect(action.redirect);
-											}
-										}}
-									>
-										{action.label}
-									</Button>
-								))}
-							{internalActions.map((action) => {
-								return (
-									<Tooltip
-										key={action.id}
-										title={
-											(action as any).customAction === "toggleDeleted" &&
-											includeDeleted
-												? ((action as any).labelOn ?? "Hide Deleted")
-												: (action as any).customAction === "toggleDeleted"
-													? ((action as any).labelOff ?? action.label)
-													: action.label
-										}
-									>
-										<IconButton
+						<>
+							<Stack
+								spacing={0.5}
+								sx={{
+									width: "100%",
+									gap: 2,
+									flexDirection: "column",
+									alignSelf: "center",
+									"& .MuiButton-root": { width: "100%" },
+									"@media (min-width:600px)": {
+										width: "auto",
+										flexDirection: "row",
+										alignItems: "center",
+										"& .MuiButton-root": { width: "auto" },
+									},
+								}}
+							>
+								{topActions
+									.filter(
+										(a) =>
+											a.action !== "linkSelected" &&
+											a.action !== "unlinkSelected",
+									)
+									.map((action) => (
+										<Button
+											key={action.id}
+											variant="contained"
 											size="small"
-											color={
-												"customAction" in action &&
-												action.customAction === "toggleDeleted" &&
-												includeDeleted
-													? "primary"
-													: ((action.color as any) ?? "default")
+											color={(action.color as any) ?? "primary"}
+											startIcon={
+												action.icon ? (
+													<TableIcon name={action.icon} />
+												) : undefined
 											}
 											onClick={() => {
 												if (action.action === "openDialog") {
@@ -1507,40 +1518,101 @@ export function DynamicTable({
 													handleAction(action);
 												} else if (action.action === "custom") {
 													handleAction(action);
-												} else if (action.customAction === "toggleDeleted") {
-													setIncludeDeleted((v) => !v);
-												} else if (action.customAction === "refreshData") {
-													mutate();
+												} else if (
+													action.action === "linkSelected" ||
+													action.action === "unlinkSelected"
+												) {
+													// Handled by selection bar — no-op here
 												} else if (action.redirect) {
 													handleRedirect(action.redirect);
 												}
 											}}
 										>
-											{action.icon ? <TableIcon name={action.icon} /> : null}
-											{action.iconOn && action.iconOff ? (
-												includeDeleted ? (
-													<TableIcon name={action.iconOn} />
-												) : (
-													<TableIcon name={action.iconOff} />
-												)
-											) : null}
+											{action.label}
+										</Button>
+									))}
+							</Stack>
+							{internalActions.length > 0 ? (
+								<Stack
+									direction="row"
+									spacing={0.5}
+									sx={{
+										flexShrink: 0,
+										alignItems: "center",
+										alignSelf: "center",
+									}}
+								>
+									{internalActions.map((action) => {
+										return (
+											<Tooltip
+												key={action.id}
+												title={
+													(action as any).customAction === "toggleDeleted" &&
+													includeDeleted
+														? ((action as any).labelOn ?? "Hide Deleted")
+														: (action as any).customAction === "toggleDeleted"
+															? ((action as any).labelOff ?? action.label)
+															: action.label
+												}
+											>
+												<IconButton
+													size="small"
+													color={
+														"customAction" in action &&
+														action.customAction === "toggleDeleted" &&
+														includeDeleted
+															? "primary"
+															: ((action.color as any) ?? "default")
+													}
+													onClick={() => {
+														if (action.action === "openDialog") {
+															handleAction(action);
+														} else if (action.action === "navigate") {
+															handleAction(action);
+														} else if (action.action === "apiCall") {
+															handleAction(action);
+														} else if (action.action === "custom") {
+															handleAction(action);
+														} else if (
+															action.customAction === "toggleDeleted"
+														) {
+															setIncludeDeleted((v) => !v);
+														} else if (action.customAction === "refreshData") {
+															mutate();
+														} else if (action.redirect) {
+															handleRedirect(action.redirect);
+														}
+													}}
+												>
+													{action.icon ? (
+														<TableIcon name={action.icon} />
+													) : null}
+													{action.iconOn && action.iconOff ? (
+														includeDeleted ? (
+															<TableIcon name={action.iconOn} />
+														) : (
+															<TableIcon name={action.iconOff} />
+														)
+													) : null}
 
-											{/* {action.customAction === "toggleDeleted" ? ( */}
-											{/* 	<TableIcon */}
-											{/* 		name={ */}
-											{/* 			includeDeleted */}
-											{/* 				? (action.iconOn ?? action.icon ?? "Visibility") */}
-											{/* 				: (action.iconOff ?? action.icon ?? "VisibilityOff") */}
-											{/* 		} */}
-											{/* 	/> */}
-											{/* ) : action.icon ? ( */}
-											{/* 	<TableIcon name={action.icon} /> */}
-											{/* ) : undefined} */}
-										</IconButton>
-									</Tooltip>
-								);
-							})}
-						</Stack>
+													{/* {action.customAction === "toggleDeleted" ? ( */}
+													{/* 	<TableIcon */}
+													{/* 		name={ */}
+													{/* 			includeDeleted */}
+													{/* 				? (action.iconOn ?? action.icon ?? "Visibility") */}
+													{/* 				: (action.iconOff ?? action.icon ?? "VisibilityOff") */}
+													{/* 		} */}
+													{/* 	/> */}
+													{/* ) : action.icon ? ( */}
+													{/* 	<TableIcon name={action.icon} /> */}
+													{/* ) : undefined} */}
+												</IconButton>
+											</Tooltip>
+										);
+									})}
+								</Stack>
+							) : null}
+						</>
 					);
 				},
 
@@ -1565,7 +1637,13 @@ export function DynamicTable({
 		positionToolbarAlertBanner: "none",
 
 		// ── Hide empty toolbar containers in subRow mode ────────
-		muiTopToolbarProps: subRow ? { sx: { display: "none" } } : undefined,
+		muiTopToolbarProps: subRow
+			? { sx: { display: "none" } }
+			: {
+					// The action row must wrap instead of pushing the internal
+					// toolbar buttons (search, columns, density) off a phone.
+					sx: { "& > div": { flexWrap: "wrap", rowGap: 1 } },
+				},
 		muiBottomToolbarProps: subRow ? { sx: { display: "none" } } : undefined,
 
 		// ── Paper / outer wrapper ───────────────────────────────
@@ -1582,6 +1660,11 @@ export function DynamicTable({
 				// Clip the flush table so its square cell corners cannot poke
 				// out of the rounded panel.
 				overflow: "hidden",
+				// Never let the panel's min-content width push the page
+				// sideways on a phone: the value columns scroll INSIDE the
+				// card (see muiTableContainerProps), not the whole page.
+				maxWidth: "100%",
+				minWidth: 0,
 			},
 		},
 
@@ -1589,6 +1672,14 @@ export function DynamicTable({
 		// the inner radius equal the outer one. The container is left to the
 		// theme (`MuiTableContainer` uses the same box tier) instead of
 		// restating a radius here, which only drifted from it.
+		muiTableContainerProps: {
+			// Horizontal scroll inside the card: the minimum a DSL table owes
+			// a phone at 375px. MRT already sets overflow:auto; the explicit
+			// max-width is what stops a wide column set from widening the page.
+			// `sx`, not a Tailwind class: this package is not scanned by the
+			// front's Tailwind build.
+			sx: { maxWidth: "100%", overflowX: "auto" },
+		},
 
 		// ── Rows ────────────────────────────────────────────────
 		muiTableBodyRowProps: ({ row }) => {
@@ -1714,6 +1805,120 @@ export function DynamicTable({
 			};
 		},
 	});
+
+	/**
+	 * The phone presentation (opt-in through `settings.mobileCard`). A wide
+	 * DSL table can always scroll sideways inside its card, but the job (find
+	 * a row, read its status, act on it) is better served by a short card:
+	 * title, subtitle, status, row actions — nothing else.
+	 */
+	const mobileCard = subRow ? null : (settings.mobileCard ?? null);
+	const cardValue = (
+		row: Record<string, unknown>,
+		accessor?: string,
+	): string => {
+		if (!accessor) return "";
+		const value = row[accessor];
+		if (value === null || value === undefined) return "";
+		if (typeof value === "boolean") return value ? "Yes" : "No";
+		if (typeof value === "object") return JSON.stringify(value);
+		return String(value);
+	};
+
+	if (isPhone && mobileCard) {
+		return (
+			<Stack spacing={1}>
+				{data.length === 0 ? (
+					<Typography
+						variant="body2"
+						color="text.secondary"
+						sx={{ py: 4, textAlign: "center" }}
+					>
+						No records to display
+					</Typography>
+				) : (
+					data.map((row, index) => {
+						const actions =
+							mobileCard.actions === false ? [] : visibleRowActions(row);
+						const status = cardValue(row, mobileCard.status);
+						const href = resolveRowHref(row);
+						return (
+							<Box
+								key={String(row.id ?? index)}
+								onClick={href ? () => push(href) : undefined}
+								sx={{
+									p: 1.5,
+									border: "1px solid",
+									borderColor: "divider",
+									borderRadius: 2,
+									bgcolor: "background.paper",
+									cursor: href ? "pointer" : undefined,
+								}}
+							>
+								<Stack
+									direction="row"
+									spacing={1}
+									sx={{
+										alignItems: "flex-start",
+										justifyContent: "space-between",
+									}}
+								>
+									<Box sx={{ minWidth: 0, flex: 1 }}>
+										<Typography
+											sx={{
+												fontWeight: 600,
+												overflow: "hidden",
+												textOverflow: "ellipsis",
+												whiteSpace: "nowrap",
+											}}
+										>
+											{cardValue(row, mobileCard.title)}
+										</Typography>
+										{mobileCard.subtitle ? (
+											<Typography
+												variant="body2"
+												color="text.secondary"
+												sx={{
+													overflow: "hidden",
+													textOverflow: "ellipsis",
+													whiteSpace: "nowrap",
+												}}
+											>
+												{cardValue(row, mobileCard.subtitle)}
+											</Typography>
+										) : null}
+									</Box>
+									{status ? (
+										<Chip size="small" variant="outlined" label={status} />
+									) : null}
+									{actions.length > 0 ? (
+										<Stack direction="row" spacing={0.5}>
+											{actions.map((action) => (
+												<Tooltip key={action.id} title={action.label}>
+													<IconButton
+														size="small"
+														color={(action.color as any) ?? "default"}
+														onClick={(event) => {
+															event.stopPropagation();
+															dispatchAction(action, row);
+														}}
+													>
+														{action.icon ? (
+															<TableIcon name={action.icon} />
+														) : null}
+													</IconButton>
+												</Tooltip>
+											))}
+										</Stack>
+									) : null}
+								</Stack>
+							</Box>
+						);
+					})
+				)}
+			</Stack>
+		);
+	}
 
 	return <MaterialReactTable table={table} />;
 }

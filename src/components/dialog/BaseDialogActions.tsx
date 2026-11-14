@@ -46,7 +46,24 @@ export const BaseDialogActions: FC<IBaseDialogActionsProps> = ({
 	}, [submit]);
 
 	return (
-		<DialogActions sx={{ px: 3, py: 2 }}>
+		<DialogActions
+			sx={{
+				px: 3,
+				py: 2,
+				// Phones: stack the footer and give every action a full-width
+				// tap target; sm+ keeps the conventional right-aligned footer.
+				// These are sx (not Tailwind): the front's Tailwind build does
+				// not scan this package, so package-only utilities are dead.
+				flexWrap: "wrap",
+				gap: 2,
+				"& > span": { width: "100%" },
+				"& .MuiButton-root": { width: "100%" },
+				"@media (min-width:600px)": {
+					"& > span": { width: "auto" },
+					"& .MuiButton-root": { width: "auto" },
+				},
+			}}
+		>
 			{slotProps?.closeButton?.show === false ? null : (
 				<Tooltip title={slotProps?.closeButton?.tooltip}>
 					<span>
