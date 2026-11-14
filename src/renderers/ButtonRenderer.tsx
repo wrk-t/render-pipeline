@@ -298,6 +298,11 @@ export function ButtonRenderer({
 							props: {
 								children: "Confirm",
 								disabled: confirmDisabled,
+								// A destructive action's confirmation is coloured with the
+								// error palette (UX-7); other actions keep the primary.
+								...(config.color === "error"
+									? { color: "error" as const }
+									: {}),
 							},
 							// A disabled primary says why: the typed title is the
 							// only thing missing.

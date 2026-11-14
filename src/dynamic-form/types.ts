@@ -5,6 +5,8 @@
 // Source of truth: drizzle schemas in src/config/database/main/schemas/
 // ═══════════════════════════════════════════════════════════════
 
+import type { DialogSize } from "../components/dialog/types";
+
 // ── 1. PAGINATION & QUERY HELPERS ──
 
 export interface PaginatedResponse<T> {
@@ -1119,6 +1121,14 @@ interface TableActionOpenDialog extends TableActionBase {
 		context?: "create" | "edit" | "view";
 		/** Optional dialog title ($trl_ key or literal). Overrides the derived one. */
 		title?: string;
+		/**
+		 * Width hint for the dialog. `sm` is the default; a line editor (a
+		 * repeatable item-lines field) sets `lg` so its columns stay readable.
+		 * A form that knows it is a line editor reports the same hint at render
+		 * time, so a seed only needs this when the form cannot speak for itself
+		 * (app-owned dialog renderers).
+		 */
+		size?: DialogSize;
 		/**
 		 * Row fields copied into the form's pathParams when opening in
 		 * "create" context (e.g. the clicked plan's id as planId).

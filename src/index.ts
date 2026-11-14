@@ -44,7 +44,13 @@ export { LocalMonacoEditor } from "./components/common/LocalMonacoEditor";
 export { BaseDialog } from "./components/dialog/BaseDialog";
 export { BaseDialogActions } from "./components/dialog/BaseDialogActions";
 export { BaseDialogHeader } from "./components/dialog/BaseDialogHeader";
+export { useDialogDirtyReporter } from "./components/dialog/dialogDirtyContext";
+export {
+	deriveDialogTitle,
+	resolveDialogTitle,
+} from "./components/dialog/dialogTitle";
 export type {
+	DialogSize,
 	IBaseDialogActionsProps,
 	IBaseDialogProps,
 } from "./components/dialog/types";

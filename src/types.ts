@@ -4,6 +4,7 @@
 // ──────────────────────────────────────────────────────────────────
 
 import type React from "react";
+import type { DialogSize } from "./components/dialog/types";
 
 // ── Rendered metadata (mirrors the backend `include=render` contract) ──
 
@@ -107,6 +108,11 @@ export interface FormReadyApi {
 	 * message builder's "Send now" is the dialog's secondary action).
 	 */
 	submitNow?: { label: string; onClick: () => Promise<void> };
+	/**
+	 * A width the form recommends when its action seed gives no `dialog.size`:
+	 * a line editor (repeatable item rows) reports `lg`.
+	 */
+	size?: DialogSize;
 }
 
 /**
