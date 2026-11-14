@@ -96,12 +96,28 @@ export interface DynamicTableColumn {
 			labelField?: string;
 			valueField?: string;
 		} | null;
-		format?: { type: string } | null;
+		format?: {
+			/** Cell renderer key (see `columnCellRenderers`). */
+			type: string;
+			/** Renderer options (currency/currencyField, displayField, …). */
+			props?: Record<string, unknown>;
+			/** Legacy: reference label field at the format level. */
+			displayField?: string;
+		} | null;
 	} | null;
-	/** Field datasource (e.g. static select options) — feeds select filters. */
+	/** Field datasource (e.g. static select options) — feeds select filters
+	 *  and the reference cell's id→label lookup. */
 	datasource?: {
 		type?: string;
 		options?: Array<{ label?: string; value?: unknown }> | null;
+		endpoint?: string;
+		method?: string;
+		params?: Record<string, unknown>;
+		entityMeta?: {
+			displayField?: string;
+			valueField?: string;
+			labelTemplate?: string;
+		} | null;
 	} | null;
 	/** Whether the column is active. */
 	isActive?: boolean;
@@ -253,7 +269,21 @@ function buildColumnDef(
 		const CellComponent = columnCellRenderers[fmt.type];
 		if (CellComponent) {
 			def.Cell = CellComponent as any;
-			(def as any).columnFormat = fmt;
+			// A reference column can resolve its `{id → label}` lookup from the
+			// field's datasource; carry it next to the format props so the cell
+			// needs no seed-specific wiring (`format.props.datasource` wins).
+			const columnFormat: Record<string, unknown> = { ...fmt };
+			if (fmt.type === "reference") {
+				const props = { ...(fmt.props ?? {}) } as Record<string, unknown>;
+				if (props.datasource === undefined && col.datasource) {
+					props.datasource = col.datasource;
+				}
+				if (props.displayField === undefined && fmt.displayField !== undefined) {
+					props.displayField = fmt.displayField;
+				}
+				columnFormat.props = props;
+			}
+			(def as any).columnFormat = columnFormat;
 		}
 	}
 

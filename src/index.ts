@@ -63,6 +63,41 @@ export {
 	getUserSnapshot,
 	useRenderUser,
 } from "./deps";
+// ── Shared formatting (money / dates / references) ───────────
+export type {
+	DateFormatOptions,
+	MoneyFormatOptions,
+	NumberFormatOptions,
+	ReferenceDatasource,
+	ReferenceFormatOptions,
+	ReferenceOption,
+	RelativeTimeFormatOptions,
+	ResolvedReference,
+	ResolveReferenceContext,
+} from "./formatting";
+export {
+	appLocaleToIntl,
+	currencyFractionDigits,
+	DEFAULT_CURRENCY,
+	formatDate,
+	formatMoney,
+	formatNumber,
+	formatRelativeTime,
+	getAppLocale,
+	getIntlLocale,
+	hasTimePart,
+	labelFromObject,
+	looksLikeId,
+	normalizeCurrency,
+	referenceHref,
+	referenceId,
+	referenceLabelForId,
+	referenceLabelFromValue,
+	resolveMoneyCurrency,
+	resolveReference,
+	rowReferenceLabel,
+	toDate,
+} from "./formatting";
 export {
 	buildFieldSchema,
 	buildFormSchema,
@@ -112,8 +147,20 @@ export type {
 export { DynamicTable } from "./dynamic-table";
 export type { FeatureFlags } from "./hooks/useFeatures";
 export { DEFAULT_FEATURES, useFeatures } from "./hooks/useFeatures";
+export {
+	REFERENCE_ROWS_KEY,
+	referenceRowLabel,
+	referenceSource,
+	useReferenceRows,
+} from "./hooks/useReferenceRows";
 export { useResolvedParams } from "./hooks/useResolvedParams";
 export { useSnack } from "./hooks/useSnack";
+export {
+	TENANT_CURRENCY_KEY,
+	type TenantCurrencyState,
+	useTenantCurrency,
+	useTenantCurrencyState,
+} from "./hooks/useTenantCurrency";
 export type { PageQueryParams, QueryParams } from "./query-builder";
 export {
 	extractPlaceholders,
@@ -138,10 +185,13 @@ export { InfoRenderer } from "./renderers/InfoRenderer";
 export { LineChartCell } from "./renderers/LineChartCell";
 export { LineRenderer } from "./renderers/LineRenderer";
 export { MetricRenderer } from "./renderers/MetricRenderer";
+export { MoneyCell } from "./renderers/MoneyCell";
+export { NumberCell } from "./renderers/NumberCell";
 export { PageRenderer } from "./renderers/PageRenderer";
 export { PieRenderer } from "./renderers/PieRenderer";
 export { RawJsonRenderer } from "./renderers/RawJsonRenderer";
 export { ReferenceCell } from "./renderers/ReferenceCell";
+export { RelativeCell } from "./renderers/RelativeCell";
 // ── Renderers ────────────────────────────────────────────────
 export { ScreenLayoutRenderer } from "./renderers/ScreenLayoutRenderer";
 export { StageActionsRenderer } from "./renderers/StageActionsRenderer";

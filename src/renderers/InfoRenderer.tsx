@@ -7,7 +7,15 @@ import { type ReactElement, useMemo } from "react";
 import useSWR from "swr";
 import { ComponentRenderer } from "../ComponentRenderer";
 import { getApiClient } from "../deps";
+import { formatDate, toDate } from "../formatting/date";
+import {
+	formatMoney,
+	formatNumber,
+	resolveMoneyCurrency,
+} from "../formatting/money";
+import { resolveReference } from "../formatting/reference";
 import { useFeatures } from "../hooks/useFeatures";
+import { useTenantCurrency } from "../hooks/useTenantCurrency";
 import type { RenderedComponent, RenderedElement } from "../types";
 import { isFieldFeatureVisible } from "./FormFieldRenderer";
 
@@ -30,17 +38,24 @@ const ISO_WEEKDAY_LABELS = [
 /**
  * The value a detail field should read, formatted for a human.
  *
- * The old block printed `String(value)`, so a weekly schedule read
- * `1,2,3` and an ISO timestamp read `2026-10-26T13:02:19.000Z`. Here:
- * static select/multiselect options turn stored values into their labels
- * (weekdays become names), dates are formatted, booleans become Yes/No,
- * and long text stays readable.
+ * Same formatters as the table cells: select/multiselect options turn
+ * stored values into their labels (weekdays become names), dates use the
+ * app locale, money uses the row's or the tenant's currency, a relation
+ * object shows its label instead of a JSON dump (and never a CUID), and
+ * long text stays readable.
  */
 function formatInfoValue(
 	el: RenderedElement,
 	value: unknown,
+	context: { tenantCurrency: string; record: Record<string, unknown> | null },
 ): { text: string; multiline: boolean } {
 	const overrides = (el.overrides ?? {}) as Record<string, any>;
+	const format = (overrides.format ?? {}) as {
+		type?: string;
+		props?: Record<string, any>;
+	};
+	const formatProps = (format.props ?? {}) as Record<string, any>;
+	const formatType = format.type ?? el.type ?? undefined;
 
 	if (value === null || value === undefined || value === "") {
 		return { text: "—", multiline: false };
@@ -70,44 +85,129 @@ function formatInfoValue(
 	};
 
 	if (Array.isArray(value)) {
-		return {
-			text: value.length > 0 ? value.map(labelFor).join(", ") : "—",
-			multiline: false,
+		const referenceList =
+			el.type === "reference" || formatType === "reference";
+		const referenceProps = {
+			...formatProps,
+			options: formatProps.options ?? options,
 		};
+		const text =
+			value.length > 0
+				? value
+						.map((item) => {
+							// A list of relations must read as names, not
+							// "[object Object]" or a list of ids.
+							if (referenceList) {
+								return resolveReference(item, referenceProps).label ?? "—";
+							}
+							if (item && typeof item === "object") {
+								return (
+									resolveReference(item, referenceProps).label ??
+									JSON.stringify(item)
+								);
+							}
+							return labelFor(item);
+						})
+						.join(", ")
+				: "—";
+		return { text, multiline: false };
 	}
 
 	if (typeof value === "boolean") {
 		return { text: value ? "Yes" : "No", multiline: false };
 	}
 
+	// A relation object (an expanded join) renders its label, not JSON.
+	if (typeof value === "object" && value !== null) {
+		const object = value as Record<string, unknown>;
+		const isReference =
+			el.type === "reference" ||
+			formatType === "reference" ||
+			("id" in object && "displayName" in object);
+		if (isReference) {
+			const resolved = resolveReference(value, {
+				...formatProps,
+				options: formatProps.options ?? options,
+			});
+			return { text: resolved.label ?? "—", multiline: false };
+		}
+		return { text: JSON.stringify(value, null, 2), multiline: true };
+	}
+
+	// Money is read with the same currency resolution as a money cell — a
+	// stored numeric string keeps its grouping and currency symbol.
+	if (formatType === "money" || el.type === "money") {
+		const currency = resolveMoneyCurrency(
+			formatProps,
+			context.record,
+			context.tenantCurrency,
+		);
+		const text = formatMoney(value, { ...formatProps, currency });
+		if (text) return { text, multiline: false };
+	}
+
 	if (typeof value === "string") {
 		// Date / date-time fields, and ISO strings that are visibly timestamps.
-		const isDateField = el.type === "date" || el.type === "datetime";
+		const isDateField =
+			el.type === "date" ||
+			el.type === "datetime" ||
+			formatType === "date" ||
+			formatType === "datetime";
 		const isIsoDate = /^\d{4}-\d{2}-\d{2}(T|$)/.test(value);
 		if (value.trim() && (isDateField || isIsoDate)) {
-			const parsed = new Date(value);
-			if (!Number.isNaN(parsed.getTime())) {
-				try {
-					return {
-						text: new Intl.DateTimeFormat("en-GB", {
-							dateStyle: "medium",
-							...(value.includes("T") ? { timeStyle: "short" } : {}),
-						}).format(parsed),
-						multiline: false,
-					};
-				} catch {
-					/* fall through to the raw value */
-				}
+			const parsed = toDate(value);
+			if (parsed) {
+				return {
+					text:
+						formatDate(parsed, {
+							locale: formatProps.locale,
+							timeZone: formatProps.timeZone,
+							calendar: formatProps.calendar,
+							showTime:
+								formatProps.showTime ??
+								(el.type === "datetime" ||
+									formatType === "datetime" ||
+									value.includes("T")),
+						}) || value,
+					multiline: false,
+				};
 			}
 		}
+
+		if (el.type === "reference" || formatType === "reference") {
+			const resolved = resolveReference(value, {
+				...formatProps,
+				options: formatProps.options ?? options,
+			});
+			return { text: resolved.label ?? "—", multiline: false };
+		}
+
 		return {
 			text: value,
 			multiline: value.includes("\n") || value.length > 120,
 		};
 	}
 
-	if (typeof value === "object") {
-		return { text: JSON.stringify(value, null, 2), multiline: true };
+	if (typeof value === "number") {
+		if (formatType === "money") {
+			return {
+				text: formatMoney(value, {
+					...formatProps,
+					currency: resolveMoneyCurrency(
+						formatProps,
+						context.record,
+						context.tenantCurrency,
+					),
+				}),
+				multiline: false,
+			};
+		}
+		if (el.type === "number" || formatType === "number") {
+			return {
+				text: formatNumber(value, { locale: formatProps.locale }),
+				multiline: false,
+			};
+		}
 	}
 
 	return { text: String(value), multiline: false };
@@ -132,6 +232,18 @@ export function InfoRenderer({
 	const dataRoot: string = config?.dataRoot ?? "";
 	const { features } = useFeatures();
 
+	// Walk content elements
+	const contentElements = (component.slotsFilled["content"] ?? [])
+		.filter((e) => e.isActive)
+		.sort((a, b) => a.displayOrder - b.displayOrder);
+
+	// Only a block that shows a money field needs the tenant currency.
+	const showsMoney = contentElements.some((el) => {
+		const overrides = (el.overrides ?? {}) as Record<string, any>;
+		return overrides.format?.type === "money" || el.type === "money";
+	});
+	const tenantCurrency = useTenantCurrency(showsMoney);
+
 	const endpoint = useMemo(() => {
 		if (!datasource?.endpoint) return null;
 		return datasource.endpoint.replace(
@@ -152,11 +264,6 @@ export function InfoRenderer({
 
 	// Resolve the root object for field lookups
 	const rootData = dataRoot ? getNestedValue(recordData, dataRoot) : recordData;
-
-	// Walk content elements
-	const contentElements = (component.slotsFilled["content"] ?? [])
-		.filter((e) => e.isActive)
-		.sort((a, b) => a.displayOrder - b.displayOrder);
 
 	if (isLoading) {
 		return (
@@ -215,7 +322,13 @@ export function InfoRenderer({
 					const displayName =
 						(el.overrides as any)?.displayName ?? el.label ?? name;
 					const colSpan = (el.overrides as any)?.colSpan ?? 4;
-					const formatted = formatInfoValue(el, value);
+					const formatted = formatInfoValue(el, value, {
+						tenantCurrency,
+						record:
+							rootData && typeof rootData === "object"
+								? (rootData as Record<string, unknown>)
+								: null,
+					});
 					// Multi-line values (body, rule JSON) get the full row — a
 					// message body squeezed into one third of the page is unreadable.
 					const fullWidth = formatted.multiline || colSpan >= 12;

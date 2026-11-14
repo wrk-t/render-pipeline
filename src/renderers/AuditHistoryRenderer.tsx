@@ -24,6 +24,7 @@ import { type ReactElement, useMemo } from "react";
 import useSWR from "swr";
 import { LocalMonacoEditor } from "../components/common/LocalMonacoEditor";
 import { getApiClient } from "../deps";
+import { formatDate } from "../formatting/date";
 import type { RenderedComponent } from "../types";
 
 interface HistoryEntry {
@@ -52,10 +53,11 @@ const EDITOR_OPTIONS: Record<string, unknown> = {
 	wordWrap: "on",
 };
 
-function formatDate(value: string): string {
-	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) return value;
-	return date.toLocaleString();
+function formatTimestamp(value: string): string {
+	// Same locale-aware formatter as the date cells: an audit row and the
+	// record's own dates cannot disagree about the format. An unparseable
+	// value keeps its raw text instead of disappearing.
+	return formatDate(value, { showTime: true }) || value;
 }
 
 export function AuditHistoryRenderer({
@@ -174,7 +176,7 @@ export function AuditHistoryRenderer({
 						{/* Change date + acting user */}
 						<Box className="flex items-center justify-between gap-2 px-3 py-2">
 							<Typography variant="caption" color="textSecondary">
-								{entry.createdAt ? formatDate(entry.createdAt) : "\u2014"}
+								{entry.createdAt ? formatTimestamp(entry.createdAt) : "\u2014"}
 							</Typography>
 							<Typography variant="caption" className="!font-medium">
 								{actor}

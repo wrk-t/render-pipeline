@@ -1319,8 +1319,16 @@ export interface TableColumnConfig {
 			| "rating"
 			| "boolean"
 			| "date"
-			| "number";
+			| "datetime"
+			| "relative"
+			| "number"
+			| "money"
+			| "reference"
+			| "image"
+			| "line-chart";
 		props?: Record<string, unknown>;
+		/** Legacy: reference label field at the format level. */
+		displayField?: string;
 		transform?: string;
 		pattern?: string;
 		prefix?: string;
