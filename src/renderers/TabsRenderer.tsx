@@ -149,6 +149,10 @@ export function TabsRenderer({
 				onChange={handleTabChange}
 				variant="scrollable"
 				scrollButtons="auto"
+				// UX-9 — a tablist with no accessible name is announced as just
+				// "tab list": name it after the component the tabs belong to
+				// (customer detail, …), which the backend already translated.
+				aria-label={component.displayName || component.name}
 				sx={{ borderBottom: 1, borderColor: "divider" }}
 			>
 				{allTabs.map((tab: any, idx: number) => (

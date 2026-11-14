@@ -233,3 +233,40 @@ export function evaluateFieldConditions(
 
 	return { isVisible, isDisabled, isRequired };
 }
+
+/**
+ * The accessible name of a form control (UX-9).
+ *
+ * The render contract puts the translated label on `field.label`, but a seed
+ * field that declares no `displayName` reaches the component with an empty
+ * label — the control then has no accessible name at all, and a screen reader
+ * announces only its state ("on") or, for a select, nothing. Falling back to
+ * the translated description and lastly the field name guarantees that every
+ * control is named, while the label still wins whenever it exists.
+ *
+ * `aria-label` is set from this helper even when the visible label is present:
+ * the two strings are identical, so the visible label stays part of the
+ * accessible name (WCAG 2.5.3) and MUI's implicit label association can never
+ * be lost to a wrapper.
+ */
+export function fieldAccessibleName(field: {
+	label?: string | null;
+	name?: string | null;
+	fieldOverrides?: { description?: string | null } | null;
+}): string {
+	const label = field.label?.trim();
+	if (label) return label;
+
+	const description = field.fieldOverrides?.description?.trim();
+	if (description) return description;
+
+	const name = field.name?.trim() ?? "";
+	// A CUID is an id, not a name — leaking it into an accessible name is the
+	// exact complaint UX-9 fixes, so an id-shaped name yields no name at all.
+	return looksLikeId(name) ? "" : name;
+}
+
+/** `cm5gdfqkqz8p5c9hjw5owbbb` (a CUID) or another id-shaped token. */
+function looksLikeId(value: string): boolean {
+	return value.length >= 20 && !/[^a-z0-9]/i.test(value) && /\d/.test(value);
+}

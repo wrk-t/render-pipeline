@@ -27,6 +27,7 @@ import {
 } from "react";
 import useSWR from "swr";
 import { getApiClient } from "../../deps";
+import { fieldAccessibleName } from "../fieldHelpers";
 import type {
 	EntityMeta,
 	FieldDatasource,
@@ -166,6 +167,9 @@ export function FormReferenceField({
 
 	const selectedOption = options.find((opt) => opt.value === value) ?? null;
 
+	// UX-9 — name the control explicitly: a seed field with no displayName
+	// otherwise reaches the input unnamed (a CUID or nothing at all).
+	const accessibleName = fieldAccessibleName(field);
 	const handleChange = (
 		_event: SyntheticEvent,
 		option: SelectOption | null,
@@ -198,6 +202,13 @@ export function FormReferenceField({
 					<TextField
 						{...params}
 						name={field.name}
+						slotProps={{
+							...params.slotProps,
+							htmlInput: {
+								...params.slotProps.htmlInput,
+								"aria-label": accessibleName,
+							},
+						}}
 						label={field.label}
 						placeholder={field.uiOverrides.behavior?.displayField ?? ""}
 						error={meta.touched && Boolean(meta.error)}

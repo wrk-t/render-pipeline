@@ -10,6 +10,7 @@ import Switch from "@mui/material/Switch";
 import Typography from "@mui/material/Typography";
 import { useField, useFormikContext } from "formik";
 import type { ReactElement } from "react";
+import { fieldAccessibleName } from "../fieldHelpers";
 import type { SwitchField } from "../types";
 
 export function FormSwitchField({
@@ -21,6 +22,8 @@ export function FormSwitchField({
 	const [, meta] = useField(field.name);
 	const checked = Boolean(values[field.name]);
 	const isError = Boolean(meta.touched && meta.error);
+	// A switch announced as just "on" is unusable: name it explicitly (UX-9).
+	const accessibleName = fieldAccessibleName(field);
 
 	return (
 		<Stack spacing={0.2}>
@@ -31,6 +34,7 @@ export function FormSwitchField({
 						checked={checked}
 						onChange={(_, c) => setFieldValue(field.name, c)}
 						disabled={field.isReadOnly}
+						slotProps={{ input: { "aria-label": accessibleName } }}
 					/>
 				}
 				label={field.label}

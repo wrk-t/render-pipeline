@@ -1,5 +1,5 @@
-﻿// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// AudienceRuleAssistantField â€” the AI rule builder for a group's
+﻿// ═══════════════════════════════════════════════════════════════
+// AudienceRuleAssistantField — the AI rule builder for a group's
 // "Define a rule" audience mode.
 //
 // The manager describes who should be in the group in words; the
@@ -9,8 +9,8 @@
 //
 // The summary is **ours** (generated from the canonical rule), so it can never
 // disagree with what will be saved. The raw JSON is shown only to a platform
-// super admin â€” a tenant sees the summary and the conversation.
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// super admin — a tenant sees the summary and the conversation.
+// ═══════════════════════════════════════════════════════════════
 "use client";
 
 import {
@@ -67,11 +67,11 @@ function parseConditions(raw: unknown): Record<string, unknown> | null {
 	}
 }
 
-// â”€â”€ Manual rule builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Manual rule builder ─────────────────────────────────────────
 // The assistant is optional (AI_ENDPOINT/AI_API_KEY); without it a tenant
 // still needs a way to define an audience. These are the aggregates the rule
 // engine supports (see customerSegments.ts) and its operators, together with
-// the qualifiers each field accepts â€” a product filter and the look-back
+// the qualifiers each field accepts — a product filter and the look-back
 // window are what make "ordered tea in the last 3 months" expressible.
 
 type TManualField =
@@ -102,7 +102,7 @@ interface IManualRule {
 }
 
 /**
- * Which qualifier a field takes â€” mirrors `CUSTOMER_SEGMENT_FIELD_QUALIFIERS`
+ * Which qualifier a field takes — mirrors `CUSTOMER_SEGMENT_FIELD_QUALIFIERS`
  * on the server. The server is the authority; this map only decides which
  * inputs the builder shows.
  */
@@ -139,11 +139,11 @@ const MANUAL_FIELDS: Array<{ value: TManualField; label: string }> = [
 
 const MANUAL_OPS: Array<{ value: TManualOp; label: string }> = [
 	{ value: "eq", label: "=" },
-	{ value: "neq", label: "â‰ " },
+	{ value: "neq", label: "≠" },
 	{ value: "gt", label: ">" },
-	{ value: "gte", label: "â‰¥" },
+	{ value: "gte", label: "≥" },
 	{ value: "lt", label: "<" },
-	{ value: "lte", label: "â‰¤" },
+	{ value: "lte", label: "≤" },
 ];
 
 /**
@@ -397,7 +397,7 @@ export function AudienceRuleAssistantField({
 			{aiEnabled === false && (
 				<Alert severity="info">
 					The AI assistant is not configured on this platform. Build the rule
-					manually below â€” it is validated and saved exactly like an
+					manually below — it is validated and saved exactly like an
 					assistant-drafted one.
 				</Alert>
 			)}
@@ -453,7 +453,7 @@ export function AudienceRuleAssistantField({
 									onChange={(event) => {
 										const field = event.target.value as TManualField;
 										// Switching field drops the qualifiers the new field does
-										// not take â€” a stale product id would be rejected by the
+										// not take — a stale product id would be rejected by the
 										// engine, and a silent one would change the meaning.
 										commitManual({
 											...manualRule,
@@ -636,9 +636,9 @@ export function AudienceRuleAssistantField({
 						Describe the audience
 					</Typography>
 					<Typography variant="body2" color="text.secondary">
-						Tell the assistant who should be in this group (e.g. â€œcustomers
+						Tell the assistant who should be in this group (e.g. “customers
 						who ordered at least three times and spent more than 100 in the last
-						60 daysâ€). It drafts the rule and explains it; saving the group
+						60 days”). It drafts the rule and explains it; saving the group
 						stores it.
 					</Typography>
 				</>
@@ -667,14 +667,14 @@ export function AudienceRuleAssistantField({
 						<Stack spacing={0.5} className="mt-2">
 							{draft.lines.map((line) => (
 								<Typography key={line} variant="body2" color="text.secondary">
-									â€¢ {line}
+									• {line}
 								</Typography>
 							))}
 						</Stack>
 					)}
 					{draft.errors.length > 0 && (
 						<Alert severity="error" className="mt-3">
-							{draft.errors.map((entry) => entry.message).join(" Â· ")}
+							{draft.errors.map((entry) => entry.message).join(" · ")}
 						</Alert>
 					)}
 					{isSuperAdmin && storedJson && (

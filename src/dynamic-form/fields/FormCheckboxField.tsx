@@ -11,6 +11,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { useField, useFormikContext } from "formik";
 import type { ReactElement } from "react";
+import { fieldAccessibleName } from "../fieldHelpers";
 import type { CheckboxField } from "../types";
 
 export function FormCheckboxField({
@@ -22,6 +23,8 @@ export function FormCheckboxField({
 	const [, meta] = useField(field.name);
 	const checked = Boolean(values[field.name]);
 	const isError = Boolean(meta.touched && meta.error);
+	// Same as FormSwitchField: an unnamed checkbox announces only its state.
+	const accessibleName = fieldAccessibleName(field);
 
 	return (
 		<Stack spacing={0.2}>
@@ -32,6 +35,7 @@ export function FormCheckboxField({
 						checked={checked}
 						onChange={(_, c) => setFieldValue(field.name, c)}
 						disabled={field.isReadOnly}
+						slotProps={{ input: { "aria-label": accessibleName } }}
 					/>
 				}
 				label={field.label}
