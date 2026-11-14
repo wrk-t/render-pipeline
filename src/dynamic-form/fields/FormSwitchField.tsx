@@ -4,11 +4,13 @@
 "use client";
 
 import FormControlLabel from "@mui/material/FormControlLabel";
+import FormHelperText from "@mui/material/FormHelperText";
 import Stack from "@mui/material/Stack";
 import Switch from "@mui/material/Switch";
 import Typography from "@mui/material/Typography";
-import { useFormikContext } from "formik";
+import { useField, useFormikContext } from "formik";
 import type { ReactElement } from "react";
+import { fieldAccessibleName } from "../fieldHelpers";
 import type { SwitchField } from "../types";
 
 export function FormSwitchField({
@@ -17,7 +19,11 @@ export function FormSwitchField({
 	field: SwitchField;
 }): ReactElement {
 	const { values, setFieldValue } = useFormikContext<Record<string, unknown>>();
+	const [, meta] = useField(field.name);
 	const checked = Boolean(values[field.name]);
+	const isError = Boolean(meta.touched && meta.error);
+	// A switch announced as just "on" is unusable: name it explicitly (UX-9).
+	const accessibleName = fieldAccessibleName(field);
 
 	return (
 		<Stack spacing={0.2}>
@@ -28,11 +34,13 @@ export function FormSwitchField({
 						checked={checked}
 						onChange={(_, c) => setFieldValue(field.name, c)}
 						disabled={field.isReadOnly}
+						slotProps={{ input: { "aria-label": accessibleName } }}
 					/>
 				}
 				label={field.label}
 				className="ml-0!"
 			/>
+			{isError && <FormHelperText error>{meta.error}</FormHelperText>}
 			{field.fieldOverrides?.description ? (
 				<Typography variant="caption" color="text.secondary" className="pl-3">
 					{field.fieldOverrides.description}

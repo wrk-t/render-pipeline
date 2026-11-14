@@ -24,6 +24,7 @@ import {
 	useState,
 } from "react";
 import { getApiClient } from "../../deps";
+import { fieldAccessibleName } from "../fieldHelpers";
 import type { EntityMeta, MultiselectField, SelectOption } from "../types";
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -254,6 +255,9 @@ export function FormMultiSelectField({
 		[setValue, setTouched],
 	);
 
+	// UX-9 — name the control explicitly: a seed field with no displayName
+	// otherwise reaches the input unnamed (a CUID or nothing at all).
+	const accessibleName = fieldAccessibleName(field);
 	const handleRemove = useCallback(
 		(removed: SelectOption) => {
 			setValue(selectedValues.filter((v) => v !== String(removed.value)));
@@ -284,6 +288,13 @@ export function FormMultiSelectField({
 						{...params}
 						label={field.label}
 						placeholder={field.uiOverrides?.behavior?.placeholder}
+						slotProps={{
+							...params.slotProps,
+							htmlInput: {
+								...params.slotProps.htmlInput,
+								"aria-label": accessibleName,
+							},
+						}}
 						error={meta.touched && !!meta.error}
 						helperText={meta.touched && meta.error ? meta.error : undefined}
 						size="small"

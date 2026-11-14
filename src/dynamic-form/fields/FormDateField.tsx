@@ -76,6 +76,10 @@ export function FormDateField({ field }: { field: DateField }): ReactElement {
 						textField: {
 							required: field.isRequired,
 							fullWidth: true,
+							// The field's validation error (e.g. a required date)
+							// belongs under the input, like every other field.
+							error: Boolean(meta.touched && meta.error),
+							helperText: meta.touched ? meta.error : undefined,
 							// X v9 dropped `placeholder` from the textField slot —
 							// keep it for older majors.
 							placeholder: field.uiOverrides.behavior?.placeholder,

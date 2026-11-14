@@ -17,6 +17,7 @@
 
 import {
 	FormControl,
+	FormHelperText,
 	InputLabel,
 	MenuItem,
 	Select,
@@ -28,6 +29,7 @@ import type { ReactElement } from "react";
 import useSWR from "swr";
 import { checkComponentPermission } from "../../ability/checkComponentPermission";
 import { getApiClient, useRenderUser } from "../../deps";
+import { fieldAccessibleName } from "../fieldHelpers";
 import type {
 	EntityMeta,
 	FieldDatasource,
@@ -145,6 +147,10 @@ export function FormSelectField({
 		field.name,
 	);
 	const isError = Boolean(meta.touched && meta.error);
+	// A select with no resolvable label was announced by its id (a CUID) —
+	// bind the label (and a fallback name) explicitly so every screen is named.
+	const labelId = `field-select-${field.name}`;
+	const accessibleName = fieldAccessibleName(field);
 
 	return (
 		<Stack spacing={0.2}>
@@ -155,10 +161,12 @@ export function FormSelectField({
 				required={field.isRequired}
 				disabled={field.isReadOnly}
 			>
-				<InputLabel id={`field-select-${field.name}`}>{field.label}</InputLabel>
+				<InputLabel id={labelId}>{field.label}</InputLabel>
 				<Select
-					labelId={`field-select-${field.name}`}
+					name={field.name}
+					labelId={labelId}
 					label={field.label}
+					SelectDisplayProps={{ "aria-label": accessibleName }}
 					value={value ?? ""}
 					onChange={(e) => {
 						setValue(e.target.value as string);
@@ -172,6 +180,7 @@ export function FormSelectField({
 						</MenuItem>
 					))}
 				</Select>
+				{isError && <FormHelperText error>{meta.error}</FormHelperText>}
 			</FormControl>
 			{field.fieldOverrides?.description ? (
 				<Typography variant="caption" color="text.secondary" className="pl-3">

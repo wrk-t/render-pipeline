@@ -27,6 +27,7 @@ import { useField, useFormikContext } from "formik";
 	} from "react";
 import useSWR from "swr";
 import { getApiClient } from "../../deps";
+import { fieldAccessibleName } from "../fieldHelpers";
 import type {
 	AutocompleteField as AutocompleteFieldType,
 	EntityMeta,
@@ -290,6 +291,9 @@ export function FormAutocompleteField({
 	};
 
 	// ── Handle selection — store only the value ────────────────
+	// UX-9 — name the control explicitly: a seed field with no displayName
+	// otherwise reaches the input unnamed (a CUID or nothing at all).
+	const accessibleName = fieldAccessibleName(field);
 	const handleChange = (
 		_event: SyntheticEvent,
 		option: SelectOption | null,
@@ -350,6 +354,13 @@ export function FormAutocompleteField({
 					<TextField
 						{...params}
 						name={field.name}
+						slotProps={{
+							...params.slotProps,
+							htmlInput: {
+								...params.slotProps.htmlInput,
+								"aria-label": accessibleName,
+							},
+						}}
 						label={field.label}
 						placeholder={field.uiOverrides.behavior?.placeholder ?? "Search..."}
 						error={meta.touched && Boolean(meta.error)}

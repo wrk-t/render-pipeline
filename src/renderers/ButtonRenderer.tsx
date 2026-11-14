@@ -299,6 +299,14 @@ export function ButtonRenderer({
 								children: "Confirm",
 								disabled: confirmDisabled,
 							},
+							// A disabled primary says why: the typed title is the
+							// only thing missing.
+							tooltip:
+								confirmDisabled && needsTypedTitle
+									? t("common.confirmTypeTitle", {
+											title: expectedTitle ?? "",
+										})
+									: null,
 						},
 					}}
 				>

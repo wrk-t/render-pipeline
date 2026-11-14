@@ -3,6 +3,7 @@
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import FormControl from "@mui/material/FormControl";
+import FormHelperText from "@mui/material/FormHelperText";
 import IconButton from "@mui/material/IconButton";
 import InputLabel from "@mui/material/InputLabel";
 import MenuItem from "@mui/material/MenuItem";
@@ -51,7 +52,7 @@ export function FormAvailabilityWindowsField({
 		isReadOnly?: boolean;
 	};
 }): ReactElement {
-	const [{ value }, , { setValue }] = useField<AvailabilityWindowRow[]>(
+	const [{ value }, meta, { setValue }] = useField<AvailabilityWindowRow[]>(
 		field.name,
 	);
 	const { isSubmitting } = useFormikContext();
@@ -158,6 +159,9 @@ export function FormAvailabilityWindowsField({
 					Add window
 				</Button>
 			</Box>
+			{meta.touched && meta.error && (
+				<FormHelperText error>{meta.error}</FormHelperText>
+			)}
 		</Stack>
 	);
 }
