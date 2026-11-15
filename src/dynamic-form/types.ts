@@ -1226,12 +1226,35 @@ export interface TableSettings {
 	/** Conditional row styling (e.g. red background for failed entries). */
 	rowConditions?: TableRowCondition[];
 	/**
+	 * A row of filter chips above the table (e.g. menu categories). Chips are
+	 * an explicit choice, not a taxonomy: the table forwards the chosen value
+	 * as a query param, so a server-side table filters across pages instead of
+	 * only the page the browser happens to hold.
+	 */
+	filterChips?: TableFilterChips | null;
+	/**
 	 * Optional small-screen presentation. When set, a phone renders a list of
 	 * compact cards (title + subtitle + status + the row actions) instead of a
 	 * wide table; `sm` and up keeps the normal table. Each key is a column
 	 * accessor (the field name on the row).
 	 */
 	mobileCard?: TableMobileCard | null;
+}
+
+/** Filter chips above a table — one selectable chip per option. */
+export interface TableFilterChips {
+	/** Query param the datasource is filtered on (e.g. "categoryId"). */
+	field: string;
+	/** Options endpoint (e.g. the current menu's categories). */
+	endpoint: string;
+	/** Extra query params; `{param}` placeholders resolve from the route. */
+	params?: Record<string, string>;
+	/** Option label field (default "name"). */
+	labelField?: string;
+	/** Option value field (default "id"). */
+	valueField?: string;
+	/** Max options fetched (default 100). */
+	limit?: number;
 }
 
 /** The column subset a phone card shows — all accessors, not labels. */

@@ -55,6 +55,7 @@ import { useResolvedParams } from "../hooks/useResolvedParams";
 import type { QueryParams } from "../query-builder";
 import { resolveUrlTemplate } from "../query-builder";
 import { columnCellRenderers } from "../renderers/columnCellRenderers";
+import { TABLE_DATA_KEY_PREFIX } from "../renderers/SwitchCell";
 import { TextCell } from "../renderers/TextCell";
 import { useDateRange } from "../renderers/DateRangeContext";
 import { TableIcon } from "./TableIcon";
@@ -278,7 +279,10 @@ function buildColumnDef(
 				if (props.datasource === undefined && col.datasource) {
 					props.datasource = col.datasource;
 				}
-				if (props.displayField === undefined && fmt.displayField !== undefined) {
+				if (
+					props.displayField === undefined &&
+					fmt.displayField !== undefined
+				) {
 					props.displayField = fmt.displayField;
 				}
 				columnFormat.props = props;
@@ -398,6 +402,8 @@ interface FetchParams {
 	searchableFields?: string[];
 	datasourceParams?: Record<string, string>;
 	pathParams?: Record<string, string>;
+	/** Selected filter-chip values, forwarded as query params. */
+	chipParams?: Record<string, string>;
 }
 
 /**
@@ -431,6 +437,7 @@ function buildSearchParams({
 	searchableFields,
 	datasourceParams,
 	pathParams,
+	chipParams,
 }: FetchParams): URLSearchParams {
 	const params = new URLSearchParams();
 
@@ -442,6 +449,15 @@ function buildSearchParams({
 			if (resolved !== undefined) {
 				params.set(key, resolved);
 			}
+		}
+	}
+
+	// Selected filter chips (e.g. a category) — an explicit choice, not a
+	// column filter: it narrows the whole server-side result set, so a page
+	// shows a filtered page rather than the filtered rows of one page.
+	if (chipParams) {
+		for (const [key, value] of Object.entries(chipParams)) {
+			params.set(key, value);
 		}
 	}
 
@@ -544,6 +560,68 @@ export function DynamicTable({
 	);
 	const [includeDeleted, setIncludeDeleted] = useState(false);
 
+	// ── Filter chips (e.g. menu categories) ────────────────────
+	// An explicit chip row above the table: the chosen value is forwarded to
+	// the datasource as a query param, so a server-side table filters across
+	// pages instead of only the rows the browser already holds. Client-side
+	// and externally supplied tables filter their rows directly.
+	// A sub-table (detail panel) stays compact: the chip row belongs to the
+	// page-level list it filters.
+	const filterChips = subRow ? null : (settings.filterChips ?? null);
+	const [chipValue, setChipValue] = useState<string | null>(null);
+
+	const chipParams = useMemo<Record<string, string> | undefined>(() => {
+		if (!filterChips?.field || !chipValue) return undefined;
+		return { [filterChips.field]: chipValue };
+	}, [filterChips?.field, chipValue]);
+
+	const chipQuery = useMemo(() => {
+		const params = new URLSearchParams();
+		params.set("limit", String(filterChips?.limit ?? 100));
+		for (const [key, value] of Object.entries(filterChips?.params ?? {})) {
+			const resolved = resolveParamValue(value, resolvedPathParams);
+			if (resolved !== undefined) params.set(key, resolved);
+		}
+		return {
+			endpoint: filterChips?.endpoint
+				? resolveUrlTemplate(filterChips.endpoint, resolvedPathParams)
+				: "",
+			search: params.toString(),
+		};
+	}, [filterChips, resolvedPathParams]);
+
+	const chipOptionsKey = filterChips?.endpoint
+		? `table-filter-chips:${chipQuery.endpoint}?${chipQuery.search}`
+		: null;
+
+	const { data: chipOptions } = useSWR(
+		chipOptionsKey,
+		async () => {
+			const baseUrl = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
+			const res = await getApiClient().get(
+				`${baseUrl}${chipQuery.endpoint}?${chipQuery.search}`,
+			);
+			// The list endpoints all wrap their rows the same way.
+			const rows = res.data?.data?.data ?? res.data?.data ?? res.data ?? [];
+			const list = Array.isArray(rows) ? rows : [rows];
+			const labelField = filterChips?.labelField ?? "name";
+			const valueField = filterChips?.valueField ?? "id";
+			return list
+				.map((row: Record<string, unknown>) => ({
+					label: String(row[labelField] ?? row.name ?? row.displayName ?? ""),
+					value: String(row[valueField] ?? row.id ?? ""),
+				}))
+				.filter((option) => option.label && option.value);
+		},
+		{ revalidateOnFocus: false },
+	);
+
+	const selectChip = useCallback((value: string | null) => {
+		setChipValue(value);
+		// A new filter is a new result set — never land on an out-of-range page.
+		setPagination((previous) => ({ ...previous, pageIndex: 0 }));
+	}, []);
+
 	// ── Build MRT column definitions ───────────────────────────
 	// Hide `deletedAt` column unless the user chose to see deleted items.
 
@@ -639,9 +717,10 @@ export function DynamicTable({
 			searchableFields: settings.searchableFields,
 			datasourceParams: datasource.params,
 			pathParams: resolvedPathParams,
+			chipParams,
 		});
 		const suffix = otherQueryString ? `&${otherQueryString}` : "";
-		return `table-data:${resolvedEndpoint}?${qs.toString()}${suffix}`;
+		return `${TABLE_DATA_KEY_PREFIX}${resolvedEndpoint}?${qs.toString()}${suffix}`;
 	}, [
 		pagination,
 		sorting,
@@ -652,6 +731,7 @@ export function DynamicTable({
 		resolvedPathParams,
 		settings.searchableFields,
 		otherQueryString,
+		chipParams,
 	]);
 
 	// ── Fetch data via SWR ──────────────────────────────────────
@@ -673,6 +753,7 @@ export function DynamicTable({
 				searchableFields: settings.searchableFields,
 				datasourceParams: datasource.params,
 				pathParams: resolvedPathParams,
+				chipParams,
 			});
 			const suffix = otherQueryString ? `&${otherQueryString}` : "";
 			const sep = resolvedEndpoint.includes("?") ? "&" : "?";
@@ -699,7 +780,23 @@ export function DynamicTable({
 	const fetchError: string | null = error?.message ?? null;
 
 	// ── Decide which data to render ────────────────────────────
-	const data = hasExternalData ? (externalData ?? []) : fetchedData;
+	const sourceData = hasExternalData ? (externalData ?? []) : fetchedData;
+	// A server-side table already applied the chip filter (and paged the
+	// filtered set), so re-filtering here could only drop correct rows. A
+	// client-side / externally supplied table has to filter its rows.
+	const data = useMemo(() => {
+		if (!filterChips?.field || !chipValue) return sourceData;
+		if (isServerSide && !hasExternalData) return sourceData;
+		return sourceData.filter(
+			(row) => String(row[filterChips.field] ?? "") === chipValue,
+		);
+	}, [
+		sourceData,
+		filterChips?.field,
+		chipValue,
+		isServerSide,
+		hasExternalData,
+	]);
 
 	// Some columns only apply to one kind of row (e.g. "Added" exists for a
 	// manual group member, but is null for every rule-resolved member). Hiding
@@ -1855,9 +1952,40 @@ export function DynamicTable({
 		return String(value);
 	};
 
+	// ── Filter chips (category-style) ──────────────────────────
+	// Shown above both presentations. Clicking the active chip clears the
+	// filter, so there is no separate "All" caption to translate.
+	const chipsRow =
+		filterChips && (chipOptions?.length ?? 0) > 0 ? (
+			<Box
+				sx={{
+					display: "flex",
+					flexWrap: "wrap",
+					alignItems: "center",
+					gap: 1,
+					mb: 1,
+				}}
+			>
+				{chipOptions?.map((option) => {
+					const selected = chipValue === option.value;
+					return (
+						<Chip
+							key={option.value}
+							label={option.label}
+							size="small"
+							color={selected ? "primary" : "default"}
+							variant={selected ? "filled" : "outlined"}
+							onClick={() => selectChip(selected ? null : option.value)}
+						/>
+					);
+				})}
+			</Box>
+		) : null;
+
 	if (isPhone && mobileCard) {
 		return (
 			<Stack spacing={1}>
+				{chipsRow}
 				{data.length === 0 ? (
 					<Typography
 						variant="body2"
@@ -1950,5 +2078,10 @@ export function DynamicTable({
 		);
 	}
 
-	return <MaterialReactTable table={table} />;
+	return (
+		<Box>
+			{chipsRow}
+			<MaterialReactTable table={table} />
+		</Box>
+	);
 }
