@@ -2179,14 +2179,15 @@ export function DynamicTable({
 								direction="row"
 								spacing={1}
 								sx={{
-									width: "100%",
+									width: "auto",
+									gap: 1,
 									flexWrap: "wrap",
 									alignItems: "center",
 									alignSelf: "center",
-									"& .MuiButton-root": { width: "100%" },
-									"@media (min-width:600px)": {
+									"& .MuiButton-root": {
 										width: "auto",
-										"& .MuiButton-root": { width: "auto" },
+										flexShrink: 0,
+										whiteSpace: "nowrap",
 									},
 								}}
 							>
@@ -2271,16 +2272,16 @@ export function DynamicTable({
 							<Stack
 								spacing={0.5}
 								sx={{
-									width: "100%",
-									gap: 2,
-									flexDirection: "column",
+									width: "auto",
+									gap: 1,
+									flexDirection: "row",
+									flexWrap: "wrap",
+									alignItems: "center",
 									alignSelf: "center",
-									"& .MuiButton-root": { width: "100%" },
-									"@media (min-width:600px)": {
+									"& .MuiButton-root": {
 										width: "auto",
-										flexDirection: "row",
-										alignItems: "center",
-										"& .MuiButton-root": { width: "auto" },
+										flexShrink: 0,
+										whiteSpace: "nowrap",
 									},
 								}}
 							>
