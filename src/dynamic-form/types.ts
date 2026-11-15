@@ -1198,6 +1198,49 @@ export type TableAction =
 	| TableActionLinkSelected
 	| TableActionLegacy;
 
+/**
+ * UX-25 — an action a table offers for the current row selection.
+ *
+ * A bulk action runs the SAME endpoint once per selected row (`{id}` and any
+ * other row field resolve like a row action). The seed declares the list in
+ * the table config's `bulkActions`; the selection column appears only when
+ * the list is non-empty.
+ */
+export interface TableBulkAction {
+	id: string;
+	label: string;
+	icon?: string;
+	color?: string;
+	/**
+	 * Toggle mode: send the INVERSE of this row field as the request body.
+	 * The same action is therefore the undo (deactivate → activate), and the
+	 * `labelOff`/`iconOff`/`colorOff` presentation is used while every
+	 * selected row is already off.
+	 */
+	toggleField?: string;
+	/** Presentation while every selected row is already off (undo direction). */
+	labelOff?: string;
+	iconOff?: string;
+	colorOff?: string;
+	/** Per-row endpoint template (supports `{id}` and other row fields). */
+	endpoint: string;
+	method?: "PATCH" | "POST" | "PUT" | "DELETE";
+	/** Static body sent with every per-row request (ignored in toggle mode). */
+	body?: Record<string, unknown>;
+	/** Confirmation shown before a destructive bulk action runs. */
+	confirm?: TableActionConfirm;
+	/** Plain ability checks, like a toolbar action's `permissions`. */
+	permissions?: string[];
+	/** Scope-aware visibility, like a toolbar action's `visibleToPermissions`. */
+	visibleToPermissions?: Array<{
+		resource: string;
+		action: string;
+		scope?: "own" | "tenant" | "all";
+	}>;
+	requiredTier?: "solo" | "team" | "enterprise";
+	requiresFeature?: string;
+}
+
 export interface TableRowCondition {
 	/** Row data field to test. */
 	field: string;
@@ -1217,7 +1260,10 @@ export interface TableSettings {
 	bordered: boolean;
 	stickyHeader: boolean;
 	resizableColumns: boolean;
+	/** Show the CSV export button in the toolbar (server-side tables). */
 	exportable: boolean;
+	/** Localised export button label (falls back to "Export CSV"). */
+	exportLabel?: string;
 	importable: boolean;
 	refreshable: boolean;
 	searchable: boolean;
@@ -1272,10 +1318,42 @@ export interface TableMobileCard {
 	actions?: boolean;
 }
 
+/**
+ * UX-24 — a contextual empty state for a table.
+ *
+ * Instead of the generic "No records to display", a table can say what
+ * belongs here and offer the first action. Every string is a `$trl_` key on
+ * the server (`TableMetadata` arrives already translated) and every action id
+ * refers to an action in this same table's toolbar, so the empty state can
+ * never drift from the toolbar it sits above.
+ */
 export interface TableEmptyState {
+	/** Unicon name shown above the title (e.g. "ShoppingCart"). */
+	icon?: string;
+	/** Headline (e.g. "No orders yet"). */
 	title: string;
+	/** One-line explanation of what belongs here. */
 	description?: string;
+	/**
+	 * The primary call to action: the id of an action in this table's
+	 * toolbar. It renders only while that action is visible (permission, tier
+	 * and feature gated like the toolbar itself), so the empty state never
+	 * offers something the toolbar would hide.
+	 */
 	action?: string;
+	/** A link to the setup step this screen depends on. */
+	prerequisite?: { label: string; href: string };
+	/**
+	 * The state shown when a search or filter is active and matched nothing.
+	 * Clearing restores the truly-empty state; `clearLabel` is the button.
+	 * Without it the table keeps the renderer's default "no results" copy.
+	 */
+	filtered?: {
+		icon?: string;
+		title: string;
+		description?: string;
+		clearLabel: string;
+	};
 }
 
 /**
@@ -1399,6 +1477,11 @@ export interface TableMetadata extends ActiveEntity {
 	} | null;
 	rowActions: TableAction[];
 	toolbarActions: TableAction[];
+	/**
+	 * UX-25 — bulk actions over the current selection. Declaring any turns on
+	 * the selection checkbox column and the bulk bar.
+	 */
+	bulkActions?: TableBulkAction[] | null;
 	settings: TableSettings;
 	subTable?: TableSubTable | null;
 	onRowClick?: ITableOnRowClick;

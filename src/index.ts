@@ -134,6 +134,7 @@ export type {
 	RenderField,
 	SelectOption,
 	TableAction,
+	TableBulkAction,
 	TableColumnInstance,
 	TableMetadata,
 	TableSubTable,
