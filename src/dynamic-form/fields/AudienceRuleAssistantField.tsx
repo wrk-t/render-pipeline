@@ -1,4 +1,4 @@
-﻿// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 // AudienceRuleAssistantField — the AI rule builder for a group's
 // "Define a rule" audience mode.
 //
@@ -53,6 +53,28 @@ interface IChatResult {
 	needsConfirmation: boolean;
 	done: boolean;
 }
+
+interface IPreviewMember {
+	customerId: string;
+	name: string;
+	phone: string;
+	orderCount: number;
+}
+
+/** What the rule would match right now — a dry run, nothing is saved. */
+interface IMatchPreview {
+	matchedCount: number;
+	sample: IPreviewMember[];
+}
+
+/**
+ * How long a rule edit waits before the preview asks the server (UX-21).
+ *
+ * Debounced so typing a threshold does not send one request per keystroke;
+ * 500 ms keeps the count "within 1 s of a rule change" including the round
+ * trip.
+ */
+const PREVIEW_DEBOUNCE_MS = 500;
 
 /** Parse the form's `conditions` JSON string; `null` when it is empty/invalid. */
 function parseConditions(raw: unknown): Record<string, unknown> | null {
@@ -239,6 +261,141 @@ async function loadCatalog(): Promise<{
 	return { items: pick(items.data), categories: pick(categories.data) };
 }
 
+/** Ask the server what the rule matches right now (a dry run, no save). */
+async function fetchMatchPreview(
+	conditions: Record<string, unknown>,
+	signal: AbortSignal,
+): Promise<IMatchPreview | null> {
+	const res = await getApiClient().request({
+		url: "/api/v1/customer-segments/preview",
+		method: "post",
+		data: { conditions },
+		signal,
+	});
+	return (res.data?.data ?? null) as IMatchPreview | null;
+}
+
+/** A preview failure is reported, never written to the form's rule. */
+function previewErrorMessage(requestError: unknown): string {
+	const response = (
+		requestError as {
+			response?: { status?: number; data?: { message?: string } };
+		}
+	).response;
+	const message = response?.data?.message;
+	// Surface the API's translated validation message when there is one; a raw
+	// `errors.*` key (no locale resolved) is not something a manager should read.
+	if (message && !message.startsWith("errors.")) return message;
+
+	return response?.status === 400
+		? "This rule is not valid yet — fix it and the count will come back."
+		: "The match count is unavailable right now. Your rule is unchanged.";
+}
+
+/**
+ * The live match count under the builder (UX-21): "Matches N customers" and,
+ * on request, the first ten of them.
+ *
+ * Presentational on purpose — the request, its debounce and its cancellation
+ * live in the field, so toggling the sample never re-queries the audience.
+ */
+function AudienceMatchPreview({
+	loading,
+	preview,
+	error,
+}: {
+	loading: boolean;
+	preview: IMatchPreview | null;
+	error: string | null;
+}): ReactElement {
+	const [showSample, setShowSample] = useState(false);
+	const hasSample = (preview?.sample.length ?? 0) > 0;
+	const idle = !(loading || preview || error);
+
+	return (
+		<Stack spacing={1}>
+			{loading && (
+				<Stack direction="row" spacing={1} className="items-center">
+					<CircularProgress size={16} />
+					<Typography variant="body2" color="text.secondary">
+						Counting matches…
+					</Typography>
+				</Stack>
+			)}
+
+			{!loading && preview && (
+				<Stack direction="row" spacing={1} className="flex-wrap items-center">
+					<Chip size="small" color="success" label="Rule ready" />
+					<Typography variant="body2" className="font-semibold">
+						{preview.matchedCount === 1
+							? "Matches 1 customer"
+							: `Matches ${preview.matchedCount} customers`}
+					</Typography>
+					{hasSample && (
+						<Button size="small" onClick={() => setShowSample((open) => !open)}>
+							{showSample
+								? "Hide sample"
+								: `View ${preview.sample.length}-customer sample`}
+						</Button>
+					)}
+				</Stack>
+			)}
+
+			{idle && (
+				<Stack direction="row" spacing={1} className="items-center">
+					<Chip size="small" color="success" label="Rule ready" />
+					<Typography variant="caption" color="text.secondary">
+						Saving the group stores the rule above.
+					</Typography>
+				</Stack>
+			)}
+
+			{showSample && preview && hasSample && (
+				<Box className="rounded-lg border border-solid border-gray-200 p-3">
+					<Typography
+						variant="caption"
+						className="block font-semibold uppercase tracking-wide text-gray-500"
+					>
+						Sample — customers matching now
+					</Typography>
+					<Stack spacing={0.5} className="mt-1">
+						{preview.sample.map((member) => (
+							<Stack
+								key={member.customerId}
+								direction="row"
+								spacing={1}
+								className="flex-wrap items-baseline"
+							>
+								<Typography variant="body2" className="font-medium">
+									{member.name}
+								</Typography>
+								<Typography variant="caption" color="text.secondary">
+									{member.phone}
+								</Typography>
+								<Typography variant="caption" color="text.secondary">
+									·{" "}
+									{member.orderCount === 1
+										? "1 order"
+										: `${member.orderCount} orders`}
+								</Typography>
+							</Stack>
+						))}
+					</Stack>
+				</Box>
+			)}
+
+			{error && <Alert severity="warning">{error}</Alert>}
+
+			{preview && (
+				<Typography variant="caption" color="text.secondary">
+					This is a live preview; saving stores the rule above and keeps the
+					same members.
+				</Typography>
+			)}
+		</Stack>
+	);
+}
+
 export function AudienceRuleAssistantField({
 	field,
 }: {
@@ -260,6 +417,9 @@ export function AudienceRuleAssistantField({
 	const [error, setError] = useState<string | null>(null);
 	const [aiEnabled, setAiEnabled] = useState<boolean | null>(null);
 	const [manual, setManual] = useState(false);
+	const [matchPreview, setMatchPreview] = useState<IMatchPreview | null>(null);
+	const [previewLoading, setPreviewLoading] = useState(false);
+	const [previewError, setPreviewError] = useState<string | null>(null);
 
 	// Ask once whether this deployment has a provider. If it does not, show the
 	// manual builder instead of letting the first message fail with a 503.
@@ -343,6 +503,45 @@ export function AudienceRuleAssistantField({
 		// Only re-run when the stored rule itself changes from outside the chat.
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [storedJson]);
+
+	// "Matches N customers" while the rule is being built (UX-21).
+	//
+	// A dry run through the same evaluator the save uses, so the count the
+	// manager sees cannot disagree with the group's members afterwards. The
+	// request is debounced and every edit aborts the previous one, so a slow
+	// answer for an older rule can never land under a newer one. A failure is
+	// reported in place and leaves the form value — the rule — untouched.
+	useEffect(() => {
+		const rule = parseConditions(value);
+		if (!rule) {
+			setMatchPreview(null);
+			setPreviewError(null);
+			setPreviewLoading(false);
+			return;
+		}
+
+		const controller = new AbortController();
+		const timer = setTimeout(async () => {
+			setPreviewLoading(true);
+			setPreviewError(null);
+			try {
+				const result = await fetchMatchPreview(rule, controller.signal);
+				if (controller.signal.aborted || !result) return;
+				setMatchPreview(result);
+				setPreviewLoading(false);
+			} catch (requestError) {
+				if (controller.signal.aborted) return;
+				setMatchPreview(null);
+				setPreviewError(previewErrorMessage(requestError));
+				setPreviewLoading(false);
+			}
+		}, PREVIEW_DEBOUNCE_MS);
+
+		return () => {
+			clearTimeout(timer);
+			controller.abort();
+		};
+	}, [value]);
 
 	const send = async () => {
 		const text = input.trim();
@@ -750,12 +949,11 @@ export function AudienceRuleAssistantField({
 			{stored && (
 				<>
 					<Divider />
-					<Stack direction="row" spacing={1} className="items-center">
-						<Chip size="small" color="success" label="Rule ready" />
-						<Typography variant="caption" color="text.secondary">
-							Saving the group stores the rule above.
-						</Typography>
-					</Stack>
+					<AudienceMatchPreview
+						loading={previewLoading}
+						preview={matchPreview}
+						error={previewError}
+					/>
 				</>
 			)}
 		</Stack>
