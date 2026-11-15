@@ -3,10 +3,8 @@
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { FormikContext } from "formik";
-import type { FormikContextType } from "formik";
-import { useContext } from "react";
-import type { ReactElement } from "react";
+import { FormikContext, type FormikContextType } from "formik";
+import { type ReactElement, useContext } from "react";
 import { ComponentRenderer } from "../ComponentRenderer";
 import { useFeatures } from "../hooks/useFeatures";
 import type { RenderedElement } from "../types";
