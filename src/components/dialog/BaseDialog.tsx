@@ -1,25 +1,152 @@
 "use client";
 
-import Dialog from "@mui/material/Dialog";
-import DialogContent from "@mui/material/DialogContent";
-import Stack from "@mui/material/Stack";
-import { useTheme } from "@mui/material/styles";
-import useMediaQuery from "@mui/material/useMediaQuery";
 import { useTranslations } from "next-intl";
-import { type FC, useCallback, useEffect, useState } from "react";
+import type { DialogHTMLAttributes, FC, ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BaseDialogActions } from "./BaseDialogActions";
 import { BaseDialogHeader } from "./BaseDialogHeader";
 import { DialogDirtyProvider } from "./dialogDirtyContext";
 import type { DialogSize, IBaseDialogProps } from "./types";
 
-/** `fullScreen` maps to MUI's boolean; the rest are MUI `maxWidth` tiers. */
-const MAX_WIDTH: Record<
-	Exclude<DialogSize, "fullScreen">,
-	"sm" | "md" | "lg"
-> = {
-	sm: "sm",
-	md: "md",
-	lg: "lg",
+/** Tailwind max-width per size — shadcn's dialog scale. `fullScreen` owns the viewport instead. */
+const MAX_WIDTH: Record<Exclude<DialogSize, "fullScreen">, string> = {
+	sm: "max-w-lg",
+	md: "max-w-2xl",
+	lg: "max-w-5xl",
+};
+
+/** Tailwind's `sm` breakpoint: every DSL dialog is full-screen on a phone. */
+const PHONE_QUERY = "(max-width: 639.98px)";
+
+/**
+ * Native replacement for MUI's `useMediaQuery(theme.breakpoints.down("sm"))`.
+ * Starts `false` on the server and on the first client paint (the same
+ * hydration-safe default), then tracks the media query.
+ */
+const usePhoneLayout = (): boolean => {
+	const [isPhone, setIsPhone] = useState(false);
+
+	useEffect(() => {
+		if (typeof window === "undefined" || !window.matchMedia) return;
+		const query = window.matchMedia(PHONE_QUERY);
+		const update = () => setIsPhone(query.matches);
+		update();
+		if (typeof query.addEventListener !== "function") return;
+		query.addEventListener("change", update);
+		return () => query.removeEventListener("change", update);
+	}, []);
+
+	return isPhone;
+};
+
+// The dialog is the fixed, full-viewport overlay (its `::backdrop` is the
+// scrim); the panel inside it is the card. `bg-transparent` / `border-0` /
+// `p-0` strip the UA dialog chrome so only the panel paints.
+const DIALOG_BASE =
+	"fixed inset-0 z-50 m-0 h-full max-h-none w-full max-w-none border-0 bg-transparent p-0 text-foreground [&::backdrop]:bg-black/50";
+const DIALOG_CENTERED = `${DIALOG_BASE} open:flex items-center justify-center p-4`;
+
+interface INativeDialogProps {
+	open: boolean;
+	/** A close *request*: the dirty guard decides whether it really closes. */
+	onCloseRequest: () => void;
+	className: string;
+	ariaLabel?: string;
+	dialogProps?: DialogHTMLAttributes<HTMLDialogElement>;
+	children: ReactNode;
+}
+
+const openModal = (dialog: HTMLDialogElement) => {
+	// Already shown (StrictMode's double effect, or a re-render after open).
+	if (dialog.open) return;
+	if (typeof dialog.showModal !== "function") {
+		// jsdom / older engines do not implement the top layer.
+		dialog.setAttribute("open", "");
+		return;
+	}
+	try {
+		dialog.showModal();
+	} catch {
+		dialog.setAttribute("open", "");
+	}
+};
+
+const closeModal = (dialog: HTMLDialogElement) => {
+	if (!dialog.open) return;
+	if (typeof dialog.close === "function") dialog.close();
+	else dialog.removeAttribute("open");
+};
+
+/**
+ * Thin wrapper around the native `<dialog>`: React state drives
+ * `showModal()`/`close()`, Escape and a backdrop click are reported back as
+ * close requests instead of closing natively.
+ */
+const NativeDialog: FC<INativeDialogProps> = ({
+	open,
+	onCloseRequest,
+	className,
+	ariaLabel,
+	dialogProps,
+	children,
+}) => {
+	const dialogRef = useRef<HTMLDialogElement>(null);
+	const closeRequestRef = useRef(onCloseRequest);
+	closeRequestRef.current = onCloseRequest;
+
+	// `open` is the source of truth. The element itself stays mounted so a
+	// false transition can run `close()` and restore focus.
+	useEffect(() => {
+		const dialog = dialogRef.current;
+		if (!dialog) return;
+		if (open) openModal(dialog);
+		else closeModal(dialog);
+	}, [open]);
+
+	// Escape must never close the element behind React's back: prevent the
+	// native cancel and turn it into a close request (the dirty guard then
+	// decides). A backdrop click is the same request: because the dialog fills
+	// the viewport, a click whose target *is* the dialog came from the
+	// `::backdrop` area (clicks inside the panel target a child). Both are
+	// native listeners so the host's own `slotProps.dialog.onClick` is kept.
+	useEffect(() => {
+		const dialog = dialogRef.current;
+		if (!dialog) return;
+		const onCancel = (event: Event) => {
+			event.preventDefault();
+			closeRequestRef.current();
+		};
+		const onClick = (event: MouseEvent) => {
+			if (event.target === dialog) closeRequestRef.current();
+		};
+		dialog.addEventListener("cancel", onCancel);
+		dialog.addEventListener("click", onClick);
+		return () => {
+			dialog.removeEventListener("cancel", onCancel);
+			dialog.removeEventListener("click", onClick);
+		};
+	}, []);
+
+	const mergedClassName = dialogProps?.className
+		? `${className} ${dialogProps.className}`
+		: className;
+
+	return (
+		<dialog
+			{...dialogProps}
+			ref={dialogRef}
+			className={mergedClassName}
+			aria-label={ariaLabel ?? dialogProps?.["aria-label"]}
+		>
+			{/*
+			 * MUI's Dialog unmounted its content while closed (`keepMounted`
+			 * defaults to false), and callers rely on that: a closed dialog must
+			 * not keep a form (or a second dirty reporter) alive. The <dialog>
+			 * element itself stays mounted so `close()` can run and restore focus.
+			 */}
+			{open ? children : null}
+		</dialog>
+	);
 };
 
 export const BaseDialog: FC<IBaseDialogProps> = ({
@@ -33,16 +160,15 @@ export const BaseDialog: FC<IBaseDialogProps> = ({
 	disabled = false,
 	size = "sm",
 }) => {
-	// Every DSL dialog is full-screen on a phone (below MUI's `sm`) and a
-	// centred modal from `sm` up. A phone has no room for a 600px paper with
-	// a footer: the form scrolls behind a sticky header and a reachable footer.
-	const theme = useTheme();
-	const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
+	// Every DSL dialog is full-screen on a phone (below Tailwind's `sm`) and a
+	// centred modal from `sm` up. A phone has no room for a 600px panel with a
+	// footer: the form scrolls behind a sticky header and a reachable footer.
+	const phoneLayout = usePhoneLayout();
 	const t = useTranslations();
 
 	// ── Unsaved-changes guard (UX-7) ────────────────────────────
 	// Escape, a backdrop click and the header X are the same close request
-	// here (MUI reports the first two through `Dialog.onClose`). When the
+	// here (MUI reported the first two through `Dialog.onClose`). When the
 	// content reported unsaved edits, ask before dropping them.
 	const [dirty, setDirty] = useState(false);
 	const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -82,92 +208,90 @@ export const BaseDialog: FC<IBaseDialogProps> = ({
 		? t("common.discard")
 		: "Discard";
 
-	const fullScreenDialog = fullScreen || size === "fullScreen";
+	const fullScreenDialog = phoneLayout || size === "fullScreen";
+
+	const panelClassName = fullScreenDialog
+		? "flex h-[100dvh] max-h-none w-full max-w-none flex-col overflow-hidden rounded-none border-0 bg-background text-foreground"
+		: `flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-lg border border-border bg-background text-foreground shadow-lg ${MAX_WIDTH[size]}`;
 
 	return (
 		<DialogDirtyProvider onDirtyChange={setDirty}>
-			<Dialog
+			<NativeDialog
 				open={isOpen}
-				fullWidth
-				fullScreen={fullScreenDialog}
-				maxWidth={size === "fullScreen" ? "sm" : MAX_WIDTH[size]}
-				onClose={requestClose}
+				onCloseRequest={requestClose}
+				className={fullScreenDialog ? DIALOG_BASE : DIALOG_CENTERED}
+				ariaLabel={title}
+				dialogProps={slotProps?.dialog}
 			>
-				<BaseDialogHeader
-					title={title}
-					disabled={isPending}
-					onClose={requestClose}
-				/>
-				{/*
-				 * The content scrolls, the header and the actions stay put (CRM-23).
-				 * No `justify-center` on the child: a centred flex child that overflows
-				 * pushes its *top* out of reach, which is why a long form looked like it
-				 * "does not scroll" — the start of the form was simply un-scrollable.
-				 *
-				 * Full-screen: the content owns the remaining height instead of a
-				 * fixed 90vh cap, so the footer stays at the bottom of the screen.
-				 */}
-				<DialogContent
-					sx={{
-						minHeight: 96,
-						// Full-screen: the content owns the remaining height instead of
-						// a fixed 90vh cap, so the footer stays at the bottom of the
-						// screen. `sx` rather than Tailwind: the front's Tailwind build
-						// does not scan this package, so package-only utilities are dead.
-						...(fullScreenDialog ? { flex: 1 } : { maxHeight: "90vh" }),
-						overflowY: "auto",
-					}}
-				>
-					<Stack sx={{ flex: 1, width: "100%" }}>{children}</Stack>
-				</DialogContent>
-				<BaseDialogActions
-					disabled={disabled}
-					onClose={requestClose}
-					isPending={isPending}
-					onSubmit={onSubmit}
-					slotProps={{
-						closeButton: slotProps?.closeButton,
-						submitButton: slotProps?.submitButton,
-						submitNowButton: slotProps?.submitNowButton,
-					}}
-				/>
-			</Dialog>
+				<div className={panelClassName}>
+					<BaseDialogHeader
+						title={title}
+						disabled={isPending}
+						onClose={requestClose}
+					/>
+					{/*
+					 * The content scrolls, the header and the actions stay put (CRM-23).
+					 * No `justify-center` on the child: a centred flex child that overflows
+					 * pushes its *top* out of reach, which is why a long form looked like it
+					 * "does not scroll" — the start of the form was simply un-scrollable.
+					 *
+					 * Full-screen: the content owns the remaining height instead of a
+					 * fixed 90vh cap, so the footer stays at the bottom of the screen.
+					 */}
+					<div className="min-h-24 flex-1 overflow-y-auto px-6 pb-4 pt-2">
+						<div className="flex w-full flex-1 flex-col">{children}</div>
+					</div>
+					<BaseDialogActions
+						disabled={disabled}
+						onClose={requestClose}
+						isPending={isPending}
+						onSubmit={onSubmit}
+						slotProps={{
+							closeButton: slotProps?.closeButton,
+							submitButton: slotProps?.submitButton,
+							submitNowButton: slotProps?.submitNowButton,
+						}}
+					/>
+				</div>
+			</NativeDialog>
 
 			{/*
-			 * The guard itself. A plain Dialog (not a second BaseDialog) so it
+			 * The guard itself. A plain dialog (not a second BaseDialog) so it
 			 * never inherits this dialog's dirty state; it is only about one
 			 * decision.
 			 */}
-			<Dialog
+			<NativeDialog
 				open={confirmDiscard}
-				onClose={() => setConfirmDiscard(false)}
-				fullWidth
-				maxWidth="xs"
+				onCloseRequest={() => setConfirmDiscard(false)}
+				className={DIALOG_CENTERED}
+				ariaLabel={discardTitle}
 			>
-				<BaseDialogHeader
-					title={discardTitle}
-					onClose={() => setConfirmDiscard(false)}
-				/>
-				<DialogContent>
-					<Stack sx={{ width: "100%" }}>{discardMessage}</Stack>
-				</DialogContent>
-				<BaseDialogActions
-					onClose={() => setConfirmDiscard(false)}
-					onSubmit={discard}
-					slotProps={{
-						closeButton: {
-							props: {
-								children: t.has("common.cancel")
-									? t("common.cancel")
-									: "Cancel",
+				<div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-lg border border-border bg-background text-foreground shadow-lg">
+					<BaseDialogHeader
+						title={discardTitle}
+						onClose={() => setConfirmDiscard(false)}
+					/>
+					<div className="min-h-24 flex-1 overflow-y-auto px-6 pb-4 pt-2">
+						<p className="text-sm text-muted-foreground">{discardMessage}</p>
+					</div>
+					<BaseDialogActions
+						onClose={() => setConfirmDiscard(false)}
+						onSubmit={discard}
+						slotProps={{
+							closeButton: {
+								props: {
+									children: t.has("common.cancel")
+										? t("common.cancel")
+										: "Cancel",
+								},
 							},
-						},
-						submitButton: {
-							props: { children: discardAction, color: "error" as const },
-						},
-					}}
-				/>
-			</Dialog>
+							submitButton: {
+								props: { children: discardAction, color: "error" as const },
+							},
+						}}
+					/>
+				</div>
+			</NativeDialog>
 		</DialogDirtyProvider>
 	);
 };

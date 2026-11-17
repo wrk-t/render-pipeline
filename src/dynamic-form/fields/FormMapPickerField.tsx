@@ -11,7 +11,6 @@
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
-import { Box, Stack, Typography } from "@mui/material";
 import { useField, useFormikContext } from "formik";
 import type { Map as MapboxMap, Marker as MapboxMarker } from "mapbox-gl";
 import { type ReactElement, useEffect, useRef, useState } from "react";
@@ -167,36 +166,28 @@ export function FormMapPickerField({
 	}, [lat, lng]);
 
 	return (
-		<Stack spacing={0.5}>
-			<Typography variant="body1" component="label" className="font-medium">
+		<div className="flex flex-col gap-1.5">
+			<span className="block text-sm font-medium text-foreground">
 				{field.label}
-				{field.isRequired && <span className="text-error ml-0.5">*</span>}
-			</Typography>
+				{field.isRequired && (
+					<span aria-hidden="true" className="ms-0.5 text-destructive">
+						*
+					</span>
+				)}
+			</span>
 
-			<Box
+			<div
 				ref={containerRef}
-				sx={{
-					width: "100%",
-					height: 320,
-					borderRadius: 1,
-					overflow: "hidden",
-					border: "1px solid",
-					borderColor: "divider",
-					bgcolor: "action.hover",
-				}}
+				className="h-80 w-full overflow-hidden rounded-lg border border-border bg-muted"
 			/>
 
-			<Typography variant="caption" color="text.secondary">
+			<p className="text-xs text-muted-foreground">
 				{lat !== null && lng !== null
 					? `${lat.toFixed(6)}, ${lng.toFixed(6)}`
 					: "Click the map to set the location."}
-			</Typography>
+			</p>
 
-			{error && (
-				<Typography variant="caption" color="error">
-					{error}
-				</Typography>
-			)}
-		</Stack>
+			{error && <p className="text-xs text-destructive">{error}</p>}
+		</div>
 	);
 }

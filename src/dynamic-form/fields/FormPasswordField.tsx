@@ -4,10 +4,9 @@
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
-import { Stack, Typography } from "@mui/material";
 import { useField } from "formik";
-import type { ReactElement } from "react";
-import { PasswordTextField } from "../../components/form/formFields";
+import { type ReactElement, useId, useState } from "react";
+import { Unicon } from "../../components/common/icon/Unicon";
 import type { PasswordField } from "../types";
 
 export function FormPasswordField({
@@ -15,29 +14,75 @@ export function FormPasswordField({
 }: {
 	field: PasswordField;
 }): ReactElement {
-	const [, meta] = useField(field.name);
-	const hasValue = meta.value !== undefined && meta.value !== "";
+	const [formikField, meta] = useField(field.name);
+	const [show, setShow] = useState(false);
+	const inputId = useId();
+	const errorId = `${inputId}-error`;
+	const descriptionId = `${inputId}-description`;
+	const isError = Boolean(meta.touched && meta.error);
+	const description = field.fieldOverrides?.description;
+	const describedBy =
+		[isError ? errorId : undefined, description ? descriptionId : undefined]
+			.filter(Boolean)
+			.join(" ") || undefined;
+
+	// Toggle once per click; the mousedown preventDefault keeps focus (and the
+	// caret) in the input instead of moving it to the button.
+	const toggleVisibility = () => setShow((previous) => !previous);
 
 	return (
-		<Stack spacing={0.2}>
-			<PasswordTextField
-				name={field.name}
-				label={field.label}
-				placeholder={field.uiOverrides.behavior?.placeholder}
-				autoComplete={field.uiOverrides.behavior?.autoComplete}
-				required={field.isRequired}
-				disabled={field.isReadOnly}
-				slotProps={{
-					inputLabel: {
-						shrink: hasValue || undefined,
-					},
-				}}
-			/>
-			{field.fieldOverrides?.description ? (
-				<Typography variant="caption" color="text.secondary" className="pl-3">
-					{field.fieldOverrides.description}
-				</Typography>
+		<div className="flex flex-col gap-2">
+			<label
+				htmlFor={inputId}
+				className={`text-sm font-medium leading-none ${
+					isError ? "text-destructive" : "text-foreground"
+				}`}
+			>
+				{field.label}
+				{field.isRequired ? (
+					<span aria-hidden="true" className="ms-0.5 text-destructive">
+						*
+					</span>
+				) : null}
+			</label>
+			<div className="relative">
+				<input
+					{...formikField}
+					value={formikField.value ?? ""}
+					id={inputId}
+					type={show ? "text" : "password"}
+					placeholder={field.uiOverrides.behavior?.placeholder}
+					autoComplete={field.uiOverrides.behavior?.autoComplete}
+					required={field.isRequired}
+					disabled={field.isReadOnly}
+					aria-invalid={isError || undefined}
+					aria-describedby={describedBy}
+					className={`flex h-9 w-full rounded-md border bg-transparent ps-3 pe-10 py-1 text-sm text-start shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+						isError
+							? "border-destructive focus-visible:ring-destructive/20"
+							: "border-input"
+					}`}
+				/>
+				<button
+					type="button"
+					onClick={toggleVisibility}
+					onMouseDown={(event) => event.preventDefault()}
+					aria-label={show ? "Hide password" : "Show password"}
+					className="absolute end-1 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+				>
+					<Unicon name={show ? "Visibility" : "VisibilityOff"} size={18} />
+				</button>
+			</div>
+			{isError ? (
+				<p id={errorId} className="text-sm text-destructive">
+					{meta.error}
+				</p>
 			) : null}
-		</Stack>
+			{description ? (
+				<p id={descriptionId} className="text-sm text-muted-foreground">
+					{description}
+				</p>
+			) : null}
+		</div>
 	);
 }

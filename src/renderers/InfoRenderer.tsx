@@ -1,8 +1,5 @@
 "use client";
 
-import Box from "@mui/material/Box";
-import CircularProgress from "@mui/material/CircularProgress";
-import Typography from "@mui/material/Typography";
 import { type ReactElement, useMemo } from "react";
 import useSWR from "swr";
 import { ComponentRenderer } from "../ComponentRenderer";
@@ -85,8 +82,7 @@ function formatInfoValue(
 	};
 
 	if (Array.isArray(value)) {
-		const referenceList =
-			el.type === "reference" || formatType === "reference";
+		const referenceList = el.type === "reference" || formatType === "reference";
 		const referenceProps = {
 			...formatProps,
 			options: formatProps.options ?? options,
@@ -267,32 +263,27 @@ export function InfoRenderer({
 
 	if (isLoading) {
 		return (
-			<Box className="flex items-center justify-center py-8">
-				<CircularProgress />
-			</Box>
+			<div className="flex items-center justify-center py-8">
+				<span
+					role="status"
+					aria-label="Loading"
+					className="size-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary"
+				/>
+			</div>
 		);
 	}
 
 	if (error || !recordData) {
-		return (
-			<Typography variant="body2" color="error">
-				Failed to load data.
-			</Typography>
-		);
+		return <p className="text-sm text-destructive">Failed to load data.</p>;
 	}
 
 	return (
-		<Box className="rounded-lg border border-solid border-gray-200 bg-white p-6">
+		<div className="rounded-lg border border-border bg-card p-6 text-card-foreground shadow-sm">
 			{component.displayName && (
-				// The margin lives on a plain wrapper, not on the Typography:
-				// MUI's own stylesheet sets `margin: 0` on every Typography, and
-				// Tailwind v4 utilities sit in a cascade layer — an unlayered MUI
-				// rule always wins, so `mb-5` on the Typography did nothing and the
-				// title collided with the fields.
-				<div className="mb-5">
-					<Typography variant="h6" className="font-semibold">
+				<div className="mb-4">
+					<h2 className="text-start text-lg font-semibold tracking-tight text-foreground">
 						{component.displayName}
-					</Typography>
+					</h2>
 				</div>
 			)}
 			<div className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2 lg:grid-cols-3">
@@ -336,33 +327,26 @@ export function InfoRenderer({
 					return (
 						<div
 							key={el.id}
-							// The label→value gap is the cell's own flex gap: a Tailwind
-							// margin on the value Typography would lose to MUI's reset,
-							// exactly like the heading margin above.
 							className={`flex flex-col gap-1${
 								fullWidth ? " col-span-full" : ""
 							}`}
 						>
-							<Typography
-								variant="caption"
-								className="block font-semibold uppercase tracking-wide text-gray-500"
-							>
+							<span className="block text-start text-sm font-medium text-muted-foreground">
 								{displayName}
-							</Typography>
-							<Typography
-								variant="body1"
-								className={
+							</span>
+							<p
+								className={`text-start text-sm text-foreground${
 									formatted.multiline
-										? "whitespace-pre-wrap break-words"
-										: "break-words"
-								}
+										? " whitespace-pre-wrap break-words"
+										: " break-words"
+								}`}
 							>
 								{formatted.text}
-							</Typography>
+							</p>
 						</div>
 					);
 				})}
 			</div>
-		</Box>
+		</div>
 	);
 }

@@ -13,13 +13,6 @@
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
-import Alert from "@mui/material/Alert";
-import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
-import CircularProgress from "@mui/material/CircularProgress";
-import Paper from "@mui/material/Paper";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
 import { type ReactElement, useMemo } from "react";
 import useSWR from "swr";
 import { LocalMonacoEditor } from "../components/common/LocalMonacoEditor";
@@ -101,70 +94,75 @@ export function AuditHistoryRenderer({
 
 	if (isLoading) {
 		return (
-			<Box className="flex items-center justify-center py-8">
-				<CircularProgress />
-			</Box>
+			<div className="flex items-center justify-center py-8">
+				<span
+					role="status"
+					aria-label="Loading"
+					className="h-10 w-10 animate-spin rounded-full border-2 border-muted border-t-primary"
+				/>
+			</div>
 		);
 	}
 
 	if (error) {
 		return (
-			<Alert severity="error">
+			<div
+				role="alert"
+				className="rounded-lg border border-error-main/40 bg-error-main/10 px-4 py-3 text-start text-sm text-error-main"
+			>
 				Failed to load audit history
 				{config?.resource || config?.resourceId
 					? ` for ${config.resource}/${config.resourceId}`
 					: ""}
 				.
-			</Alert>
+			</div>
 		);
 	}
 
 	if (entries.length === 0) {
 		return (
-			<Alert severity="info">
+			<div
+				role="status"
+				className="rounded-lg border border-border bg-muted px-4 py-3 text-start text-sm text-muted-foreground"
+			>
 				{config?.emptyMessage ?? "No changes recorded for this resource."}
-			</Alert>
+			</div>
 		);
 	}
 
 	return (
-		<Stack spacing={2}>
+		<div className="flex flex-col gap-4">
 			{entries.map((entry) => {
 				const payload = entry.data ?? entry.changes ?? {};
 				const actor = entry.user?.email ?? entry.userDisplayName ?? "\u2014";
 
 				return (
-					<Paper
+					<article
 						key={String(entry.id)}
-						variant="outlined"
-						className="overflow-hidden"
-						sx={{ borderColor: "divider" }}
+						className="overflow-hidden rounded-lg border border-border bg-card"
 					>
 						{/* Change header: action + resource (+ feed summary) */}
-						<Box className="flex items-center justify-between gap-2 border-b border-divider px-3 py-2">
-							<Stack direction="row" spacing={1} className="items-center">
+						<header className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+							<div className="flex min-w-0 items-center gap-2">
 								{entry.action && (
-									<Chip
-										label={entry.action}
-										size="small"
-										color="primary"
-										variant="outlined"
-									/>
+									<span className="inline-flex shrink-0 items-center rounded-full border border-primary/50 px-2 py-0.5 text-xs text-primary">
+										{entry.action}
+									</span>
 								)}
 								{entry.resource && (
-									<Typography variant="caption" color="textSecondary">
+									<span className="truncate text-xs text-muted-foreground">
 										{entry.resource}
-									</Typography>
+									</span>
 								)}
-							</Stack>
+							</div>
 							{entry.summary && (
-								<Typography variant="caption" className="!font-medium">
+								<span className="text-end text-xs font-medium text-foreground">
 									{entry.summary}
-								</Typography>
+								</span>
 							)}
-						</Box>
+						</header>
 						{/* Change payload in Monaco */}
-						<Box sx={{ height: 220 }}>
+						<div className="h-[220px]">
 							<LocalMonacoEditor
 								height="220px"
 								defaultLanguage="json"
@@ -172,19 +170,19 @@ export function AuditHistoryRenderer({
 								theme="vs"
 								options={EDITOR_OPTIONS}
 							/>
-						</Box>
+						</div>
 						{/* Change date + acting user */}
-						<Box className="flex items-center justify-between gap-2 px-3 py-2">
-							<Typography variant="caption" color="textSecondary">
+						<footer className="flex items-center justify-between gap-2 px-3 py-2">
+							<span className="text-xs text-muted-foreground">
 								{entry.createdAt ? formatTimestamp(entry.createdAt) : "\u2014"}
-							</Typography>
-							<Typography variant="caption" className="!font-medium">
+							</span>
+							<span className="text-xs font-medium text-foreground">
 								{actor}
-							</Typography>
-						</Box>
-					</Paper>
+							</span>
+						</footer>
+					</article>
 				);
 			})}
-		</Stack>
+		</div>
 	);
 }

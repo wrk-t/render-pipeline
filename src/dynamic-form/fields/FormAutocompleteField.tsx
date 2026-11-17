@@ -7,24 +7,25 @@
 // datasources), the component fetches options dynamically as the
 // user types, with debounce and minimum character thresholds.
 //
+// The control is a small custom combobox (text input + listbox) so
+// the package stays free of UI-kit imports: Up/Down move the active
+// option, Enter selects it, Escape closes the list.
+//
 // Like FormReferenceField, only the option **value** (e.g. the
 // entity ID) is stored in Formik, keeping form values clean.
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
-import { Box, Stack, Typography } from "@mui/material";
-import Autocomplete from "@mui/material/Autocomplete";
-import TextField from "@mui/material/TextField";
 import { useField, useFormikContext } from "formik";
-	import {
-		type ReactElement,
-		type SyntheticEvent,
-		useCallback,
-		useEffect,
-		useMemo,
-		useRef,
-		useState,
-	} from "react";
+import {
+	type KeyboardEvent,
+	type ReactElement,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import useSWR from "swr";
 import { getApiClient } from "../../deps";
 import { fieldAccessibleName } from "../fieldHelpers";
@@ -86,6 +87,12 @@ function toSelectOption(item: unknown, entityMeta?: EntityMeta): SelectOption {
 	};
 }
 
+const INPUT_CLASS =
+	"flex h-9 w-full rounded-md border bg-transparent ps-3 py-1 text-sm text-start shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+
+const LISTBOX_CLASS =
+	"absolute start-0 top-full z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md";
+
 // ─────────────────────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────────────────────
@@ -120,25 +127,25 @@ export function FormAutocompleteField({
 	const entityMeta = serviceDs?.entityMeta;
 
 	// ── Search state ────────────────────────────────────────────
-	// The MUI input is UNCONTROLLED (no inputValue prop) — controlling it
-	// fights the user's typing (programmatic "reset" syncs wipe keystrokes).
-	// We only track the text via onInputChange to drive the server search.
+	// Typing is debounced into the server-side `search` term; the input
+	// text itself is the combobox's visible value.
 	const [search, setSearch] = useState<string | null>(null);
+	const [inputValue, setInputValue] = useState("");
+	const [open, setOpen] = useState(false);
+	const [highlightedIndex, setHighlightedIndex] = useState(-1);
+	const listRef = useRef<HTMLDivElement | null>(null);
 	const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const debounceMs = field.uiOverrides.behavior?.debounce ?? 300;
 	const minChars = field.uiOverrides.behavior?.minChars ?? 2;
 
-	// Debounce user input → trigger search. Only real typing (reason
-	// "input") searches — MUI fires onInputChange with "reset"/"clear"
-	// when it syncs the input to the selected option's label; treating
-	// those as searches would fire a request for the full label (which
-	// never matches) and oscillate forever.
 	const handleInputChange = useCallback(
-		(_event: SyntheticEvent, value: string, reason: string) => {
-			if (reason !== "input") return;
+		(next: string) => {
+			setInputValue(next);
+			setOpen(true);
+			setHighlightedIndex(-1);
 			if (debounceRef.current) clearTimeout(debounceRef.current);
 			debounceRef.current = setTimeout(() => {
-				setSearch(value.length >= minChars ? value : null);
+				setSearch(next.length >= minChars ? next : null);
 			}, debounceMs);
 		},
 		[debounceMs, minChars],
@@ -156,8 +163,8 @@ export function FormAutocompleteField({
 	// ── Fetch options when serviceDs is present ─────────────────
 	// keepPreviousData: during a search the key changes and the new key
 	// has no cached rows — without it `options` briefly empties, the
-	// selected option disappears and MUI snaps the input back to the
-	// value's label mid-typing.
+	// selected option disappears and the input snaps back to the value's
+	// label mid-typing.
 	const { data: serviceData, isLoading: serviceLoading } = useSWR(
 		swrKey,
 		async () => {
@@ -223,10 +230,9 @@ export function FormAutocompleteField({
 	);
 
 	// ── Selected option — a STABLE reference for the current value ──
-	// Deriving it from the live options list would hand MUI a NEW `value`
-	// object on every re-render (the mapped options are fresh each time);
-	// MUI treats any `value` reference change as a value change and resets
-	// the input to the option's label — wiping keystrokes mid-edit.
+	// Deriving it from the live options list on every render would hand the
+	// sync effect a NEW object each time and reset the input to the option's
+	// label — wiping keystrokes mid-edit.
 	const [selectedOption, setSelectedOption] = useState<SelectOption | null>(
 		null,
 	);
@@ -248,6 +254,12 @@ export function FormAutocompleteField({
 			if (match) setSelectedOption(match);
 		}
 	}, [value, options, selectedOption]);
+
+	// The visible text follows the selection whenever it changes from
+	// outside (form reset, preset value, async options arriving).
+	useEffect(() => {
+		setInputValue(selectedOption?.label ?? "");
+	}, [selectedOption]);
 
 	/**
 	 * "Use this template": copy the picked row's content into the form
@@ -291,93 +303,234 @@ export function FormAutocompleteField({
 	};
 
 	// ── Handle selection — store only the value ────────────────
-	// UX-9 — name the control explicitly: a seed field with no displayName
-	// otherwise reaches the input unnamed (a CUID or nothing at all).
 	const accessibleName = fieldAccessibleName(field);
-	const handleChange = (
-		_event: SyntheticEvent,
-		option: SelectOption | null,
-	): void => {
-		setValue(option ? (option.value as string | number) : null);
-		if (option && entityMeta?.copyFields) copyFromRow(option.raw);
+
+	const choose = (option: SelectOption): void => {
+		setValue(option.value as string | number);
+		setSelectedOption(option);
+		setInputValue(option.label);
+		setOpen(false);
+		setHighlightedIndex(-1);
+		if (entityMeta?.copyFields) copyFromRow(option.raw);
 		// Delay touched to let Formik process the value change first
 		setTimeout(() => setTouched(true), 0);
 	};
 
-	return (
-		<Stack spacing={0.2}>
-			<Autocomplete<SelectOption, false, false, false>
-				value={selectedOption}
-				onChange={handleChange}
-				onInputChange={handleInputChange}
-				options={options}
-				getOptionLabel={(opt: SelectOption) => opt.label}
-				isOptionEqualToValue={(opt: SelectOption, val: SelectOption) =>
-					opt.value === val.value
-				}
-				loading={serviceLoading}
-				loadingText="Searching..."
-				noOptionsText={
-					search && search.length >= minChars
-						? "No results found"
-						: `Type at least ${minChars} characters to search`
-				}
-				filterOptions={(x) => x} // server-side filtering, no client filter
-				renderOption={(props, option) => {
-					// Split layout: display field left, value (e.g. id) right.
-					const raw = (option as SelectOption).raw;
-					if (entityMeta?.splitLabel && raw) {
-						const left = String(
-							raw[entityMeta.displayField] ?? raw.displayName ?? option.label,
-						);
-						const right = String(raw[entityMeta.valueField] ?? raw.id ?? "");
-						return (
-							<li {...props}>
-								<Box
-									sx={{
-										display: "flex",
-										justifyContent: "space-between",
-										alignItems: "center",
-										width: "100%",
-										gap: 2,
-									}}
-								>
-									<span>{left}</span>
-									<span className="text-sm opacity-60">{right}</span>
-								</Box>
-							</li>
-						);
-					}
-					return <li {...props}>{option.label}</li>;
-				}}
-				renderInput={(params) => (
-					<TextField
-						{...params}
-						name={field.name}
-						slotProps={{
-							...params.slotProps,
-							htmlInput: {
-								...params.slotProps.htmlInput,
-								"aria-label": accessibleName,
-							},
-						}}
-						label={field.label}
-						placeholder={field.uiOverrides.behavior?.placeholder ?? "Search..."}
-						error={meta.touched && Boolean(meta.error)}
-						helperText={meta.touched ? meta.error : undefined}
-						required={field.isRequired}
-					/>
-				)}
-				disabled={field.isReadOnly}
-				fullWidth
-			/>
+	const clearSelection = (): void => {
+		setValue(null);
+		setSelectedOption(null);
+		setInputValue("");
+		setOpen(false);
+		setHighlightedIndex(-1);
+		setTimeout(() => setTouched(true), 0);
+	};
 
-			{field.fieldOverrides?.description ? (
-				<Typography variant="caption" color="text.secondary" className="pl-3">
-					{field.fieldOverrides.description}
-				</Typography>
+	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
+		if (event.key === "ArrowDown") {
+			event.preventDefault();
+			if (!open) {
+				setOpen(true);
+				setHighlightedIndex(options.length > 0 ? 0 : -1);
+				return;
+			}
+			setHighlightedIndex((index) =>
+				options.length === 0 ? -1 : Math.min(index + 1, options.length - 1),
+			);
+			return;
+		}
+		if (event.key === "ArrowUp") {
+			event.preventDefault();
+			if (!open) {
+				setOpen(true);
+				setHighlightedIndex(options.length > 0 ? options.length - 1 : -1);
+				return;
+			}
+			setHighlightedIndex((index) => (index <= 0 ? 0 : index - 1));
+			return;
+		}
+		if (event.key === "Escape") {
+			if (!open) return;
+			event.preventDefault();
+			setOpen(false);
+			setHighlightedIndex(-1);
+			return;
+		}
+		if (event.key !== "Enter") return;
+		if (!open || highlightedIndex < 0) return;
+		const option = options[highlightedIndex];
+		if (!option) return;
+		event.preventDefault();
+		choose(option);
+	};
+
+	// Keep the keyboard-active option visible inside the scrollable listbox.
+	useEffect(() => {
+		if (!open || highlightedIndex < 0) return;
+		const active = listRef.current?.querySelector<HTMLElement>(
+			'[data-active="true"]',
+		);
+		active?.scrollIntoView({ block: "nearest" });
+	}, [open, highlightedIndex]);
+
+	const isError = Boolean(meta.touched && meta.error);
+	const hasValue = value !== null && value !== undefined && value !== "";
+	// UX-9 — name the control explicitly: a seed field with no displayName
+	// otherwise reaches the input unnamed (a CUID or nothing at all).
+	const inputId = `field-autocomplete-${field.name}`;
+	const listboxId = `${inputId}-listbox`;
+	const placeholder = field.uiOverrides.behavior?.placeholder ?? "Search...";
+	const noOptionsText =
+		search && search.length >= minChars
+			? "No results found"
+			: `Type at least ${minChars} characters to search`;
+
+	return (
+		<div className="flex flex-col gap-2">
+			<label
+				htmlFor={inputId}
+				className={`text-sm font-medium leading-none ${
+					isError ? "text-destructive" : "text-foreground"
+				}`}
+			>
+				{field.label}
+				{field.isRequired ? (
+					<span className="text-destructive" aria-hidden="true">
+						{" "}
+						*
+					</span>
+				) : null}
+			</label>
+			<div className="relative">
+				<input
+					id={inputId}
+					name={field.name}
+					type="text"
+					role="combobox"
+					autoComplete="off"
+					aria-label={accessibleName}
+					aria-expanded={open}
+					aria-controls={listboxId}
+					aria-autocomplete="list"
+					aria-activedescendant={
+						open && highlightedIndex >= 0
+							? `${inputId}-option-${highlightedIndex}`
+							: undefined
+					}
+					aria-invalid={isError || undefined}
+					aria-required={field.isRequired || undefined}
+					value={inputValue}
+					placeholder={placeholder}
+					disabled={field.isReadOnly}
+					onChange={(event) => handleInputChange(event.target.value)}
+					onFocus={() => setOpen(true)}
+					onBlur={() => {
+						setOpen(false);
+						setHighlightedIndex(-1);
+						setInputValue(selectedOption?.label ?? "");
+					}}
+					onKeyDown={handleKeyDown}
+					className={[
+						INPUT_CLASS,
+						hasValue ? "pe-9" : "pe-3",
+						isError
+							? "border-destructive focus-visible:ring-destructive/20"
+							: "border-input",
+					].join(" ")}
+				/>
+				{hasValue && !field.isReadOnly ? (
+					<button
+						type="button"
+						aria-label="Clear selection"
+						onMouseDown={(event) => event.preventDefault()}
+						onClick={clearSelection}
+						className="absolute end-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+					>
+						<span aria-hidden="true">×</span>
+					</button>
+				) : null}
+				{open ? (
+					<div
+						ref={listRef}
+						id={listboxId}
+						role="listbox"
+						aria-label={accessibleName}
+						className={LISTBOX_CLASS}
+					>
+						{serviceLoading ? (
+							<div className="px-2 py-1.5 text-sm text-muted-foreground">
+								Searching...
+							</div>
+						) : options.length === 0 ? (
+							<div className="px-2 py-1.5 text-sm text-muted-foreground">
+								{noOptionsText}
+							</div>
+						) : (
+							options.map((option, index) => {
+								const isSelected = option.value === value;
+								return (
+									<div
+										key={String(option.value)}
+										id={`${inputId}-option-${index}`}
+										role="option"
+										tabIndex={-1}
+										aria-selected={isSelected}
+										data-active={index === highlightedIndex || undefined}
+										onMouseDown={(event) => {
+											// Keep the input focused so the click is a selection,
+											// not a blur that closes the list first.
+											event.preventDefault();
+										}}
+										onClick={() => choose(option)}
+										onKeyDown={(event) => {
+											if (event.key !== "Enter" && event.key !== " ") return;
+											event.preventDefault();
+											choose(option);
+										}}
+										onMouseEnter={() => setHighlightedIndex(index)}
+										className={[
+											"cursor-pointer rounded-sm px-2 py-1.5 text-start text-sm",
+											index === highlightedIndex
+												? "bg-accent text-accent-foreground"
+												: "",
+											isSelected ? "font-medium" : "",
+										].join(" ")}
+									>
+										{entityMeta?.splitLabel && option.raw ? (
+											<span className="flex w-full items-center justify-between gap-2">
+												<span>
+													{String(
+														option.raw[entityMeta.displayField] ??
+															option.raw.displayName ??
+															option.label,
+													)}
+												</span>
+												<span className="text-xs text-muted-foreground">
+													{String(
+														option.raw[entityMeta.valueField] ??
+															option.raw.id ??
+															"",
+													)}
+												</span>
+											</span>
+										) : (
+											option.label
+										)}
+									</div>
+								);
+							})
+						)}
+					</div>
+				) : null}
+			</div>
+			{isError ? (
+				<p className="text-sm text-destructive">{meta.error}</p>
 			) : null}
-		</Stack>
+			{field.fieldOverrides?.description ? (
+				<p className="text-sm text-muted-foreground">
+					{field.fieldOverrides.description}
+				</p>
+			) : null}
+		</div>
 	);
 }
 

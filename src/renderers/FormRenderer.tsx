@@ -1,11 +1,5 @@
 "use client";
 
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
-import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
 import { AxiosError } from "axios";
 import {
 	Form,
@@ -202,8 +196,9 @@ function missingRequiredLabels(
  *
  * Validation used to paint the field red somewhere off-screen (dialog bodies
  * scroll); the user saw nothing happen. The lookup is deliberately generic:
- * by input `name`, then by id, then by MUI's label association, so it works
- * for text inputs, selects and pickers without each field component opting in.
+ * by input `name`, then by id, then its `aria-labelledby` association, then the
+ * label's text — shadcn fields are plain wrappers, not Material form controls,
+ * so the control itself is the scroll target.
  */
 function focusInvalidField(
 	root: ParentNode,
@@ -219,19 +214,12 @@ function focusInvalidField(
 	const labelEl = Array.from(root.querySelectorAll("label")).find((element) =>
 		(element.textContent ?? "").trim().startsWith(label),
 	);
-	const control =
-		byName?.closest<HTMLElement>(".MuiFormControl-root") ??
-		byId?.closest<HTMLElement>(".MuiFormControl-root") ??
-		byLabel?.closest<HTMLElement>(".MuiFormControl-root") ??
-		labelEl?.closest<HTMLElement>(".MuiFormControl-root");
+	const control = byName ?? byId ?? byLabel ?? labelEl ?? null;
 	const focusable =
 		control?.querySelector<HTMLElement>(
 			"[role=combobox], input:not([aria-hidden=true]), textarea, select, button",
-		) ??
-		byName ??
-		byId ??
-		byLabel;
-	(control ?? focusable)?.scrollIntoView({
+		) ?? control;
+	control?.scrollIntoView({
 		behavior: "smooth",
 		block: "center",
 	});
@@ -319,7 +307,7 @@ function FormSideEffects({
 // ──────────────────────────────────────────────────────────────────
 // MarkTouchedOnSubmit — reveal field errors after a submit attempt.
 //
-// The Formik MUI fields only render `helperText` when `touched[name]` is
+// The Formik fields only render their error message when `touched[name]` is
 // true. Formik does not mark fields touched on submit, so submitting an
 // untouched empty form validated (and blocked the POST) but showed no
 // message at all. Once the first submit is attempted, mark every field
@@ -423,11 +411,7 @@ function MissingFieldsHint({
 		? t("menuBuilder.missing", { fields: list })
 		: `Still needed: ${list}`;
 
-	return (
-		<Typography variant="caption" color="text.secondary">
-			{message}
-		</Typography>
-	);
+	return <p className="text-sm text-muted-foreground">{message}</p>;
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -1195,13 +1179,11 @@ export function FormRenderer({
 
 	if (hasNoFields) {
 		return (
-			<Box>
+			<div>
 				{!onFormReady && component.displayName && (
-					// `sx` for the same reason as the header above: Tailwind
-					// classes in this package never reach the stylesheet.
-					<Typography variant="h5" sx={{ mb: 2, fontWeight: 700 }}>
+					<h2 className="mb-4 text-2xl font-semibold tracking-tight text-foreground">
 						{component.displayName}
-					</Typography>
+					</h2>
 				)}
 				{/* Render non-field content (tables, state-context, etc.) */}
 				{contentElements
@@ -1211,16 +1193,16 @@ export function FormRenderer({
 					)
 					.sort((a, b) => a.displayOrder - b.displayOrder)
 					.map((el) => (
-						<Box key={el.id}>
+						<div key={el.id}>
 							<ComponentRenderer
 								component={el.referencedComponent!}
 								pathParams={pathParams}
 								paramBindings={el.paramBindings}
 								context={context}
 							/>
-						</Box>
+						</div>
 					))}
-			</Box>
+			</div>
 		);
 	}
 
@@ -1271,25 +1253,16 @@ export function FormRenderer({
 							<DialogDirtyReporter />
 							<FocusFirstError fields={allFields} />
 							{!onFormReady && component.displayName && (
-								// Spacing is `sx`, not Tailwind: this package is built to
-								// `dist/` and imported from node_modules, which Tailwind
-								// does not scan — `className="mb-6"` here compiles to
-								// nothing, which left the description sitting on the
-								// first field's floating label.
-								<Box sx={{ mb: 3 }}>
-									<Typography variant="h5" sx={{ fontWeight: 700 }}>
+								<div className="mb-6">
+									<h2 className="text-2xl font-semibold tracking-tight text-foreground">
 										{component.displayName}
-									</Typography>
+									</h2>
 									{component.description && (
-										<Typography
-											variant="body2"
-											color="text.secondary"
-											sx={{ mt: 0.5 }}
-										>
+										<p className="mt-1 text-sm text-muted-foreground">
 											{component.description}
-										</Typography>
+										</p>
 									)}
-								</Box>
+								</div>
 							)}
 
 							{/* Render all content elements through ComponentRenderer.
@@ -1298,7 +1271,7 @@ export function FormRenderer({
 							    the gap belongs to the form, not to each section. It is
 							    wider than a section's inner spacing (3) so a title reads
 							    as a new group, not as another field. */}
-							<Stack spacing={4}>
+							<div className="flex flex-col gap-8">
 								{contentElements
 									.filter(
 										(el) =>
@@ -1309,16 +1282,16 @@ export function FormRenderer({
 									)
 									.sort((a, b) => a.displayOrder - b.displayOrder)
 									.map((el) => (
-										<Box key={el.id}>
+										<div key={el.id}>
 											<ComponentRenderer
 												component={el.referencedComponent!}
 												pathParams={pathParams}
 												paramBindings={el.paramBindings}
 												context={context}
 											/>
-										</Box>
+										</div>
 									))}
-							</Stack>
+							</div>
 
 							{/* Actions slot — rendered from the metadata tree
 	                (Button/Link components via their own renderers). Only the
@@ -1326,11 +1299,7 @@ export function FormRenderer({
 	                both (CRM-28). */}
 							{!onFormReady &&
 								(actionButtons.length > 0 || showFallbackSubmit) && (
-									<Stack
-										direction="row"
-										spacing={2}
-										sx={{ mt: 3, alignItems: "center", flexWrap: "wrap" }}
-									>
+									<div className="mt-6 flex flex-wrap items-center gap-2">
 										{actionButtons.map((el) => (
 											<ComponentRenderer
 												key={el.id}
@@ -1341,19 +1310,23 @@ export function FormRenderer({
 											/>
 										))}
 										{showFallbackSubmit && (
-											<Button
+											<button
 												type="submit"
-												variant="contained"
 												disabled={isSubmitting}
+												className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-transparent bg-primary px-4 text-sm font-medium whitespace-nowrap text-primary-foreground transition-colors outline-none select-none hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
 											>
 												{isSubmitting ? (
-													<CircularProgress size={20} color="inherit" />
+													<span
+														role="status"
+														aria-label="Loading"
+														className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+													/>
 												) : (
 													submitLabel
 												)}
-											</Button>
+											</button>
 										)}
-									</Stack>
+									</div>
 								)}
 							<MissingFieldsHint fields={allFields} />
 						</Form>
@@ -1379,24 +1352,34 @@ export function FormRenderer({
 									},
 								}}
 							>
-								<Typography component="div" className="leading-7">
+								<div className="text-sm leading-6 text-muted-foreground">
 									<ConfirmPrompt
 										message={pendingSend.message}
 										title={pendingSend.title}
 									/>
-								</Typography>
-								<TextField
-									fullWidth
-									autoFocus
-									className="mt-4"
-									label="Type the title to confirm"
-									value={sendTyped}
-									onChange={(event) => setSendTyped(event.target.value)}
-									error={
-										sendTyped.length > 0 &&
-										sendTyped.trim() !== pendingSend.title
-									}
-								/>
+								</div>
+								<label className="mt-4 block">
+									<span className="mb-2 block text-sm leading-none font-medium text-foreground">
+										Type the title to confirm
+									</span>
+									<input
+										autoFocus
+										aria-invalid={
+											sendTyped.length > 0 &&
+											sendTyped.trim() !== pendingSend.title
+												? true
+												: undefined
+										}
+										className={`h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-sm text-foreground shadow-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-offset-2 ${
+											sendTyped.length > 0 &&
+											sendTyped.trim() !== pendingSend.title
+												? "border-destructive focus-visible:ring-destructive/20"
+												: "border-input focus-visible:ring-ring"
+										}`}
+										value={sendTyped}
+										onChange={(event) => setSendTyped(event.target.value)}
+									/>
+								</label>
 							</BaseDialog>
 						)}
 					</>

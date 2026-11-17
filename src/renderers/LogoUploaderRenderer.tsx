@@ -16,11 +16,6 @@
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
 import { useCallback, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { Unicon } from "../components/common/icon/Unicon";
@@ -96,6 +91,9 @@ export function LogoUploaderRenderer({
 			: "";
 
 	const isCircle = shape === "circle";
+	const shapeClasses = isCircle
+		? "h-24 w-24 rounded-full"
+		: "h-24 w-32 rounded-lg";
 
 	// Fetch current logo from the datasource
 	const { data, mutate, isLoading } = useSWR(
@@ -148,37 +146,47 @@ export function LogoUploaderRenderer({
 		await mutate();
 	}, [removeEndpoint, mutate]);
 
-	const boxClass = `${isCircle ? "w-24 h-24 rounded-full" : "w-32 h-24 rounded-[10px]"} bg-gray-200 flex items-center justify-center`;
-
 	return (
-		<Stack spacing={1}>
+		<div className="flex flex-col gap-2">
 			{title && (
-				<Typography variant="subtitle1" className="font-semibold">
+				<h3 className="text-start text-base font-semibold text-foreground">
 					{title}
-				</Typography>
+				</h3>
 			)}
 
 			{isLoading || uploading ? (
-				<Box className={`${boxClass} overflow-hidden border-2 border-gray-300`}>
-					<CircularProgress size={24} />
-				</Box>
+				<div
+					className={`${shapeClasses} flex items-center justify-center overflow-hidden border-2 border-border bg-muted`}
+				>
+					<span
+						role="status"
+						aria-label="Loading"
+						className="h-6 w-6 animate-spin rounded-full border-2 border-border border-t-primary"
+					/>
+				</div>
 			) : (
-				<Stack spacing={1} className="items-start">
-					<Box className="relative">
-						<Box
-							className={`${boxClass} overflow-hidden border-2 border-gray-300 cursor-pointer hover:border-primary-main transition-colors`}
+				<div className="flex flex-col items-start gap-2">
+					<div className="relative">
+						<button
+							type="button"
+							aria-label={logoUrl ? "Change logo" : "Upload logo"}
+							className={`${shapeClasses} relative flex cursor-pointer items-center justify-center overflow-hidden border-2 border-border bg-muted transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
 							onClick={() => fileInputRef.current?.click()}
 						>
 							{logoUrl ? (
 								<img
 									src={logoUrl}
 									alt="Logo"
-									className={`${isCircle ? "w-24 h-24 object-cover" : "w-32 h-24 object-contain"}`}
+									className={
+										isCircle
+											? "h-24 w-24 object-cover"
+											: "h-24 w-32 object-contain"
+									}
 								/>
 							) : (
 								<Unicon name="Upload" size={40} />
 							)}
-						</Box>
+						</button>
 						<input
 							ref={fileInputRef}
 							type="file"
@@ -186,19 +194,18 @@ export function LogoUploaderRenderer({
 							className="hidden"
 							onChange={handleFileChange}
 						/>
-					</Box>
+					</div>
 					{removable && logoUrl ? (
-						<Button
-							size="small"
-							variant="text"
-							color="error"
+						<button
+							type="button"
 							onClick={handleRemove}
+							className="rounded-md px-2 py-1 text-sm font-medium text-error-main transition-colors hover:bg-error-main/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 						>
 							Remove
-						</Button>
+						</button>
 					) : null}
-				</Stack>
+				</div>
 			)}
-		</Stack>
+		</div>
 	);
 }

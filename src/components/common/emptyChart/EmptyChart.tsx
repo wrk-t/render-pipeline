@@ -1,29 +1,19 @@
-import { Stack, Typography } from "@mui/material";
 import Image from "next/image";
 import type { FC } from "react";
 
 export const EmptyChart: FC = () => {
 	return (
-		<Stack
-			className="w-full items-center justify-center py-8 flex-1"
-			spacing={1}
-		>
-			<Stack
-				className="w-full h-full relative"
-				style={{ height: 80, maxHeight: 80 }}
-			>
+		<div className="flex w-full flex-1 flex-col items-center justify-center gap-2 py-8">
+			<div className="relative h-20 w-full">
 				<Image
 					src="/images/7466140.png"
 					fill
 					sizes="80px"
 					alt="no data found"
-					style={{ objectFit: "contain" }}
-					className="grayscale opacity-45"
+					className="object-contain grayscale opacity-45"
 				/>
-			</Stack>
-			<Typography variant="body2" color="text.secondary">
-				No data available
-			</Typography>
-		</Stack>
+			</div>
+			<p className="text-sm text-muted-foreground">No data available</p>
+		</div>
 	);
 };

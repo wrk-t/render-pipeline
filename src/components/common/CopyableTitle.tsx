@@ -1,6 +1,5 @@
 "use client";
 
-import Tooltip from "@mui/material/Tooltip";
 import { useTranslations } from "next-intl";
 import type { ReactElement } from "react";
 import { useSnack } from "../../hooks/useSnack";
@@ -30,31 +29,16 @@ export function CopyableTitle({ value }: { value: string }): ReactElement {
 	};
 
 	return (
-		<Tooltip title={t("common.copyToClipboard")} placement="top">
-			{/* Inline styles, not utilities: this package sits outside the app's
-			    Tailwind source root, so a utility class only exists when the app
-			    happens to use the same one somewhere. The dotted underline is the
-			    affordance — it has to render everywhere. */}
-			<button
-				type="button"
-				onClick={copy}
-				style={{
-					display: "inline",
-					padding: 0,
-					border: "none",
-					background: "transparent",
-					cursor: "pointer",
-					font: "inherit",
-					fontWeight: 600,
-					color: "inherit",
-					textDecorationLine: "underline",
-					textDecorationStyle: "dotted",
-					textUnderlineOffset: "4px",
-				}}
-			>
-				{value}
-			</button>
-		</Tooltip>
+		/* The dotted underline distinguishes "copy this value" from a link that
+		   navigates; the native `title` carries the hint the old Tooltip showed. */
+		<button
+			type="button"
+			onClick={copy}
+			title={t("common.copyToClipboard")}
+			className="inline cursor-pointer rounded-sm border-0 bg-transparent p-0 font-semibold text-inherit underline decoration-dotted underline-offset-4 transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
+		>
+			{value}
+		</button>
 	);
 }
 

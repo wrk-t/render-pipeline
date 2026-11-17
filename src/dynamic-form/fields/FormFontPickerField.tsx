@@ -4,7 +4,7 @@
 // Lists the app's LOCAL fonts (registered via `configureRenderPipeline`
 // → `localFonts`) plus Google fonts. The value is the font family NAME
 // (e.g. "Bodoni Moda") — the same string the theme's `fontFamily`
-// expects, so the stored value plugs straight into MUI typography.
+// expects.
 //
 // Local font files are loaded by the app's own `@font-face` rules
 // (the picker only auto-loads Google fonts); Google fonts are
@@ -13,7 +13,6 @@
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
-import Typography from "@mui/material/Typography";
 import { useField } from "formik";
 import { type ReactElement, useCallback, useMemo } from "react";
 import FontPicker from "react-fontpicker-ts";
@@ -64,15 +63,17 @@ export function FormFontPickerField({
 	return (
 		<div className="flex flex-col gap-1">
 			{field.label && (
-				<Typography variant="body2">
+				<label
+					htmlFor={`font-${field.name}`}
+					className="text-sm font-medium text-foreground"
+				>
 					{field.label}
 					{field.isRequired && (
-						<Typography component="span" color="error">
-							{" "}
+						<span aria-hidden="true" className="ms-0.5 text-destructive">
 							*
-						</Typography>
+						</span>
 					)}
-				</Typography>
+				</label>
 			)}
 			<FontPicker
 				defaultValue={current}
@@ -85,9 +86,7 @@ export function FormFontPickerField({
 				inputId={`font-${field.name}`}
 			/>
 			{meta.touched && meta.error ? (
-				<Typography variant="caption" color="error">
-					{meta.error}
-				</Typography>
+				<p className="text-xs text-destructive">{meta.error}</p>
 			) : null}
 		</div>
 	);

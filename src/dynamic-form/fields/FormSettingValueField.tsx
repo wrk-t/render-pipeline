@@ -14,7 +14,6 @@
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
-import { Stack, Typography } from "@mui/material";
 import { useField, useFormikContext } from "formik";
 import { type ReactElement, useEffect } from "react";
 import type { RenderField } from "../types";
@@ -81,14 +80,12 @@ export function FormSettingValueField({
 			);
 		default:
 			return (
-				<Stack spacing={0.2}>
+				<div className="flex flex-col gap-1">
 					<FormTextField field={base} />
 					{pattern && example ? (
-						<Typography variant="caption" color="text.secondary" className="pl-3">
-							Example: {example}
-						</Typography>
+						<p className="text-sm text-muted-foreground">Example: {example}</p>
 					) : null}
-				</Stack>
+				</div>
 			);
 	}
 }

@@ -1,14 +1,5 @@
 "use client";
 
-import Box from "@mui/material/Box";
-import CircularProgress from "@mui/material/CircularProgress";
-import FormControl from "@mui/material/FormControl";
-import InputLabel from "@mui/material/InputLabel";
-import MenuItem from "@mui/material/MenuItem";
-import Select from "@mui/material/Select";
-import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getApiClient, useRenderUser } from "../../deps";
 import { ColorPickerInput } from "../../dynamic-form/fields/FormColorField";
@@ -37,6 +28,20 @@ const DEFAULT_STYLE = {
 	errorCorrection: "M" as "L" | "M" | "Q" | "H",
 	margin: 2,
 };
+
+const LABEL_CLASS = "text-sm font-medium leading-none text-foreground";
+const FIELD_CLASS =
+	"h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50";
+
+const Spinner: React.FC<{ className?: string }> = ({ className }) => (
+	<span
+		role="status"
+		aria-label="Loading"
+		className={`inline-block animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary ${
+			className ?? "size-7"
+		}`}
+	/>
+);
 
 export const QrStyleDialog: React.FC<QrStyleDialogProps> = ({
 	open,
@@ -227,33 +232,31 @@ export const QrStyleDialog: React.FC<QrStyleDialogProps> = ({
 			}}
 		>
 			{loading ? (
-				<Box className="flex justify-center py-8">
-					<CircularProgress size={28} />
-				</Box>
+				<div className="flex justify-center py-8">
+					<Spinner />
+				</div>
 			) : (
-				<Stack
-					direction="row"
-					spacing={4}
-					className="w-full items-center justify-between"
-				>
+				<div className="flex w-full flex-row items-center justify-between gap-6 max-sm:flex-col max-sm:items-stretch">
 					{/* ── Settings ── */}
-					<Stack spacing={2} className="w-64 shrink-0">
+					<div className="flex w-64 shrink-0 flex-col gap-4 max-sm:w-full">
 						{tenants.length > 0 && (
-							<FormControl size="small" fullWidth>
-								<InputLabel id="qr-style-tenant-label">Tenant</InputLabel>
-								<Select
-									labelId="qr-style-tenant-label"
-									label="Tenant"
+							<div className="flex flex-col gap-2">
+								<label htmlFor="qr-style-tenant" className={LABEL_CLASS}>
+									Tenant
+								</label>
+								<select
+									id="qr-style-tenant"
+									className={FIELD_CLASS}
 									value={tenantId ?? ""}
 									onChange={(e) => setTenantId(e.target.value)}
 								>
-									{tenants.map((t) => (
-										<MenuItem key={t.id} value={t.id}>
-											{t.displayName}
-										</MenuItem>
+									{tenants.map((tenant) => (
+										<option key={tenant.id} value={tenant.id}>
+											{tenant.displayName}
+										</option>
 									))}
-								</Select>
-							</FormControl>
+								</select>
+							</div>
 						)}
 						<ColorPickerInput
 							label="Dot color"
@@ -265,40 +268,48 @@ export const QrStyleDialog: React.FC<QrStyleDialogProps> = ({
 							value={bgColor}
 							onChange={setBgColor}
 						/>
-						<FormControl size="small" fullWidth>
-							<InputLabel id="qr-style-ec-label">Error correction</InputLabel>
-							<Select
-								labelId="qr-style-ec-label"
-								label="Error correction"
+						<div className="flex flex-col gap-2">
+							<label htmlFor="qr-style-ec" className={LABEL_CLASS}>
+								Error correction
+							</label>
+							<select
+								id="qr-style-ec"
+								className={FIELD_CLASS}
 								value={errorCorrection}
 								onChange={(e) =>
 									setErrorCorrection(e.target.value as "L" | "M" | "Q" | "H")
 								}
 							>
-								<MenuItem value="L">L — low</MenuItem>
-								<MenuItem value="M">M — medium</MenuItem>
-								<MenuItem value="Q">Q — quartile</MenuItem>
-								<MenuItem value="H">H — high</MenuItem>
-							</Select>
-						</FormControl>
-						<TextField
-							label="Margin"
-							type="number"
-							size="small"
-							value={margin}
-							onChange={(e) => {
-								const n = Number(e.target.value);
-								if (!Number.isNaN(n)) {
-									setMargin(Math.min(8, Math.max(0, n)));
-								}
-							}}
-							slotProps={{ htmlInput: { min: 0, max: 8 } }}
-						/>
-					</Stack>
+								<option value="L">L — low</option>
+								<option value="M">M — medium</option>
+								<option value="Q">Q — quartile</option>
+								<option value="H">H — high</option>
+							</select>
+						</div>
+						<div className="flex flex-col gap-2">
+							<label htmlFor="qr-style-margin" className={LABEL_CLASS}>
+								Margin
+							</label>
+							<input
+								id="qr-style-margin"
+								type="number"
+								min={0}
+								max={8}
+								value={margin}
+								onChange={(e) => {
+									const n = Number(e.target.value);
+									if (!Number.isNaN(n)) {
+										setMargin(Math.min(8, Math.max(0, n)));
+									}
+								}}
+								className={FIELD_CLASS}
+							/>
+						</div>
+					</div>
 
 					{/* ── Live example ── */}
-					<Stack className="items-center gap-2 self-center">
-						{loadingExample && !exampleUrl && <CircularProgress size={28} />}
+					<div className="flex flex-col items-center gap-2 self-center">
+						{loadingExample && !exampleUrl && <Spinner />}
 						{exampleUrl && (
 							<img
 								src={exampleUrl}
@@ -308,15 +319,13 @@ export const QrStyleDialog: React.FC<QrStyleDialogProps> = ({
 							/>
 						)}
 						{!(loadingExample || exampleUrl) && (
-							<Typography color="textSecondary" variant="body2">
-								No preview
-							</Typography>
+							<p className="text-sm text-muted-foreground">No preview</p>
 						)}
-						<Typography variant="caption" color="textSecondary">
+						<p className="text-xs text-muted-foreground">
 							Applies to all QR codes in this tenant
-						</Typography>
-					</Stack>
-				</Stack>
+						</p>
+					</div>
+				</div>
 			)}
 		</BaseDialog>
 	);

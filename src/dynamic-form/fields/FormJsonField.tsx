@@ -3,10 +3,6 @@
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
-import Box from "@mui/material/Box";
-import FormControl from "@mui/material/FormControl";
-import FormHelperText from "@mui/material/FormHelperText";
-import Typography from "@mui/material/Typography";
 import { useField } from "formik";
 import { type ReactElement, useMemo } from "react";
 import { LocalMonacoEditor } from "../../components/common/LocalMonacoEditor";
@@ -49,24 +45,26 @@ export function FormJsonField({ field }: FormJsonFieldProps): ReactElement {
 		[field.editorOptions],
 	);
 
+	const isError = Boolean(meta.touched && meta.error);
+
 	return (
-		<FormControl fullWidth error={meta.touched && !!meta.error}>
+		<div className="flex w-full flex-col">
 			{field.label && (
-				<Typography variant="body2" className="mb-1">
+				<span className="mb-2 block text-sm font-medium leading-none text-foreground">
 					{field.label}
 					{field.isRequired && (
-						<Typography component="span" color="error">
-							{" "}
+						<span className="ms-0.5 text-destructive" aria-hidden="true">
 							*
-						</Typography>
+						</span>
 					)}
-				</Typography>
+				</span>
 			)}
-			<Box
-				className={`overflow-hidden rounded-[10px] ${field.bordered === false ? "" : "border border-divider"}`}
-				sx={{
-					borderColor: meta.touched && meta.error ? "error.main" : "divider",
-				}}
+			<div
+				className={`overflow-hidden rounded-md ${
+					field.bordered === false
+						? ""
+						: `border ${isError ? "border-destructive" : "border-border"}`
+				}`}
 			>
 				<LocalMonacoEditor
 					height={field.height ?? "300px"}
@@ -85,10 +83,8 @@ export function FormJsonField({ field }: FormJsonFieldProps): ReactElement {
 						readOnly: field.isReadOnly,
 					}}
 				/>
-			</Box>
-			{meta.touched && meta.error && (
-				<FormHelperText error>{meta.error}</FormHelperText>
-			)}
-		</FormControl>
+			</div>
+			{isError && <p className="mt-2 text-sm text-destructive">{meta.error}</p>}
+		</div>
 	);
 }

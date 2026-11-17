@@ -1,21 +1,23 @@
 "use client";
 
-import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
-import Tooltip from "@mui/material/Tooltip";
-import Typography from "@mui/material/Typography";
 import { useField, useFormikContext } from "formik";
-import { useMemo, useState, type ReactElement } from "react";
+import { type ReactElement, useMemo, useState } from "react";
 import { ICON_EXPORT, Unicon } from "../../components/common/icon/Unicon";
 
 // ════════════════════════════════════════════════════════════════
 // IconPickerField — searchable grid of icons from the app's Unicon
 // set. The field value is the icon NAME (an ICON_EXPORT key), e.g.
 // "Warning" — exactly what <Unicon name="Warning" /> expects.
+//
+// Plain native elements + utilities: the search box is an <input>,
+// each icon is a real <button> (so Enter/Space work without a key
+// handler), and the icon name is the button's native tooltip.
 // ════════════════════════════════════════════════════════════════
 
 const ALL_ICON_NAMES = Object.keys(ICON_EXPORT).sort();
+
+const INPUT_CLASS =
+	"flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
 export function IconPickerField({
 	field,
@@ -42,97 +44,81 @@ export function IconPickerField({
 		return ALL_ICON_NAMES.filter((n) => n.toLowerCase().includes(q));
 	}, [query]);
 
+	const selectIcon = (name: string): void => {
+		if (disabled) return;
+		setValue(name);
+		setTimeout(() => setTouched(true), 0);
+	};
+
 	return (
-		<Stack spacing={1}>
-			<Typography variant="body2">
+		<div className="flex flex-col gap-2">
+			<span
+				className={`text-sm font-medium leading-none ${
+					meta.touched && meta.error ? "text-destructive" : "text-foreground"
+				}`}
+			>
 				{field.label}
-				{field.isRequired && (
-					<Typography component="span" color="error">
+				{field.isRequired ? (
+					<span className="text-destructive" aria-hidden="true">
 						{" "}
 						*
-					</Typography>
-				)}
-			</Typography>
+					</span>
+				) : null}
+			</span>
 
-			<TextField
-				size="small"
+			<input
+				type="search"
 				placeholder="Search icons…"
+				aria-label={field.label ? `Search ${field.label}` : "Search icons"}
 				value={query}
 				disabled={disabled}
 				onChange={(e) => setQuery(e.target.value)}
-				className="w-full"
+				className={INPUT_CLASS}
 			/>
 
 			{selected && (
-				<Stack direction="row" spacing={1} className="items-center">
+				<div className="flex items-center gap-2">
 					<Unicon name={selected as keyof typeof ICON_EXPORT} size={24} />
-					<Typography variant="caption" color="textSecondary">
-						{selected}
-					</Typography>
-				</Stack>
+					<span className="text-xs text-muted-foreground">{selected}</span>
+				</div>
 			)}
 
-			<Box
-				className="overflow-auto rounded-md border border-divider p-2"
-				sx={{ maxHeight: 220 }}
-			>
+			<div className="max-h-[220px] overflow-auto rounded-md border border-border p-2">
 				{filtered.length === 0 ? (
-					<Typography variant="caption" color="textSecondary">
+					<p className="text-sm text-muted-foreground">
 						No icons match “{query}”
-					</Typography>
+					</p>
 				) : (
-					<Box
-						className="grid gap-1"
-						sx={{
-							gridTemplateColumns: "repeat(auto-fill, minmax(44px, 1fr))",
-						}}
-					>
+					<div className="grid grid-cols-[repeat(auto-fill,minmax(44px,1fr))] gap-1">
 						{filtered.map((name) => {
 							const isSelected = name === selected;
 							return (
-								<Tooltip key={name} title={name} arrow>
-									<Box
-										role="button"
-										tabIndex={0}
-										onClick={() => {
-											if (disabled) return;
-											setValue(name);
-											setTimeout(() => setTouched(true), 0);
-										}}
-										onKeyDown={(e) => {
-											if (e.key === "Enter" && !disabled) {
-												setValue(name);
-												setTimeout(() => setTouched(true), 0);
-											}
-										}}
-										className={`flex cursor-pointer items-center justify-center rounded-md p-1.5 transition-colors ${
-											isSelected
-												? "bg-primary-main text-white"
-												: "hover:bg-action-hover"
-										}`}
-										sx={{
-											...(disabled
-												? { pointerEvents: "none", opacity: 0.6 }
-												: {}),
-										}}
-									>
-										<Unicon
-											name={name as keyof typeof ICON_EXPORT}
-											size={22}
-										/>
-									</Box>
-								</Tooltip>
+								<button
+									key={name}
+									type="button"
+									title={name}
+									aria-label={name}
+									aria-pressed={isSelected}
+									disabled={disabled}
+									onClick={() => selectIcon(name)}
+									className={[
+										"flex items-center justify-center rounded-md p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+										isSelected
+											? "bg-primary text-primary-foreground"
+											: "text-foreground hover:bg-accent hover:text-accent-foreground",
+									].join(" ")}
+								>
+									<Unicon name={name as keyof typeof ICON_EXPORT} size={22} />
+								</button>
 							);
 						})}
-					</Box>
+					</div>
 				)}
-			</Box>
+			</div>
 
 			{meta.touched && meta.error && (
-				<Typography variant="caption" color="error">
-					{meta.error}
-				</Typography>
+				<p className="text-sm text-destructive">{meta.error}</p>
 			)}
-		</Stack>
+		</div>
 	);
 }

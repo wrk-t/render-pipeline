@@ -9,8 +9,6 @@
 
 "use client";
 
-import CircularProgress from "@mui/material/CircularProgress";
-import Stack from "@mui/material/Stack";
 import { type ReactElement, useEffect, useState } from "react";
 import { AutoComponent } from "../ComponentRenderer";
 import { ScreenStateProvider } from "./ScreenState";
@@ -42,9 +40,13 @@ export function ScreenPage({ params }: ScreenPageProps): ReactElement {
 
 	if (loading || !moduleName) {
 		return (
-			<Stack className="items-center justify-center py-8">
-				<CircularProgress />
-			</Stack>
+			<div className="flex items-center justify-center py-8">
+				<span
+					role="status"
+					aria-label="Loading"
+					className="size-6 animate-spin rounded-full border-2 border-muted border-t-primary"
+				/>
+			</div>
 		);
 	}
 

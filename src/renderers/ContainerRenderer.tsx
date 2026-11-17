@@ -1,24 +1,34 @@
 "use client";
 
-import Container from "@mui/material/Container";
 import type { ReactElement } from "react";
 import type { RenderedComponent } from "../types";
 import { LayoutChildren } from "./layoutChildren";
 
 // ──────────────────────────────────────────────────────────────────
-// ContainerRenderer — MUI Container: a max-width centered wrapper.
-// The card surface is Paper (see PaperRenderer).
+// ContainerRenderer — a max-width, centered wrapper with horizontal
+// padding. The card surface is Paper (see PaperRenderer).
+//
+// MUI's Container widths are kept as explicit `max-w-[…]` steps; the
+// gutters are the same 16px/24px steps MUI used below/above `sm`.
 // ──────────────────────────────────────────────────────────────────
 
-	export function ContainerRenderer({
-		component,
-		pathParams,
-		context,
-	}: {
-		component: RenderedComponent;
-		pathParams?: Record<string, string>;
-		context?: string;
-	}): ReactElement {
+const MAX_WIDTH: Record<string, string> = {
+	xs: "max-w-[444px]",
+	sm: "max-w-[600px]",
+	md: "max-w-[900px]",
+	lg: "max-w-[1200px]",
+	xl: "max-w-[1536px]",
+};
+
+export function ContainerRenderer({
+	component,
+	pathParams,
+	context,
+}: {
+	component: RenderedComponent;
+	pathParams?: Record<string, string>;
+	context?: string;
+}): ReactElement {
 	const config = (component.config ?? {}) as {
 		maxWidth?: "xs" | "sm" | "md" | "lg" | "xl" | false;
 		disableGutters?: boolean;
@@ -29,13 +39,20 @@ import { LayoutChildren } from "./layoutChildren";
 		.filter((e) => e.isActive)
 		.sort((a, b) => a.displayOrder - b.displayOrder);
 
+	const className = [
+		"mx-auto w-full",
+		config.maxWidth === false
+			? undefined
+			: MAX_WIDTH[config.maxWidth ?? "md"],
+		config.disableGutters ? undefined : "px-4 sm:px-6",
+		config.className,
+	]
+		.filter(Boolean)
+		.join(" ");
+
 	return (
-		<Container
-			maxWidth={config.maxWidth ?? "md"}
-			disableGutters={config.disableGutters}
-			className={config.className}
-		>
+		<div className={className}>
 			<LayoutChildren elements={elements} pathParams={pathParams} context={context} />
-		</Container>
+		</div>
 	);
 }

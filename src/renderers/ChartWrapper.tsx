@@ -1,10 +1,5 @@
 "use client";
 
-import { Stack } from "@mui/material";
-import Alert from "@mui/material/Alert";
-import Box from "@mui/material/Box";
-import CircularProgress from "@mui/material/CircularProgress";
-import Typography from "@mui/material/Typography";
 import { type ReactElement, type ReactNode, useMemo } from "react";
 import useSWR from "swr";
 import { EmptyChart } from "../components/common/emptyChart/EmptyChart";
@@ -146,21 +141,28 @@ export function ChartWrapper({
 	let body: ReactNode;
 	if (isLoading) {
 		body = (
-			<Box className="flex items-center justify-center py-12 min-h-50">
-				<CircularProgress />
-			</Box>
+			<div className="flex min-h-50 items-center justify-center py-12">
+				<span
+					role="status"
+					aria-label="Loading"
+					className="h-10 w-10 animate-spin rounded-full border-2 border-muted border-t-primary"
+				/>
+			</div>
 		);
 	} else if (error) {
 		body = (
-			<Alert severity="error" className="my-2 min-h-50">
+			<div
+				role="alert"
+				className="my-2 min-h-50 rounded-lg border border-error-main/40 bg-error-main/10 px-4 py-3 text-start text-sm text-error-main"
+			>
 				{error?.message ?? "Failed to load chart data"}
-			</Alert>
+			</div>
 		);
 	} else if (isResponseEmpty(data, chartData)) {
 		body = (
-			<Stack className="min-h-50 h-full flex-1">
+			<div className="flex min-h-50 h-full flex-1 flex-col">
 				<EmptyChart />
-			</Stack>
+			</div>
 		);
 	} else {
 		body = children(chartData, mergedOptions);
@@ -168,20 +170,20 @@ export function ChartWrapper({
 
 	// ── Render ───────────────────────────────────────────────────────
 	return (
-		<Stack className="flex-1 h-full">
+		<div className="flex h-full flex-1 flex-col">
 			{/* Title — always visible */}
 			{component.displayName && (
-				<Typography variant="subtitle1" className="mb-2 font-semibold">
+				<h3 className="mb-2 text-start text-base font-semibold text-foreground">
 					{component.displayName}
-				</Typography>
+				</h3>
 			)}
 			{component.description && (
-				<Typography variant="body2" color="text.secondary" className="mb-4">
+				<p className="mb-4 text-start text-sm text-muted-foreground">
 					{component.description}
-				</Typography>
+				</p>
 			)}
 
-			<Stack className="flex-1 place-content-center">{body}</Stack>
-		</Stack>
+			<div className="flex flex-1 flex-col place-content-center">{body}</div>
+		</div>
 	);
 }

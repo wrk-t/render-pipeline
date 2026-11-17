@@ -1,14 +1,29 @@
 "use client";
 
-import Paper from "@mui/material/Paper";
-import type { ReactElement } from "react";
+import type { CSSProperties, ReactElement } from "react";
 import type { RenderedComponent } from "../types";
 import { LayoutChildren } from "./layoutChildren";
 
 // ──────────────────────────────────────────────────────────────────
-// PaperRenderer — MUI Paper, the rounded surface (card). Replaces the
-// renderer's hidden BodyCard: authors opt in with a Paper node.
+// PaperRenderer — the rounded surface (card). Replaces the renderer's
+// hidden BodyCard: authors opt in with a Paper node.
+//
+// Surface: shadcn's card — `bg-card text-card-foreground border
+// border-border rounded-xl shadow-sm`, `p-6` by default. Runtime config
+// (padding / radius / maxWidth) still wins, as an inline style, because
+// authored values are not known at build time.
 // ──────────────────────────────────────────────────────────────────
+
+/** `sx` spacing units are 8px each. */
+function spacingStyle(value: number | string): number | string {
+	return typeof value === "number" ? value * 8 : value;
+}
+
+/** `sx` sizing: numbers ≤ 1 are percentages, larger numbers are px. */
+function sizingStyle(value: number | string): number | string {
+	if (typeof value !== "number") return value;
+	return value <= 1 && value !== 0 ? `${value * 100}%` : `${value}px`;
+}
 
 export function PaperRenderer({
 	component,
@@ -41,26 +56,31 @@ export function PaperRenderer({
 		return children;
 	}
 
+	const className = [
+		"bg-card text-card-foreground border border-border h-full",
+		config.square ? "rounded-none" : "rounded-xl",
+		config.variant === "outlined"
+			? undefined
+			: (config.elevation ?? 1) > 0
+				? "shadow-sm"
+				: undefined,
+		config.padding != null ? undefined : "p-6",
+		config.maxWidth != null ? "mx-auto" : undefined,
+	]
+		.filter(Boolean)
+		.join(" ");
+
+	const style: CSSProperties = {};
+	if (config.padding != null) style.padding = spacingStyle(config.padding);
+	if (config.radius != null) style.borderRadius = spacingStyle(config.radius);
+	if (config.maxWidth != null) style.maxWidth = sizingStyle(config.maxWidth);
+
 	return (
-		<Paper
-			elevation={config.elevation ?? 1}
-			variant={config.variant}
-			square={config.square}
-			sx={(theme) => ({
-				p: config.padding ?? 2.5,
-				borderRadius: config.radius ?? 2,
-				height: "100%",
-				// Match the table paper nested inside: MUI's dark elevation-1
-				// white film made the card a lighter brown than the table.
-				...(theme.palette.mode === "dark"
-					? { backgroundImage: "none" }
-					: {}),
-				...(config.maxWidth != null
-					? { maxWidth: config.maxWidth, mx: "auto" }
-					: {}),
-			})}
+		<div
+			className={className}
+			style={Object.keys(style).length > 0 ? style : undefined}
 		>
 			{children}
-		</Paper>
+		</div>
 	);
 }

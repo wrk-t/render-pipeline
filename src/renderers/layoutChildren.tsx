@@ -1,8 +1,5 @@
 "use client";
 
-import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
 import { FormikContext, type FormikContextType } from "formik";
 import { type ReactElement, useContext } from "react";
 import { ComponentRenderer } from "../ComponentRenderer";
@@ -80,24 +77,21 @@ export function LayoutChildren({
 						(el.overrides as any)?.displayName ?? el.label ?? name;
 					if (formik) {
 						return (
-							<Box key={el.id}>
+							<div key={el.id}>
 								<FormFieldRenderer element={el} context={context} />
-							</Box>
+							</div>
 						);
 					}
 					return (
-						<Stack
+						<div
 							key={el.id}
-							direction="row"
-							className="justify-between items-center"
+							className="flex items-center justify-between gap-4 py-1 text-sm"
 						>
-							<Typography variant="body2" color="text.secondary">
-								{displayName}
-							</Typography>
-							<Typography variant="body2">
+							<span className="text-muted-foreground">{displayName}</span>
+							<span className="font-medium text-foreground">
 								{/* Placeholder — value comes from parent data */}—
-							</Typography>
-						</Stack>
+							</span>
+						</div>
 					);
 				}
 

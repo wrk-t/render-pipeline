@@ -1,9 +1,5 @@
 "use client";
 
-import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
 import { FormikContext, type FormikContextType } from "formik";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -81,6 +77,80 @@ type TConfirmConfig = {
 		template: string;
 	};
 };
+
+// ── Button skin ───────────────────────────────────────────────────
+// shadcn/ui button metrics: `h-9 rounded-md px-4 text-sm font-medium`,
+// with the authored contained/outlined/text variants mapped to shadcn's
+// default / outline / ghost treatments. Semantics stay per-colour; the
+// variants shadcn does not tokenise (warning/info/success) use the stock
+// Tailwind palette instead of the old MUI palette. Disabled styling is
+// handled once in the base (opacity), so no per-colour disabled classes.
+
+type TButtonColor =
+	| "primary"
+	| "secondary"
+	| "error"
+	| "warning"
+	| "info"
+	| "success"
+	| "inherit";
+
+const CONTAINED: Record<TButtonColor, string> = {
+	primary: "bg-primary text-primary-foreground hover:bg-primary/90",
+	secondary:
+		"bg-secondary text-secondary-foreground hover:bg-secondary/80",
+	error: "bg-destructive text-white hover:bg-destructive/90",
+	warning: "bg-amber-600 text-white hover:bg-amber-600/90",
+	info: "bg-sky-600 text-white hover:bg-sky-600/90",
+	success: "bg-emerald-600 text-white hover:bg-emerald-600/90",
+	inherit:
+		"bg-transparent text-inherit hover:bg-accent hover:text-accent-foreground",
+};
+
+const OUTLINED: Record<TButtonColor, string> = {
+	primary:
+		"border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+	secondary:
+		"border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+	error:
+		"border border-destructive bg-background text-destructive hover:bg-destructive/10",
+	warning:
+		"border border-amber-600 bg-background text-amber-600 hover:bg-amber-600/10 dark:border-amber-500 dark:text-amber-500",
+	info: "border border-sky-600 bg-background text-sky-600 hover:bg-sky-600/10 dark:border-sky-400 dark:text-sky-400",
+	success:
+		"border border-emerald-600 bg-background text-emerald-600 hover:bg-emerald-600/10 dark:border-emerald-500 dark:text-emerald-500",
+	inherit:
+		"border border-border bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground",
+};
+
+const TEXT: Record<TButtonColor, string> = {
+	primary: "text-primary hover:bg-accent hover:text-accent-foreground",
+	secondary:
+		"text-secondary-foreground hover:bg-accent hover:text-accent-foreground",
+	error: "text-destructive hover:bg-destructive/10",
+	warning:
+		"text-amber-600 hover:bg-amber-600/10 dark:text-amber-500",
+	info: "text-sky-600 hover:bg-sky-600/10 dark:text-sky-400",
+	success:
+		"text-emerald-600 hover:bg-emerald-600/10 dark:text-emerald-500",
+	inherit: "text-foreground hover:bg-accent hover:text-accent-foreground",
+};
+
+const BUTTON_BASE =
+	"inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
+
+function isButtonColor(value: string | undefined): value is TButtonColor {
+	return (
+		value === "primary" ||
+		value === "secondary" ||
+		value === "error" ||
+		value === "warning" ||
+		value === "info" ||
+		value === "success" ||
+		value === "inherit"
+	);
+}
+
 
 export function ButtonRenderer({
 	component,
@@ -266,6 +336,27 @@ export function ButtonRenderer({
 				? confirmTyped.trim().length === 0
 				: confirmTyped.trim() !== expectedTitle));
 
+	const typedTitleInvalid =
+		expectedTitle !== null &&
+		confirmTyped.length > 0 &&
+		confirmTyped.trim() !== expectedTitle;
+
+	const variant = config.variant ?? "contained";
+	const color = isButtonColor(config.color) ? config.color : "primary";
+	const variantClass =
+		variant === "outlined"
+			? OUTLINED[color]
+			: variant === "text"
+				? TEXT[color]
+				: CONTAINED[color];
+	const buttonClassName = [
+		BUTTON_BASE,
+		variantClass,
+		config.fullWidth === true ? "w-full" : undefined,
+	]
+		.filter(Boolean)
+		.join(" ");
+
 	/** The destructive confirmation names the record; make the name copyable. */
 
 	// A lifecycle action that does not apply to this record is not rendered:
@@ -279,21 +370,23 @@ export function ButtonRenderer({
 
 	return (
 		<>
-			<Button
+			<button
 				type={isSubmit ? "submit" : "button"}
-				variant={config.variant ?? "contained"}
-				color={config.color as never}
+				className={buttonClassName}
 				disabled={submitting || pending}
 				onClick={onClick}
-				fullWidth={config.fullWidth === true}
 			>
 				{submitting || pending ? (
-					<CircularProgress size={20} color="inherit" />
+					<span
+						role="status"
+						aria-label="Loading"
+						className="inline-block size-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+					/>
 				) : (
-					icon && <Unicon name={icon as never} size={18} className="mr-1" />
+					icon && <Unicon name={icon as never} size={16} />
 				)}
 				{config.label ?? (component.displayName || component.name)}
-			</Button>
+			</button>
 
 			{confirmOpen && config.confirm && (
 				<BaseDialog
@@ -324,7 +417,7 @@ export function ButtonRenderer({
 						},
 					}}
 				>
-					<Typography component="div" className="leading-7">
+					<div className="text-base leading-7">
 						{/* The typed title sits inside the sentence (and copies on click);
 						    a separate title box plus helper text made the user read the
 						    instruction in one place and copy the value in another. */}
@@ -339,21 +432,25 @@ export function ButtonRenderer({
 							}
 							title={expectedTitle}
 						/>
-					</Typography>
+					</div>
 					{needsTypedTitle && (
-						<TextField
-							fullWidth
-							autoFocus
-							className="mt-4"
-							label="Type the title to confirm"
-							value={confirmTyped}
-							onChange={(event) => setConfirmTyped(event.target.value)}
-							error={
-								expectedTitle !== null &&
-								confirmTyped.length > 0 &&
-								confirmTyped.trim() !== expectedTitle
-							}
-						/>
+						<label className="mt-4 block">
+							<span className="mb-1 block text-sm font-medium text-foreground">
+								Type the title to confirm
+							</span>
+							<input
+								autoFocus
+								aria-invalid={typedTitleInvalid || undefined}
+								className={[
+									"w-full rounded-md border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:ring-2",
+									typedTitleInvalid
+										? "border-destructive focus:border-destructive focus:ring-destructive/20"
+										: "border-border focus:border-ring focus:ring-ring/20",
+								].join(" ")}
+								value={confirmTyped}
+								onChange={(event) => setConfirmTyped(event.target.value)}
+							/>
+						</label>
 					)}
 				</BaseDialog>
 			)}

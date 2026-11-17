@@ -1,7 +1,5 @@
 "use client";
 
-import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
 import {
 	createContext,
 	type ReactElement,
@@ -56,22 +54,22 @@ export function StateContextRenderer({
 
 	return (
 		<StateContext.Provider value={ctxValue}>
-			<Stack spacing={2}>
+			<div className="flex flex-col gap-4">
 				{contentElements.map((el) => {
 					if (el.elementType === "component_ref" && el.referencedComponent) {
 						return (
-							<Box key={el.id}>
+							<div key={el.id}>
 								<ComponentRenderer
 									component={el.referencedComponent}
 									pathParams={pathParams}
 									paramBindings={el.paramBindings}
 								/>
-							</Box>
+							</div>
 						);
 					}
 					return null;
 				})}
-			</Stack>
+			</div>
 		</StateContext.Provider>
 	);
 }

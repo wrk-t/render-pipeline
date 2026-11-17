@@ -1,8 +1,6 @@
 "use client";
 
-import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
+import type { CSSProperties } from "react";
 import { type ReactElement, useMemo } from "react";
 import useSWR from "swr";
 import { ComponentRenderer } from "../ComponentRenderer";
@@ -10,20 +8,47 @@ import { getApiClient } from "../deps";
 import { useResolvedParams } from "../hooks/useResolvedParams";
 import type { RenderedComponent } from "../types";
 import { LayoutChildren } from "./layoutChildren";
-import { Paper } from "@mui/material";
 import { RecordProvider, type TRecordData } from "./RecordContext";
 
 // ──────────────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════
-// LayoutRenderer — the screen shell: a page header + a Paper card.
+// LayoutRenderer — the screen shell: a page header + a card surface.
 //
-//   Stack
-//     ├─ header: title (Typography h5) + description (body2) + actions
-//     └─ Paper (surface) — the content/component tree only
+//   div.flex.flex-col
+//     ├─ header: title (text-2xl) + description (text-sm) + actions
+//     └─ card (surface) — the content/component tree only
 //
-// The title/description live OUTSIDE the paper (they are page-level),
-// the paper wraps just the components on the screen.
+// The title/description live OUTSIDE the card (they are page-level),
+// the card wraps just the components on the screen.
 // ══════════════════════════════════════════════════════════════
+
+/** MUI `spacing` units (8px each) → Tailwind gap steps (4px each). */
+const GAP: Record<number, string> = {
+	0: "gap-0",
+	0.5: "gap-1",
+	1: "gap-2",
+	1.5: "gap-3",
+	2: "gap-4",
+	2.5: "gap-5",
+	3: "gap-6",
+	3.5: "gap-7",
+	4: "gap-8",
+	5: "gap-10",
+	6: "gap-12",
+	8: "gap-16",
+	10: "gap-20",
+};
+
+/** `sx` spacing units are 8px each. */
+function spacingStyle(value: number | string): number | string {
+	return typeof value === "number" ? value * 8 : value;
+}
+
+/** `sx` sizing: numbers ≤ 1 are percentages, larger numbers are px. */
+function sizingStyle(value: number | string): number | string {
+	if (typeof value !== "number") return value;
+	return value <= 1 && value !== 0 ? `${value * 100}%` : `${value}px`;
+}
 
 export function LayoutRenderer({
 	component,
@@ -91,6 +116,10 @@ export function LayoutRenderer({
 	// stacks its summary/info/form blocks; without a default they touched each
 	// other, so the page read as one dense wall of fields.
 	const contentSpacing = config.spacing ?? (config.fullBleed === true ? 0 : 3);
+	const contentGapClass = GAP[contentSpacing];
+	const contentGapStyle: CSSProperties | undefined = contentGapClass
+		? undefined
+		: { gap: `${contentSpacing * 8}px` };
 	const contentEl = (
 		<LayoutChildren
 			elements={content}
@@ -100,7 +129,12 @@ export function LayoutRenderer({
 	);
 	const contentWithSpacing =
 		contentSpacing > 0 ? (
-			<Stack spacing={contentSpacing}>{contentEl}</Stack>
+			<div
+				className={["flex flex-col", contentGapClass].filter(Boolean).join(" ")}
+				style={contentGapStyle}
+			>
+				{contentEl}
+			</div>
 		) : (
 			contentEl
 		);
@@ -113,62 +147,39 @@ export function LayoutRenderer({
 		);
 	}
 
+	const surfaceStyle: CSSProperties = {};
+	if (config.padding != null) {
+		surfaceStyle.padding = spacingStyle(config.padding);
+	}
+	if (config.radius != null) {
+		surfaceStyle.borderRadius = spacingStyle(config.radius);
+	}
+	if (config.maxWidth != null) {
+		surfaceStyle.maxWidth = sizingStyle(config.maxWidth);
+	}
+
 	return (
 		<RecordProvider value={record ?? null}>
-			<Stack spacing={1.5} className="h-full">
+			<div className="flex h-full flex-col gap-3">
 				{hasHeader && (
-					/* One row from 768px; a wrapped column on phones. `sx` (not
-					   Tailwind): the front's Tailwind build does not scan this
-					   package, so package-only utilities do not compile. */
-					<Stack
-						sx={{
-							gap: 2,
-							flexDirection: "column",
-							alignItems: "flex-start",
-							"@media (min-width:768px)": {
-								flexDirection: "row",
-								alignItems: "center",
-								justifyContent: "space-between",
-							},
-						}}
-					>
-						<Box sx={{ minWidth: 0 }}>
+					/* One row from 768px; a wrapped column on phones. */
+					<div className="flex flex-col items-start gap-4 md:flex-row md:items-center md:justify-between">
+						<div className="min-w-0">
 							{title && (
-								<Typography
-									variant="h5"
-									sx={{ fontWeight: 600, wordBreak: "break-word" }}
-								>
+								<h5 className="text-2xl font-semibold break-words tracking-tight text-foreground">
 									{title}
-								</Typography>
+								</h5>
 							)}
 							{description && (
-								<Typography
-									variant="body2"
-									color="text.secondary"
-									sx={{ wordBreak: "break-word" }}
-								>
+								<p className="text-sm break-words text-muted-foreground">
 									{description}
-								</Typography>
+								</p>
 							)}
-						</Box>
+						</div>
 						{actions.length > 0 && (
 							/* Phones: the primary action is a full-width tap target,
 							   not a squeezed pill next to the title. */
-							<Stack
-								sx={{
-									gap: 2,
-									width: "100%",
-									flexDirection: "column",
-									alignItems: "stretch",
-									"& .MuiButton-root": { width: "100%" },
-									"@media (min-width:600px)": {
-										width: "auto",
-										flexDirection: "row",
-										alignItems: "center",
-										"& .MuiButton-root": { width: "auto" },
-									},
-								}}
-							>
+							<div className="flex w-full flex-col items-stretch gap-4 [&>button]:w-full sm:w-auto sm:flex-row sm:items-center sm:[&>button]:w-auto">
 								{actions.map((el) => (
 									<ComponentRenderer
 										key={el.id}
@@ -178,37 +189,25 @@ export function LayoutRenderer({
 										context={context}
 									/>
 								))}
-							</Stack>
+							</div>
 						)}
-					</Stack>
+					</div>
 				)}
-				<Paper
-					elevation={config.elevation ?? 1}
-					sx={(theme) => ({
-						p: config.padding ?? 3,
-						// 4 theme units = the box tier (16px on a 4px base): a page
-						// card is a surface, one step above the 8px control radius
-						// it contains.
-						borderRadius: config.radius ?? 4,
-						flex: 1,
-						minHeight: 0,
-						// MUI's dark elevation-1 adds a 5% white film. The table
-						// paper inside this card has no film, so the card looked a
-						// lighter brown than the table it wraps. Drop the film in
-						// dark mode so both are the same paper colour.
-						...(theme.palette.mode === "dark"
-							? { backgroundImage: "none" }
-							: {}),
-						...(config.maxWidth != null
-							? { maxWidth: config.maxWidth, mx: "auto", width: "100%" }
-							: {}),
-					})}
+				<div
+					className={[
+						"flex min-h-0 flex-1 flex-col rounded-xl border border-border bg-card p-6 text-card-foreground",
+						(config.elevation ?? 1) > 0 ? "shadow-sm" : undefined,
+						config.maxWidth != null ? "mx-auto w-full" : undefined,
+					]
+						.filter(Boolean)
+						.join(" ")}
+					style={Object.keys(surfaceStyle).length > 0 ? surfaceStyle : undefined}
 				>
 					{/* The spaced wrapper, not the bare children: a detail page stacks
 					    summary/info/form blocks and they must not touch. */}
 					{contentWithSpacing}
-				</Paper>
-			</Stack>
+				</div>
+			</div>
 		</RecordProvider>
 	);
 }

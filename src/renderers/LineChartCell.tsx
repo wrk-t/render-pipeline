@@ -1,10 +1,14 @@
 "use client";
 
-import { Box, Dialog, DialogContent, DialogTitle } from "@mui/material";
-import useMediaQuery from "@mui/material/useMediaQuery";
-import { useTheme } from "@mui/material/styles";
 import { ResponsiveLine } from "@nivo/line";
-import { type ReactElement, useState } from "react";
+import {
+	type MouseEvent as ReactMouseEvent,
+	type ReactElement,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
+import { Unicon } from "../components/common/icon/Unicon";
 import { CellChartWrapper } from "./CellChartWrapper";
 import { useDateRange } from "./DateRangeContext";
 
@@ -18,6 +22,35 @@ const LINE_COLORS = [
 	"#14b8a6",
 	"#f97316",
 ];
+
+// The dialog is the fixed, full-viewport overlay (its `::backdrop` is the
+// scrim); the panel inside it is the card. `bg-transparent` / `border-0` /
+// `p-0` strip the UA dialog chrome so only the panel paints. Below `sm` the
+// panel owns the viewport, like every DSL dialog.
+const DIALOG_CLASS =
+	"fixed inset-0 z-50 m-0 h-full max-h-none w-full max-w-none border-0 bg-transparent p-0 text-foreground [&::backdrop]:bg-black/50 open:flex items-center justify-center p-4 max-sm:p-0";
+const PANEL_CLASS =
+	"flex max-h-[calc(100dvh-2rem)] w-full max-w-[1200px] flex-col overflow-hidden rounded-lg border border-border bg-card text-foreground shadow-lg max-sm:h-[100dvh] max-sm:max-h-none max-sm:max-w-none max-sm:rounded-none max-sm:border-0";
+
+/** `showModal()` gives the top layer + focus trap; jsdom/older engines fall back. */
+const openModal = (dialog: HTMLDialogElement) => {
+	if (dialog.open) return;
+	if (typeof dialog.showModal !== "function") {
+		dialog.setAttribute("open", "");
+		return;
+	}
+	try {
+		dialog.showModal();
+	} catch {
+		dialog.setAttribute("open", "");
+	}
+};
+
+const closeModal = (dialog: HTMLDialogElement) => {
+	if (!dialog.open) return;
+	if (typeof dialog.close === "function") dialog.close();
+	else dialog.removeAttribute("open");
+};
 
 interface LineSeries {
 	id: string;
@@ -60,13 +93,8 @@ function extractAggBuckets(data: unknown): Record<string, unknown>[] {
 
 export function LineChartCell({ cell }: any): ReactElement {
 	const [dialogOpen, setDialogOpen] = useState(false);
-	const [fullData, setFullData] = useState<LineSeries[]>([]);
 
 	const { range } = useDateRange();
-	// A chart with axes needs the whole phone screen; the cell preview is
-	// unusable at 375px.
-	const theme = useTheme();
-	const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
 
 	const rowData = cell?.row?.original ?? {};
 	// Query params are version-scoped: prefer the row's current version
@@ -80,8 +108,40 @@ export function LineChartCell({ cell }: any): ReactElement {
 	const cellWidth = fmt.width ?? 160;
 	const queryId = fmt.queryId as string | undefined;
 
+	const dialogRef = useRef<HTMLDialogElement>(null);
+
+	// `open` is React state; the element itself stays mounted so `close()`
+	// can run and restore focus.
+	useEffect(() => {
+		const dialog = dialogRef.current;
+		if (!dialog) return;
+		if (dialogOpen) openModal(dialog);
+		else closeModal(dialog);
+	}, [dialogOpen]);
+
+	// Escape and a backdrop click are close requests. The dialog fills the
+	// viewport, so a click whose target *is* the dialog came from the
+	// `::backdrop` area (clicks inside the panel target a child).
+	useEffect(() => {
+		const dialog = dialogRef.current;
+		if (!dialog) return;
+		const onCancel = (event: Event) => {
+			event.preventDefault();
+			setDialogOpen(false);
+		};
+		const onClick = (event: MouseEvent) => {
+			if (event.target === dialog) setDialogOpen(false);
+		};
+		dialog.addEventListener("cancel", onCancel);
+		dialog.addEventListener("click", onClick);
+		return () => {
+			dialog.removeEventListener("cancel", onCancel);
+			dialog.removeEventListener("click", onClick);
+		};
+	}, []);
+
 	if (!(queryId && versionId)) {
-		return <Box sx={{ minHeight: cellHeight }}>—</Box>;
+		return <div style={{ minHeight: cellHeight }}>—</div>;
 	}
 
 	const params: Record<string, string> = {
@@ -90,7 +150,7 @@ export function LineChartCell({ cell }: any): ReactElement {
 		versionId,
 	};
 
-	const handleClick = (e: React.MouseEvent) => {
+	const handleClick = (e: ReactMouseEvent) => {
 		e.stopPropagation();
 		e.preventDefault();
 		setDialogOpen(true);
@@ -99,8 +159,8 @@ export function LineChartCell({ cell }: any): ReactElement {
 	const renderChart = (data: unknown, full: boolean) => {
 		const series = data as LineSeries[];
 		return (
-			<Box
-				sx={{
+			<div
+				style={{
 					width: full ? "100%" : cellWidth,
 					height: full ? 400 : cellHeight,
 				}}
@@ -162,22 +222,16 @@ export function LineChartCell({ cell }: any): ReactElement {
 								animate: false,
 							})}
 				/>
-			</Box>
+			</div>
 		);
 	};
 
 	return (
 		<>
-			<Box
+			<div
 				onMouseDown={handleClick}
-				sx={{
-					cursor: "pointer",
-					display: "flex",
-					alignItems: "center",
-					width: "100%",
-					minHeight: cellHeight,
-					"&:hover": { opacity: 0.8 },
-				}}
+				className="flex w-full cursor-pointer items-center transition-opacity hover:opacity-80"
+				style={{ minHeight: cellHeight }}
 			>
 				<CellChartWrapper
 					queryId={queryId}
@@ -186,26 +240,45 @@ export function LineChartCell({ cell }: any): ReactElement {
 				>
 					{(data) => renderChart(data, false)}
 				</CellChartWrapper>
-			</Box>
+			</div>
 
-			<Dialog
-				open={dialogOpen}
-				onClose={() => setDialogOpen(false)}
-				maxWidth="lg"
-				fullWidth
-				fullScreen={fullScreen}
+			<dialog
+				ref={dialogRef}
+				className={DIALOG_CLASS}
+				aria-label={
+					typeof columnDef.header === "string" ? columnDef.header : undefined
+				}
 			>
-				<DialogTitle>{columnDef.header}</DialogTitle>
-				<DialogContent>
-					<CellChartWrapper
-						queryId={queryId}
-						params={params}
-						parseData={parseTimeSeries}
-					>
-						{(data) => renderChart(data, true)}
-					</CellChartWrapper>
-				</DialogContent>
-			</Dialog>
+				{/* Unmount the content while closed; a closed cell chart
+				    must not keep a second query alive. */}
+				{dialogOpen ? (
+					<div className={PANEL_CLASS}>
+						<div className="flex items-start justify-between gap-4 border-b border-border px-6 py-4">
+							<h2 className="text-lg font-semibold text-foreground">
+								{columnDef.header}
+							</h2>
+							<button
+								type="button"
+								onClick={() => setDialogOpen(false)}
+								aria-label="Close"
+								title="Close"
+								className="-me-2 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+							>
+								<Unicon name="Close" size={18} />
+							</button>
+						</div>
+						<div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+							<CellChartWrapper
+								queryId={queryId}
+								params={params}
+								parseData={parseTimeSeries}
+							>
+								{(data) => renderChart(data, true)}
+							</CellChartWrapper>
+						</div>
+					</div>
+				) : null}
+			</dialog>
 		</>
 	);
 }

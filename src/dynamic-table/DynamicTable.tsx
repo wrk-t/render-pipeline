@@ -1,44 +1,45 @@
 // ═══════════════════════════════════════════════════════════════
-// DynamicTable – Renders a data table using material-react-table.
+// DynamicTable – renders a metadata-driven data table with
+// @tanstack/react-table v8, semantic HTML and Tailwind tokens.
 //
 // Supports two modes:
 //   1. Server-side (default) — fetches data from the endpoint
-//      defined in TableMetadata.datasource.
-//   2. Client-side — accepts data via the `data` prop.
+//      defined in TableMetadata.datasource. Pagination, sorting and
+//      filtering are forwarded to the API (`manual*` controllers).
+//   2. Client-side — accepts data via the `data` prop and sorts /
+//      filters / paginates it in the browser.
 //
-// ⚡ Performance
-//   - Columns are memoised inside useMemo so the reference stays
-//     stable across re-renders.
-//   - The MRT instance itself is highly optimised – only visible
-//     rows / cells are actually rendered.
+// The public API (DynamicTableProps / DynamicTableColumn) and every
+// callback contract is unchanged from the previous implementation. The grid
+// is a real <table>, the filter row is native inputs/selects, the toolbar is
+// buttons, and the bulk confirmation is a native <dialog>.
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
-import { Box, Link, Stack, Typography } from "@mui/material";
-import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogContentText from "@mui/material/DialogContentText";
-import DialogTitle from "@mui/material/DialogTitle";
-import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
-import useMediaQuery from "@mui/material/useMediaQuery";
-import { useTheme } from "@mui/material/styles";
 import {
-	MaterialReactTable,
-	MRT_ActionMenuItem,
-	type MRT_ColumnDef,
-	type MRT_ColumnFiltersState,
-	type MRT_ColumnPinningState,
-	type MRT_PaginationState,
-	type MRT_SortingState,
-	type MRT_TableInstance,
-	useMaterialReactTable,
-} from "material-react-table";
+	type CellContext,
+	type Column,
+	type ColumnDef,
+	type ColumnFiltersState,
+	type FilterFn,
+	type OnChangeFn,
+	type PaginationState,
+	type RowSelectionState,
+	type SortingState,
+	type Table as TanStackTable,
+	type VisibilityState,
+	flexRender,
+	functionalUpdate,
+	getCoreRowModel,
+	getFilteredRowModel,
+	getPaginationRowModel,
+	getSortedRowModel,
+	useReactTable,
+} from "@tanstack/react-table";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
+	type ButtonHTMLAttributes,
+	type ChangeEvent,
 	type KeyboardEvent as ReactKeyboardEvent,
 	type MouseEvent as ReactMouseEvent,
 	type ReactElement,
@@ -46,6 +47,7 @@ import {
 	useCallback,
 	useEffect,
 	useMemo,
+	useRef,
 	useState,
 } from "react";
 import useSWR, { useSWRConfig } from "swr";
@@ -56,6 +58,7 @@ import { getApiClient, useRenderUser } from "../deps";
 import type {
 	TableAction,
 	TableBulkAction,
+	TableDensity,
 	TableMetadata,
 	TableRowCondition,
 } from "../dynamic-form/types";
@@ -65,9 +68,9 @@ import { useSnack } from "../hooks/useSnack";
 import type { QueryParams } from "../query-builder";
 import { resolveUrlTemplate } from "../query-builder";
 import { columnCellRenderers } from "../renderers/columnCellRenderers";
+import { useDateRange } from "../renderers/DateRangeContext";
 import { TABLE_DATA_KEY_PREFIX } from "../renderers/SwitchCell";
 import { TextCell } from "../renderers/TextCell";
-import { useDateRange } from "../renderers/DateRangeContext";
 import { TableIcon } from "./TableIcon";
 
 // ─────────────────────────────────────────────────────────────
@@ -81,7 +84,7 @@ import { TableIcon } from "./TableIcon";
 export interface DynamicTableColumn {
 	/** Column instance id from the backend. */
 	id: number;
-	/** The field name in the response data (maps to MRT accessorKey). */
+	/** The field name in the response data (the table accessor). */
 	name: string;
 	/** Display overrides (e.g. displayName → column header). */
 	fieldOverrides?: { displayName?: string | null } | null;
@@ -158,7 +161,7 @@ export interface DynamicTableProps {
 
 	/**
 	 * When true, renders a minimal sub-table suitable for expandable detail
-	 * panels: no column headers, no pagination, no toolbar, no search/filters.
+	 * panels: no pagination, no toolbar, no search/filters, no sticky header.
 	 */
 	subRow?: boolean;
 
@@ -194,7 +197,7 @@ export interface DynamicTableProps {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Helpers – map a DynamicTableColumn → MRT_ColumnDef
+// Constants
 // ─────────────────────────────────────────────────────────────
 
 /**
@@ -203,6 +206,9 @@ export interface DynamicTableProps {
  * longer drifts per screen (25 / 50 / 100 / 10).
  */
 const DEFAULT_PAGE_SIZE = 25;
+
+/** Page size choices when the seed does not declare any. */
+const DEFAULT_PAGE_SIZE_OPTIONS = [5, 10, 15, 20, 25, 30, 50, 100];
 
 /**
  * UX-25 — CSV export streams the filtered list in pages of this size, so a
@@ -228,12 +234,29 @@ const URL_KEYS = {
 	filterPrefix: `${URL_STATE_PREFIX}f_`,
 } as const;
 
+/** The synthetic columns that bookend the data columns. */
+const SELECT_COLUMN_ID = "__select";
+const ACTIONS_COLUMN_ID = "__actions";
+/** Width of the selection column — the first data column sticks after it. */
+const SELECT_COLUMN_WIDTH = 40;
+/** Width of the row-actions column. */
+const ACTIONS_COLUMN_WIDTH = 50;
+
+/** Tailwind `start-*` offset that clears the sticky selection column. */
+const STICKY_FIRST_COLUMN_OFFSET = "start-10";
+
+// ─────────────────────────────────────────────────────────────
+// Table state types
+// ─────────────────────────────────────────────────────────────
+
+type TableRow = Record<string, unknown>;
+
 interface TableUrlState {
 	pageIndex: number;
 	pageSize: number;
-	sorting: MRT_SortingState;
+	sorting: SortingState;
 	globalFilter: string;
-	columnFilters: MRT_ColumnFiltersState;
+	columnFilters: ColumnFiltersState;
 	includeDeleted: boolean;
 	chipValue: string | null;
 }
@@ -241,7 +264,7 @@ interface TableUrlState {
 /**
  * Read a table's shareable state from the query string. Only server-side
  * tables persist/restore it: their filters are query params, while a
- * client-side table keeps its filters inside MRT.
+ * client-side table keeps its filters in local state.
  */
 function readTableUrlState(
 	searchParams: Pick<URLSearchParams, "get" | "entries">,
@@ -251,7 +274,7 @@ function readTableUrlState(
 	const size = Number(searchParams.get(URL_KEYS.size));
 	const sort = searchParams.get(URL_KEYS.sort);
 	const order = searchParams.get(URL_KEYS.order);
-	const filterEntries: MRT_ColumnFiltersState = [];
+	const filterEntries: ColumnFiltersState = [];
 	for (const [key, value] of searchParams.entries()) {
 		if (key.startsWith(URL_KEYS.filterPrefix) && value !== "") {
 			filterEntries.push({
@@ -263,9 +286,7 @@ function readTableUrlState(
 	return {
 		pageIndex: Number.isFinite(page) && page > 1 ? page - 1 : 0,
 		pageSize: Number.isFinite(size) && size > 0 ? size : defaultPageSize,
-		sorting: sort
-			? [{ id: sort, desc: order !== "asc" } as MRT_SortingState[number]]
-			: [],
+		sorting: sort ? [{ id: sort, desc: order !== "asc" }] : [],
 		globalFilter: searchParams.get(URL_KEYS.search) ?? "",
 		columnFilters: filterEntries,
 		includeDeleted: searchParams.get(URL_KEYS.includeDeleted) === "1",
@@ -278,7 +299,7 @@ function readTableUrlState(
 // ─────────────────────────────────────────────────────────────
 
 /** Read a row cell, supporting the dotted accessors the DSL uses (`data.x`). */
-function readRowValue(row: Record<string, unknown>, accessor: string): unknown {
+function readRowValue(row: TableRow, accessor: string): unknown {
 	if (!accessor.includes(".")) return row[accessor];
 	return accessor.split(".").reduce<unknown>((value, key) => {
 		if (value === null || value === undefined) return undefined;
@@ -306,7 +327,7 @@ function csvCell(value: unknown): string {
 /** Serialise the visible columns, in table order, to CSV text. */
 function toCsv(
 	columns: Array<{ accessor: string; header: string }>,
-	rows: Record<string, unknown>[],
+	rows: TableRow[],
 ): string {
 	const lines = [columns.map((column) => csvCell(column.header)).join(",")];
 	for (const row of rows) {
@@ -334,86 +355,116 @@ function downloadCsv(filename: string, csv: string): void {
 	setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
+// ─────────────────────────────────────────────────────────────
+// Column building
+// ─────────────────────────────────────────────────────────────
+
+/** Rendering metadata carried on a column definition. */
+interface TableColumnMeta {
+	/** Raw row accessor (may be dotted). */
+	accessor?: string;
+	/** Logical text alignment; shadcn's table default is start-aligned. */
+	align?: "left" | "center" | "right";
+	/** Which native filter control the header row renders. */
+	filterType?: "text" | "number" | "select" | "date" | "boolean" | null;
+	/** Resolved options for a select/boolean filter. */
+	filterOptions?: Array<{ label: string; value: string }>;
+	/** Fixed maximum width — long values truncate instead of stretching. */
+	fixedWidth?: number;
+	/** Inline editing through a double-click. */
+	editable?: boolean;
+	/** Hide the column when every row on the page has an empty value. */
+	hideWhenEmpty?: boolean;
+}
+
+type DataColumnDef = ColumnDef<TableRow, unknown>;
+
+/** A column definition with the cell-renderer config the renderers read. */
+type DynamicColumnDef = DataColumnDef & {
+	columnFormat?: Record<string, unknown>;
+};
+
+function defMeta(def: ColumnDef<TableRow, unknown>): TableColumnMeta {
+	return (def.meta ?? {}) as TableColumnMeta;
+}
+
+function columnMeta(column: Column<TableRow, unknown>): TableColumnMeta {
+	return defMeta(column.columnDef);
+}
+
+const BOOLEAN_FILTER_OPTIONS = [
+	{ label: "Yes", value: "true" },
+	{ label: "No", value: "false" },
+];
+
+/** Normalise static/datasource options into `{ label, value }` strings. */
+function resolveFilterOptions(
+	options?: ReadonlyArray<{
+		label?: string | number | null;
+		value?: unknown;
+	}> | null,
+): Array<{ label: string; value: string }> {
+	if (!Array.isArray(options)) return [];
+	const resolved: Array<{ label: string; value: string }> = [];
+	for (const option of options) {
+		const value = String(option.value ?? "");
+		if (value === "") continue;
+		resolved.push({ label: String(option.label ?? option.value ?? ""), value });
+	}
+	return resolved;
+}
+
+/** Client-side text filter — substring match, case-insensitive. */
+const containsFilter: FilterFn<TableRow> = (row, columnId, filterValue) => {
+	const needle = String(filterValue ?? "").toLowerCase();
+	if (!needle) return true;
+	return String(row.getValue(columnId) ?? "")
+		.toLowerCase()
+		.includes(needle);
+};
+
+/** Client-side select/boolean filter — exact string equality. */
+const equalsFilter: FilterFn<TableRow> = (row, columnId, filterValue) =>
+	String(row.getValue(columnId) ?? "") === String(filterValue ?? "");
+
+/** Client-side date filter — the row's ISO date starts with the picked day. */
+const dateFilter: FilterFn<TableRow> = (row, columnId, filterValue) => {
+	const needle = String(filterValue ?? "");
+	if (!needle) return true;
+	return String(row.getValue(columnId) ?? "")
+		.slice(0, 10)
+		.startsWith(needle);
+};
+
 function buildColumnDef(
 	col: DynamicTableColumn,
 	filterSelectOptions?: Array<{
 		label?: string | number | null;
 		value?: unknown;
 	}>,
-): MRT_ColumnDef<Record<string, unknown>> {
+): DynamicColumnDef {
 	const config = col.columnConfig;
-	const overrides = col.fieldOverrides;
+	const overrides = col.fieldOverrides as
+		| { name?: string; displayName?: string | null }
+		| null
+		| undefined;
+	const accessor = overrides?.name ?? col.name;
 	const header = overrides?.displayName ?? col.name;
+	const filterable = config?.filterable ?? true;
+	const filterType = filterable ? (config?.filterType ?? "text") : null;
 
-	const def: MRT_ColumnDef<Record<string, unknown>> = {
-		accessorKey: (overrides as any)?.name ?? col.name,
-		header,
-		enableSorting: config?.sortable ?? true,
-		enableColumnFilter: config?.filterable ?? true,
-		enableResizing: config?.resizable ?? true,
-		enableHiding: config?.hideable ?? true,
-		size: numOrUndefined(config?.width),
-		minSize: numOrUndefined(config?.minWidth),
-		maxSize: numOrUndefined(config?.maxWidth),
-		...(config?.editable ? { enableEditing: true } : {}),
-	};
-
-	// Internal marker for the page-level empty-column filter below. MRT's
-	// column def has no place for app metadata, so carry it privately.
-	if (config?.hideWhenEmpty) {
-		(def as { __hideWhenEmpty?: boolean }).__hideWhenEmpty = true;
-	}
-
-	// ── Column filter variant ────────────────────────────────────
-	// Map the metadata filterType to an MRT filter UI: select columns
-	// render a dropdown (options from the field's static datasource),
-	// boolean columns a Yes/No select, date columns a date picker.
-	if (config?.filterable && config.filterType) {
-		switch (config.filterType) {
-			case "select": {
-				def.filterVariant = "select";
-				// Prefer the resolved options passed by the caller (columnConfig
-				// filterOptions — static or service-backed); fall back to the
-				// field's static datasource options (the form's options, reused).
-				const options = filterSelectOptions ?? (col.datasource as any)?.options;
-				if (Array.isArray(options) && options.length > 0) {
-					def.filterSelectOptions = options.map(
-						(o: { label?: string; value?: unknown }) => ({
-							label: String(o.label ?? o.value ?? ""),
-							value: String(o.value ?? ""),
-						}),
-					);
-				}
-				break;
-			}
-			case "boolean": {
-				def.filterVariant = "select";
-				def.filterSelectOptions = [
-					{ label: "Yes", value: "true" },
-					{ label: "No", value: "false" },
-				];
-				break;
-			}
-			case "date": {
-				def.filterVariant = "date";
-				break;
-			}
-			default: {
-				def.filterVariant = "text";
-			}
-		}
-	}
-
-	// Format-based cell rendering — delegates to column cell renderers
+	// Format-based cell rendering — delegates to the shared column cell
+	// renderers. A reference column can resolve its `{id → label}` lookup
+	// from the field's datasource; the lookup is carried next to the format
+	// props so the cell needs no seed-specific wiring.
+	let CellComponent: React.ComponentType<any> = TextCell;
+	let columnFormat: Record<string, unknown> | undefined;
 	if (config?.format) {
 		const fmt = config.format;
-		const CellComponent = columnCellRenderers[fmt.type];
-		if (CellComponent) {
-			def.Cell = CellComponent as any;
-			// A reference column can resolve its `{id → label}` lookup from the
-			// field's datasource; carry it next to the format props so the cell
-			// needs no seed-specific wiring (`format.props.datasource` wins).
-			const columnFormat: Record<string, unknown> = { ...fmt };
+		const renderer = columnCellRenderers[fmt.type];
+		if (renderer) {
+			CellComponent = renderer;
+			const next: Record<string, unknown> = { ...fmt };
 			if (fmt.type === "reference") {
 				const props = { ...(fmt.props ?? {}) } as Record<string, unknown>;
 				if (props.datasource === undefined && col.datasource) {
@@ -425,42 +476,61 @@ function buildColumnDef(
 				) {
 					props.displayField = fmt.displayField;
 				}
-				columnFormat.props = props;
+				next.props = props;
 			}
-			(def as any).columnFormat = columnFormat;
+			columnFormat = next;
 		}
 	}
 
-	// Default cell: the shared text renderer stringifies non-string values
-	// (booleans, objects) and truncates a long value with an ellipsis while
-	// revealing it in a tooltip — a wide text column can no longer force the
-	// table to overflow instead of clipping.
-	if (!def.Cell) {
-		def.Cell = TextCell as any;
-	}
+	// Select options: the resolved options passed by the caller (columnConfig
+	// filterOptions — static or service-backed) win; otherwise the field's
+	// static datasource options are reused.
+	const selectOptions =
+		filterType === "boolean"
+			? BOOLEAN_FILTER_OPTIONS
+			: filterType === "select"
+				? resolveFilterOptions(
+						filterSelectOptions ?? col.datasource?.options ?? undefined,
+					)
+				: undefined;
 
-	// Alignment — default to center
-	const align =
-		config?.align && config.align !== "justify" ? config.align : "center";
-	def.muiTableHeadCellProps = { align };
-
-	// Fixed-length columns: MRT's maxSize only limits manual resizing, it
-	// does not clip content during layout. Apply cell-level truncation so
-	// width/maxWidth columns always render at their configured length.
-	const fixedWidth = numOrUndefined(config?.maxWidth ?? config?.width);
-	def.muiTableBodyCellProps = {
-		align,
-		...(fixedWidth
-			? {
-					sx: {
-						maxWidth: fixedWidth,
-						whiteSpace: "nowrap",
-						overflow: "hidden",
-						textOverflow: "ellipsis",
-					},
-				}
-			: {}),
+	const meta: TableColumnMeta = {
+		accessor,
+		align: config?.align && config.align !== "justify" ? config.align : "left",
+		filterType,
+		filterOptions: selectOptions,
+		fixedWidth: numOrUndefined(config?.maxWidth ?? config?.width),
+		editable: Boolean(config?.editable),
+		hideWhenEmpty: Boolean(config?.hideWhenEmpty),
 	};
+
+	const def: DynamicColumnDef = {
+		// An explicit id keeps dotted accessors intact for filter/sort params
+		// (TanStack would otherwise replace `.` with `_` in the derived id).
+		id: accessor,
+		accessorKey: accessor,
+		header,
+		enableSorting: config?.sortable ?? true,
+		enableColumnFilter: filterable,
+		enableHiding: config?.hideable ?? true,
+		size: numOrUndefined(config?.width),
+		minSize: numOrUndefined(config?.minWidth),
+		maxSize: numOrUndefined(config?.maxWidth),
+		filterFn:
+			filterType === "select" || filterType === "boolean"
+				? equalsFilter
+				: filterType === "date"
+					? dateFilter
+					: containsFilter,
+		meta,
+		cell: (context: CellContext<TableRow, unknown>) => (
+			<CellComponent cell={context} columnDef={context.column.columnDef} />
+		),
+	};
+
+	// The cell renderers read `cell.column.columnDef.columnFormat`; carry it
+	// on the definition (ColumnDef has no field for app metadata).
+	if (columnFormat) def.columnFormat = columnFormat;
 
 	return def;
 }
@@ -507,26 +577,61 @@ function isRowControlTarget(target: EventTarget | null): boolean {
 	if (!(target instanceof Element)) return true;
 	return Boolean(
 		target.closest(
-			'button, a, input, select, textarea, label, [role="button"], [role="link"], [role="checkbox"], [role="menuitem"], [role="switch"]',
+			'button, a, input, select, textarea, label, summary, details, dialog, [role="button"], [role="link"], [role="checkbox"], [role="menuitem"], [role="switch"]',
 		),
 	);
 }
 
-/**
- * Map our contract density ("normal" → "comfortable", "comfortable" → "spacious")
- * to MRT's density values (which use "comfortable" | "compact" | "spacious").
- */
-function toMrtDensity(
-	d: TableMetadata["settings"]["density"],
-): "comfortable" | "compact" | "spacious" {
-	switch (d) {
-		case "compact":
-			return "compact";
-		case "normal":
-			return "comfortable";
-		case "comfortable":
-			return "spacious";
+// ─────────────────────────────────────────────────────────────
+// Density & alignment helpers
+// ─────────────────────────────────────────────────────────────
+
+/** Cell padding per contract density (compact < normal < comfortable). */
+const DENSITY_CELL_CLASS: Record<TableDensity, string> = {
+	compact: "p-2 py-1",
+	normal: "p-2",
+	comfortable: "p-2 py-3",
+};
+
+/** The shadcn table wrapper: scroll container, radius and hairline border. */
+const TABLE_WRAPPER_CLASS =
+	"relative w-full overflow-x-auto rounded-md border border-border";
+
+type ColumnAlign = "left" | "center" | "right";
+
+const ALIGN_TEXT_CLASS: Record<ColumnAlign, string> = {
+	left: "text-start",
+	center: "text-center",
+	right: "text-end",
+};
+
+const ALIGN_FLEX_CLASS: Record<ColumnAlign, string> = {
+	left: "justify-start",
+	center: "justify-center",
+	right: "justify-end",
+};
+
+function alignText(align: ColumnAlign | undefined): string {
+	return ALIGN_TEXT_CLASS[align ?? "left"];
+}
+
+function alignFlex(align: ColumnAlign | undefined): string {
+	return ALIGN_FLEX_CLASS[align ?? "left"];
+}
+
+/** Build a nested PATCH body from a possibly dotted row accessor. */
+function nestedBody(accessor: string, value: unknown): Record<string, unknown> {
+	const keys = accessor.split(".");
+	let body: unknown = value;
+	for (let index = keys.length - 1; index >= 0; index -= 1) {
+		body = { [keys[index]]: body };
 	}
+	return body as Record<string, unknown>;
+}
+
+/** Stable row key used for selection and React keys. */
+function rowKeyOf(row: TableRow, index: number): string {
+	return String(row.id ?? index);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -534,10 +639,10 @@ function toMrtDensity(
 // ─────────────────────────────────────────────────────────────
 
 interface FetchParams {
-	pagination: MRT_PaginationState;
-	sorting: MRT_SortingState;
+	pagination: PaginationState;
+	sorting: SortingState;
 	globalFilter: string;
-	columnFilters: MRT_ColumnFiltersState;
+	columnFilters: ColumnFiltersState;
 	includeDeleted: boolean;
 	searchableFields?: string[];
 	datasourceParams?: Record<string, string>;
@@ -645,6 +750,492 @@ function buildSearchParams({
 }
 
 // ─────────────────────────────────────────────────────────────
+// Small native UI primitives
+// ─────────────────────────────────────────────────────────────
+
+type ButtonVariant = "primary" | "outline" | "ghost" | "danger";
+
+const BUTTON_BASE =
+	"inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0";
+
+const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
+	primary: "bg-primary text-primary-foreground hover:bg-primary/90",
+	outline:
+		"border border-input bg-background hover:bg-muted hover:text-foreground",
+	ghost: "hover:bg-muted hover:text-foreground",
+	danger: "bg-destructive text-white hover:bg-destructive/90",
+};
+
+/** Map an action's palette-style colour name onto one of our button variants. */
+function buttonVariant(color?: string): ButtonVariant {
+	if (color === "error" || color === "danger" || color === "delete") {
+		return "danger";
+	}
+	if (!color || color === "primary") return "primary";
+	return "outline";
+}
+
+interface ActionButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+	variant?: ButtonVariant;
+	icon?: ReactNode;
+}
+
+function ActionButton({
+	variant = "primary",
+	icon,
+	children,
+	className,
+	...props
+}: ActionButtonProps): ReactElement {
+	return (
+		<button
+			type="button"
+			className={`${BUTTON_BASE} ${BUTTON_VARIANTS[variant]} ${className ?? ""}`}
+			{...props}
+		>
+			{icon}
+			{children}
+		</button>
+	);
+}
+
+const ICON_BUTTON_CLASS =
+	"inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
+
+/** Pagination's outline icon button — shadcn `variant="outline" size="icon"`. */
+const PAGINATION_BUTTON_CLASS = "border border-input bg-transparent";
+
+interface IconActionButtonProps {
+	label: string;
+	icon: ReactNode;
+	onClick?: () => void;
+	disabled?: boolean;
+	pressed?: boolean;
+	/** Extra utilities (e.g. the pagination buttons' outline border). */
+	className?: string;
+}
+
+function IconActionButton({
+	label,
+	icon,
+	onClick,
+	disabled,
+	pressed,
+	className,
+}: IconActionButtonProps): ReactElement {
+	return (
+		<button
+			type="button"
+			title={label}
+			aria-label={label}
+			aria-pressed={pressed}
+			disabled={disabled}
+			onClick={onClick}
+			className={`${ICON_BUTTON_CLASS} ${className ?? ""}`}
+		>
+			{icon}
+		</button>
+	);
+}
+
+function Chip({
+	children,
+	tone = "muted",
+}: {
+	children: ReactNode;
+	tone?: "muted" | "primary" | "outline";
+}): ReactElement {
+	const tones: Record<"muted" | "primary" | "outline", string> = {
+		muted: "border-transparent bg-secondary text-secondary-foreground",
+		primary: "border-transparent bg-primary text-primary-foreground",
+		outline: "border-border text-foreground",
+	};
+	return (
+		<span
+			className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${tones[tone]}`}
+		>
+			{children}
+		</span>
+	);
+}
+
+interface SelectionCheckboxProps {
+	checked: boolean;
+	indeterminate?: boolean;
+	onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+	label: string;
+	disabled?: boolean;
+}
+
+function SelectionCheckbox({
+	checked,
+	indeterminate,
+	onChange,
+	label,
+	disabled,
+}: SelectionCheckboxProps): ReactElement {
+	const ref = useRef<HTMLInputElement>(null);
+	useEffect(() => {
+		if (ref.current) ref.current.indeterminate = Boolean(indeterminate);
+	}, [indeterminate]);
+	return (
+		<input
+			ref={ref}
+			type="checkbox"
+			checked={checked}
+			disabled={disabled}
+			aria-label={label}
+			onChange={onChange}
+			onClick={(event) => event.stopPropagation()}
+			className="h-4 w-4 cursor-pointer rounded border-border accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+		/>
+	);
+}
+
+interface ModalDialogProps {
+	open: boolean;
+	title: string;
+	onClose: () => void;
+	children: ReactNode;
+	footer: ReactNode;
+}
+
+/** A native modal <dialog> — top layer, focus trap and Escape for free. */
+function ModalDialog({
+	open,
+	title,
+	onClose,
+	children,
+	footer,
+}: ModalDialogProps): ReactElement {
+	const ref = useRef<HTMLDialogElement>(null);
+
+	useEffect(() => {
+		const dialog = ref.current;
+		if (!dialog) return;
+		if (open) {
+			if (dialog.open) return;
+			if (typeof dialog.showModal === "function") {
+				try {
+					dialog.showModal();
+				} catch {
+					dialog.setAttribute("open", "");
+				}
+			} else {
+				dialog.setAttribute("open", "");
+			}
+		} else if (dialog.open) {
+			if (typeof dialog.close === "function") dialog.close();
+			else dialog.removeAttribute("open");
+		}
+	}, [open]);
+
+	return (
+		<dialog
+			ref={ref}
+			aria-label={title}
+			onCancel={(event) => {
+				event.preventDefault();
+				onClose();
+			}}
+			onClick={(event) => {
+				if (event.target === ref.current) onClose();
+			}}
+			className="fixed inset-0 z-50 m-auto h-fit max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-auto rounded-lg border border-border bg-card p-0 text-foreground shadow-lg [&::backdrop]:bg-black/50"
+		>
+			<div className="flex flex-col gap-4 p-6">
+				<h2 className="text-lg font-semibold text-foreground">{title}</h2>
+				<div className="text-sm text-muted-foreground">{children}</div>
+				<div className="flex justify-end gap-2">{footer}</div>
+			</div>
+		</dialog>
+	);
+}
+
+interface DebouncedInputProps {
+	value: string;
+	onChange: (value: string) => void;
+	label: string;
+	type?: "text" | "number" | "search";
+	placeholder?: string;
+	className?: string;
+	delay?: number;
+}
+
+/**
+ * A controlled text input that commits after a short pause (and on Enter or
+ * blur), so typing in a server-side filter does not fire one request per
+ * keystroke. The external value wins whenever the input is not focused, so
+ * "clear filters" resets the draft too.
+ */
+function DebouncedInput({
+	value,
+	onChange,
+	label,
+	type = "text",
+	placeholder,
+	className,
+	delay = 300,
+}: DebouncedInputProps): ReactElement {
+	const [draft, setDraft] = useState(value);
+	const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const focused = useRef(false);
+	const onChangeRef = useRef(onChange);
+	onChangeRef.current = onChange;
+
+	useEffect(() => {
+		if (!focused.current) setDraft(value);
+	}, [value]);
+
+	useEffect(
+		() => () => {
+			if (timer.current) clearTimeout(timer.current);
+		},
+		[],
+	);
+
+	const commit = (next: string) => {
+		if (timer.current) {
+			clearTimeout(timer.current);
+			timer.current = null;
+		}
+		if (next !== value) onChangeRef.current(next);
+	};
+
+	return (
+		<input
+			type={type}
+			value={draft}
+			aria-label={label}
+			placeholder={placeholder}
+			className={className}
+			onChange={(event) => {
+				const next = event.target.value;
+				setDraft(next);
+				if (timer.current) clearTimeout(timer.current);
+				timer.current = setTimeout(() => {
+					timer.current = null;
+					onChangeRef.current(next);
+				}, delay);
+			}}
+			onFocus={() => {
+				focused.current = true;
+			}}
+			onBlur={() => {
+				focused.current = false;
+				if (timer.current) commit(draft);
+			}}
+			onKeyDown={(event) => {
+				if (event.key !== "Enter") return;
+				event.preventDefault();
+				commit(draft);
+				event.currentTarget.blur();
+			}}
+		/>
+	);
+}
+
+const FILTER_CONTROL_CLASS =
+	"h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+
+interface ColumnFilterControlProps {
+	label: string;
+	meta: TableColumnMeta;
+	value: unknown;
+	onChange: (value: string) => void;
+}
+
+/** The native filter widget for one column: input, date field or select. */
+function ColumnFilterControl({
+	label,
+	meta,
+	value,
+	onChange,
+}: ColumnFilterControlProps): ReactElement | null {
+	if (!meta.filterType) return null;
+	const current =
+		typeof value === "string" || typeof value === "number" ? String(value) : "";
+
+	if (meta.filterType === "select" || meta.filterType === "boolean") {
+		const options = meta.filterOptions ?? [];
+		return (
+			<select
+				aria-label={`Filter ${label}`}
+				value={current}
+				onChange={(event) => onChange(event.target.value)}
+				className={FILTER_CONTROL_CLASS}
+			>
+				<option value="">All</option>
+				{options.map((option) => (
+					<option key={option.value} value={option.value}>
+						{option.label}
+					</option>
+				))}
+			</select>
+		);
+	}
+
+	if (meta.filterType === "date") {
+		return (
+			<input
+				type="date"
+				aria-label={`Filter ${label}`}
+				value={current}
+				onChange={(event) => onChange(event.target.value)}
+				className={FILTER_CONTROL_CLASS}
+			/>
+		);
+	}
+
+	return (
+		<DebouncedInput
+			type={meta.filterType === "number" ? "number" : "text"}
+			value={current}
+			onChange={onChange}
+			label={`Filter ${label}`}
+			placeholder="Filter…"
+			className={FILTER_CONTROL_CLASS}
+		/>
+	);
+}
+
+/** Width of the row-actions popup, used to keep it inside the viewport. */
+const ROW_MENU_WIDTH = 176;
+
+/**
+ * The per-row action menu. The popup is `position: fixed` with coordinates
+ * taken from the trigger: the table scrolls horizontally, so an absolutely
+ * positioned menu inside a cell would be clipped by the scroll container.
+ * A fixed element is not clipped by an ancestor's overflow (its containing
+ * block is the viewport), so no portal is needed.
+ */
+function RowActionsMenu({
+	actions,
+	onSelect,
+}: {
+	actions: TableAction[];
+	onSelect: (action: TableAction) => void;
+}): ReactElement {
+	const [open, setOpen] = useState(false);
+	const [position, setPosition] = useState<{
+		top: number;
+		left: number;
+	} | null>(null);
+	const containerRef = useRef<HTMLDivElement>(null);
+	const buttonRef = useRef<HTMLButtonElement>(null);
+
+	useEffect(() => {
+		if (!open) return;
+		const close = () => setOpen(false);
+		const onPointerDown = (event: PointerEvent) => {
+			if (containerRef.current?.contains(event.target as Node)) return;
+			close();
+		};
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key === "Escape") close();
+		};
+		window.addEventListener("pointerdown", onPointerDown);
+		window.addEventListener("keydown", onKeyDown);
+		// A fixed popup would drift over a scrolling table — close on scroll.
+		window.addEventListener("scroll", close, true);
+		window.addEventListener("resize", close);
+		return () => {
+			window.removeEventListener("pointerdown", onPointerDown);
+			window.removeEventListener("keydown", onKeyDown);
+			window.removeEventListener("scroll", close, true);
+			window.removeEventListener("resize", close);
+		};
+	}, [open]);
+
+	const toggleMenu = () => {
+		if (open) {
+			setOpen(false);
+			return;
+		}
+		const rect = buttonRef.current?.getBoundingClientRect();
+		if (!rect) return;
+		const viewport = window.innerWidth;
+		const left = Math.min(
+			Math.max(rect.left, 8),
+			Math.max(viewport - ROW_MENU_WIDTH - 8, 8),
+		);
+		setPosition({ top: rect.bottom + 4, left });
+		setOpen(true);
+	};
+
+	return (
+		<div ref={containerRef} className="relative inline-block text-start">
+			<button
+				ref={buttonRef}
+				type="button"
+				aria-haspopup="true"
+				aria-expanded={open}
+				title="Row actions"
+				aria-label="Row actions"
+				onClick={toggleMenu}
+				className={ICON_BUTTON_CLASS}
+			>
+				<TableIcon name="MoreHoriz" size={18} />
+			</button>
+			{open && position ? (
+				<div
+					onClick={(event) => event.stopPropagation()}
+					style={{ position: "fixed", top: position.top, left: position.left }}
+					className="z-50 min-w-44 rounded-md border border-border bg-popover p-1 text-start text-popover-foreground shadow-md"
+				>
+					{actions.map((action) => (
+						<button
+							key={action.id}
+							type="button"
+							onClick={(event) => {
+								event.stopPropagation();
+								setOpen(false);
+								onSelect(action);
+							}}
+							className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-start text-sm text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+						>
+							{action.icon ? <TableIcon name={action.icon} size={16} /> : null}
+							<span
+								className={
+									action.color === "error" || action.color === "delete"
+										? "text-destructive"
+										: undefined
+								}
+							>
+								{action.label}
+							</span>
+						</button>
+					))}
+				</div>
+			) : null}
+		</div>
+	);
+}
+
+/**
+ * Tracks the phone breakpoint (600px, where DSL dialogs go full screen).
+ * Starts `false` on the server and on the first client paint, then follows
+ * the media query natively.
+ */
+const PHONE_QUERY = "(max-width: 639.98px)";
+
+function usePhoneLayout(): boolean {
+	const [isPhone, setIsPhone] = useState(false);
+
+	useEffect(() => {
+		if (typeof window === "undefined" || !window.matchMedia) return;
+		const query = window.matchMedia(PHONE_QUERY);
+		const update = () => setIsPhone(query.matches);
+		update();
+		if (typeof query.addEventListener !== "function") return;
+		query.addEventListener("change", update);
+		return () => query.removeEventListener("change", update);
+	}, []);
+
+	return isPhone;
+}
+
+// ─────────────────────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────────────────────
 
@@ -661,8 +1252,8 @@ export function DynamicTable({
 	otherParams,
 }: DynamicTableProps): ReactElement {
 	const { settings, selection, datasource } = tableMetadata;
-	const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
 	const isServerSide = datasource.serverSide === true;
+	const isSubRow = subRow === true;
 
 	// ── Resolve endpoint template with otherParams pathParams ──
 	// Read date range from DateRangeContext (shared globally by the date range picker)
@@ -679,18 +1270,18 @@ export function DynamicTable({
 			...resolvedPathParams,
 		});
 	}, [datasource.endpoint, resolvedPathParams, range]);
+	// The previous renderer treated an omitted flag as enabled (its
+	// `enableFilters`/`enableHiding` options defaulted to true), so an
+	// incomplete seed keeps the same behaviour.
+	const searchable = settings.searchable ?? true;
+	const columnToggle = settings.columnToggle ?? true;
 	const hasExternalData = externalData !== undefined;
 	const { push } = useRouter();
 	const pathname = usePathname();
 	const searchParams = useSearchParams();
 	const { mutate: globalMutate } = useSWRConfig();
 	const snack = useSnack();
-	const muiTheme = useTheme();
-	// The opt-in mobile cards replace the table on phones only (MUI sm=600,
-	// the same edge the DSL dialogs go full-screen at).
-	const isPhone = useMediaQuery(muiTheme.breakpoints.down("sm"), {
-		noSsr: true,
-	});
+	const isPhone = usePhoneLayout();
 
 	// ── Server-side state ──────────────────────────────────────
 	// One platform page size (25). A seed may override it only with a
@@ -705,7 +1296,7 @@ export function DynamicTable({
 	// and externally supplied tables filter their rows directly.
 	// A sub-table (detail panel) stays compact: the chip row belongs to the
 	// page-level list it filters.
-	const filterChips = subRow ? null : (settings.filterChips ?? null);
+	const filterChips = isSubRow ? null : (settings.filterChips ?? null);
 
 	// ── Shareable filter state (UX-25) ─────────────────────────
 	// A server-side table restores search/filters/page/sort from `tf_*`
@@ -717,26 +1308,47 @@ export function DynamicTable({
 				: null,
 		[isServerSide, hasExternalData, searchParams, initialPageSize],
 	);
-	const [pagination, setPagination] = useState<MRT_PaginationState>({
+
+	const [pagination, setPagination] = useState<PaginationState>({
 		pageIndex: initialUrlState?.pageIndex ?? 0,
 		pageSize: initialUrlState?.pageSize ?? initialPageSize,
 	});
-	const [sorting, setSorting] = useState<MRT_SortingState>(
+	const [sorting, setSorting] = useState<SortingState>(
 		initialUrlState?.sorting ?? [],
 	);
 	const [globalFilter, setGlobalFilter] = useState(
 		initialUrlState?.globalFilter ?? "",
 	);
-	const [columnFilters, setColumnFilters] = useState<MRT_ColumnFiltersState>(
+	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(
 		initialUrlState?.columnFilters ?? [],
 	);
 	const [includeDeleted, setIncludeDeleted] = useState(
 		initialUrlState?.includeDeleted ?? false,
 	);
-
 	const [chipValue, setChipValue] = useState<string | null>(
 		filterChips ? (initialUrlState?.chipValue ?? null) : null,
 	);
+
+	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+	const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+	const [density, setDensity] = useState<TableDensity>(
+		settings.density ?? "normal",
+	);
+	const [fullscreen, setFullscreen] = useState(false);
+	const [exporting, setExporting] = useState(false);
+	const [pendingBulkAction, setPendingBulkAction] = useState<{
+		action: TableBulkAction;
+		rows: TableRow[];
+	} | null>(null);
+	const [bulkRunningId, setBulkRunningId] = useState<string | null>(null);
+	const [editingCell, setEditingCell] = useState<{
+		rowId: string;
+		columnId: string;
+		accessor: string;
+		original: TableRow;
+	} | null>(null);
+	const [editingValue, setEditingValue] = useState("");
+	const cancelEditRef = useRef(false);
 
 	const chipParams = useMemo<Record<string, string> | undefined>(() => {
 		if (!filterChips?.field || !chipValue) return undefined;
@@ -794,11 +1406,11 @@ export function DynamicTable({
 	// `tf_*` params make a filtered view shareable. Only non-default values
 	// are written, so an unfiltered list keeps a clean URL; route params
 	// (`menuId`, `dialog`, …) are preserved. Server-side only: a client-side
-	// table keeps its filters inside MRT.
+	// table keeps its filters in component state.
 	// `history.replaceState` (not router.replace) keeps typing in the search
 	// box from triggering a server round-trip on every keystroke.
 	useEffect(() => {
-		if (subRow || !isServerSide || hasExternalData) return;
+		if (isSubRow || !isServerSide || hasExternalData) return;
 		const params = new URLSearchParams(window.location.search);
 		const currentQuery = params.toString();
 		for (const key of Array.from(params.keys())) {
@@ -835,7 +1447,7 @@ export function DynamicTable({
 			`${pathname}${nextQuery ? `?${nextQuery}` : ""}`,
 		);
 	}, [
-		subRow,
+		isSubRow,
 		isServerSide,
 		hasExternalData,
 		globalFilter,
@@ -849,7 +1461,7 @@ export function DynamicTable({
 		pathname,
 	]);
 
-	// ── Build MRT column definitions ───────────────────────────
+	// ── Build column definitions ───────────────────────────────
 	// Hide `deletedAt` column unless the user chose to see deleted items.
 
 	// Service-backed select-filter options (e.g. tiers) — collected once,
@@ -887,7 +1499,7 @@ export function DynamicTable({
 		},
 	);
 
-	const columns = useMemo<MRT_ColumnDef<Record<string, unknown>>[]>(() => {
+	const dataColumns = useMemo<DynamicColumnDef[]>(() => {
 		const optionsByColumn = new Map<
 			number,
 			Array<{ label: string; value: string }>
@@ -966,11 +1578,8 @@ export function DynamicTable({
 	// table, so tenant scope, search, column filters, chip and route params
 	// all apply. It pages through the filtered result set (`limit` is the
 	// export page size) instead of downloading only the visible page.
-	const [exporting, setExporting] = useState(false);
-
-	// ── Download the filtered rows as CSV (UX-25) ──────────────
 	const exportCsv = useCallback(
-		async (instance: MRT_TableInstance<Record<string, unknown>>) => {
+		async (instance: TanStackTable<TableRow>) => {
 			if (exporting || !isServerSide || hasExternalData) return;
 			setExporting(true);
 			try {
@@ -978,7 +1587,7 @@ export function DynamicTable({
 				// column also keeps it out of the export.
 				const exportColumns = instance
 					.getVisibleLeafColumns()
-					.filter((column) => !column.id.startsWith("mrt-row-"))
+					.filter((column) => !column.id.startsWith("__"))
 					.map((column) => {
 						const def = column.columnDef as {
 							accessorKey?: string;
@@ -995,7 +1604,7 @@ export function DynamicTable({
 				const baseUrl = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
 				const sep = resolvedEndpoint.includes("?") ? "&" : "?";
 				const suffix = otherQueryString ? `&${otherQueryString}` : "";
-				const rows: Record<string, unknown>[] = [];
+				const rows: TableRow[] = [];
 				let page = 1;
 				let total: number | null = null;
 				while (
@@ -1023,10 +1632,10 @@ export function DynamicTable({
 					const inner = res.data?.data;
 					if (Array.isArray(inner)) {
 						// A flat (non-paginated) endpoint returns its whole list.
-						rows.push(...(inner as Record<string, unknown>[]));
+						rows.push(...(inner as TableRow[]));
 						break;
 					}
-					const pageRows: Record<string, unknown>[] = inner?.data ?? [];
+					const pageRows: TableRow[] = inner?.data ?? [];
 					if (typeof inner?.total === "number") total = inner.total;
 					rows.push(...pageRows);
 					if (
@@ -1106,7 +1715,7 @@ export function DynamicTable({
 	// Some endpoints return { data: [...] } (flat array),
 	// others return { data: { data: [...], total: N } } (paginated).
 	const inner = swrResponse?.data;
-	const fetchedData: Record<string, unknown>[] = Array.isArray(inner)
+	const fetchedData: TableRow[] = Array.isArray(inner)
 		? inner
 		: (inner?.data ?? []);
 	const rowCount: number = Array.isArray(inner)
@@ -1138,55 +1747,18 @@ export function DynamicTable({
 	// them only when the whole page is empty keeps the table honest without
 	// making the audience mode part of the table schema.
 	const visibleColumns = useMemo(() => {
-		return columns.filter((column) => {
-			if (!(column as { __hideWhenEmpty?: boolean }).__hideWhenEmpty) {
-				return true;
-			}
-			const accessor = String(
-				(column as { accessorKey?: string }).accessorKey ?? column.id ?? "",
-			);
-			return (data as Array<Record<string, unknown>>).some(
+		return dataColumns.filter((column) => {
+			const meta = defMeta(column);
+			if (!meta.hideWhenEmpty) return true;
+			const accessor = meta.accessor ?? "";
+			return data.some(
 				(row) =>
 					row[accessor] !== null &&
 					row[accessor] !== undefined &&
 					row[accessor] !== "",
 			);
 		});
-	}, [columns, data]);
-
-	// ── Pinned columns ─────────────────────────────────────────
-	// The identity column stays at the logical START and the row-action menu
-	// at the logical END, so both remain visible while the wide value columns
-	// scroll. Pinning the first column also keeps the row's own identity in
-	// view when the detail columns overflow at 1280px.
-	const pinnedLeftColumnIds = useMemo(() => {
-		const first = visibleColumns[0] as
-			| { accessorKey?: string; id?: string }
-			| undefined;
-		const firstId = first?.accessorKey ?? first?.id;
-		const ids = firstId ? [firstId] : [];
-		// The selection checkbox leads the row and must stay visible with it.
-		return selection?.enabled || (tableMetadata.bulkActions ?? []).length > 0
-			? ["mrt-row-select", ...ids]
-			: ids;
-	}, [visibleColumns, selection?.enabled, tableMetadata.bulkActions]);
-
-	// Additional pins the user chose from the column menu. The two edges above
-	// are always merged back in, so a user action can never hide the row
-	// actions or the identity column.
-	const [userColumnPinning, setUserColumnPinning] =
-		useState<MRT_ColumnPinningState>({});
-	const columnPinning = useMemo<MRT_ColumnPinningState>(
-		() => ({
-			left: Array.from(
-				new Set([...pinnedLeftColumnIds, ...(userColumnPinning.left ?? [])]),
-			),
-			right: Array.from(
-				new Set([...(userColumnPinning.right ?? []), "mrt-row-actions"]),
-			),
-		}),
-		[userColumnPinning, pinnedLeftColumnIds],
-	);
+	}, [dataColumns, data]);
 
 	// ── Permission check ──────────────────────────────────────
 	const can = useCan();
@@ -1267,7 +1839,7 @@ export function DynamicTable({
 	// while this list is non-empty. Gated exactly like a toolbar action.
 	const bulkActions = useMemo<TableBulkAction[]>(
 		() =>
-			subRow
+			isSubRow
 				? []
 				: (tableMetadata.bulkActions ?? []).filter(
 						(action) =>
@@ -1283,7 +1855,7 @@ export function DynamicTable({
 							(!action.requiresFeature || features[action.requiresFeature]),
 					),
 		[
-			subRow,
+			isSubRow,
 			tableMetadata.bulkActions,
 			checkPermission,
 			userPermissions,
@@ -1307,7 +1879,7 @@ export function DynamicTable({
 	 * Supports nested paths: {serviceVersions[0].id} → row.serviceVersions[0].id
 	 */
 	const resolveRowPlaceholders = useCallback(
-		(template: string, row?: Record<string, unknown>): string => {
+		(template: string, row?: TableRow): string => {
 			const data = { ...resolvedPathParams, ...(row ?? {}) };
 			if (Object.keys(data).length === 0) return template;
 			return template.replace(
@@ -1338,7 +1910,7 @@ export function DynamicTable({
 	 * resolved from the row data.
 	 */
 	const handleRedirect = useCallback(
-		(redirect: string, row?: Record<string, unknown>) => {
+		(redirect: string, row?: TableRow) => {
 			// ── Path-style redirect: /absolute, ~/root-relative, or ./relative ──
 			if (
 				redirect.startsWith("/") ||
@@ -1400,7 +1972,7 @@ export function DynamicTable({
 	 *  - custom     → handles toggleDeleted, refreshData, etc.
 	 */
 	const handleAction = useCallback(
-		(action: TableAction, row?: Record<string, unknown>) => {
+		(action: TableAction, row?: TableRow) => {
 			if (action.action === "openDialog") {
 				// Row-derived dialog extras (CRM-27): a shortcut prefills the form it
 				// opens. `rowFields` copies row values onto form fields (rename-friendly);
@@ -1557,6 +2129,8 @@ export function DynamicTable({
 			globalMutate,
 			handleRedirect,
 			resolvedPathParams,
+			onRowAction,
+			onToolbarAction,
 		],
 	);
 
@@ -1568,7 +2142,7 @@ export function DynamicTable({
 	 * and keyboard open cannot invent one.
 	 */
 	const resolveRowHref = useCallback(
-		(row: Record<string, unknown>): string | undefined => {
+		(row: TableRow): string | undefined => {
 			const onClick = tableMetadata.onRowClick;
 			if (!onClick) return undefined;
 			if (onClick.action === "navigate" && onClick.path) {
@@ -1598,18 +2172,79 @@ export function DynamicTable({
 		[tableMetadata.onRowClick, resolveRowPlaceholders, features],
 	);
 
-	// ── Build the MRT instance ─────────────────────────────────
-	// Row actions pin to the logical END of the table — the right edge
-	// in LTR, the left edge in RTL. MRT treats pinning sides as logical
-	// and flips them for RTL tables, so "right" pins to the visual end
-	// in BOTH directions.
+	/**
+	 * Navigate/act on a row click. Only a declared `onRowClick` makes rows
+	 * interactive; the handler skips clicks that belong to a row control.
+	 */
+	const handleRowClick = useCallback(
+		(row: TableRow) => {
+			const onClick = tableMetadata.onRowClick;
+			if (!onClick) return;
+			// Skip navigation if a dialog is currently open (avoid stray clicks).
+			if (document.querySelector("dialog[open], .MuiDialog-root")) return;
+
+			// New action-discriminant format: navigate / apiCall / openDialog
+			if (onClick.action === "navigate" && onClick.path) {
+				const href = resolveRowHref(row);
+				if (href) push(href);
+				return;
+			}
+			if (onClick.action === "apiCall" && onClick.endpoint) {
+				const baseUrl = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
+				const endpoint = resolveRowPlaceholders(onClick.endpoint, row);
+				getApiClient().request({
+					url: `${baseUrl}${endpoint}`,
+					method: onClick.method ?? "GET",
+					data: row,
+				});
+				return;
+			}
+			if (onClick.action === "openDialog" && onClick.dialog) {
+				const extraObj = {
+					_actionId: "onRowClick",
+					...resolvedPathParams,
+					id: String(row.id ?? ""),
+				};
+				setDialogState(
+					onClick.dialog.context ?? "edit",
+					String(row.id ?? ""),
+					String(onClick.dialog.componentId ?? ""),
+					JSON.stringify(extraObj),
+				);
+				return;
+			}
+
+			// Legacy redirect/endpoint format. The redirect — including its
+			// feature-gated fallback — is resolved once by `resolveRowHref`.
+			if (onClick.redirect) {
+				const href = resolveRowHref(row);
+				if (href) push(href);
+			} else if (onClick.endpoint) {
+				const baseUrl = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
+				const endpoint = resolveRowPlaceholders(onClick.endpoint, row);
+				getApiClient().request({
+					url: `${baseUrl}${endpoint}`,
+					method: onClick.method ?? "GET",
+					data: row,
+				});
+			}
+		},
+		[
+			tableMetadata.onRowClick,
+			resolveRowHref,
+			resolveRowPlaceholders,
+			resolvedPathParams,
+			setDialogState,
+			push,
+		],
+	);
 
 	/**
 	 * The actions this row can see. Used by the action menu AND by the phone
 	 * card, so the two presentations cannot drift apart.
 	 */
 	const visibleRowActions = useCallback(
-		(row: Record<string, unknown>): TableAction[] =>
+		(row: TableRow): TableAction[] =>
 			(tableMetadata.rowActions ?? []).filter((action) => {
 				// Feature-flag gating (e.g. staging actions only when enabled)
 				if (action.requiresFeature && !features[action.requiresFeature]) {
@@ -1681,7 +2316,7 @@ export function DynamicTable({
 
 	/** Run a row action through the same dispatcher the menu uses. */
 	const dispatchAction = useCallback(
-		(action: TableAction, row?: Record<string, unknown>) => {
+		(action: TableAction, row?: TableRow) => {
 			if (
 				action.action === "openDialog" ||
 				action.action === "navigate" ||
@@ -1700,31 +2335,50 @@ export function DynamicTable({
 		[handleAction, handleRedirect, onRowAction],
 	);
 
-	// ── Bulk action execution (UX-25) ──────────────────────────
-	const [pendingBulkAction, setPendingBulkAction] = useState<{
-		action: TableBulkAction;
-		rows: Record<string, unknown>[];
-	} | null>(null);
-	const [bulkRunningId, setBulkRunningId] = useState<string | null>(null);
-
+	// ── Row selection ──────────────────────────────────────────
 	/** The selected rows, in the current page's order. */
-	const selectedRows = useCallback(
-		(): Record<string, unknown>[] =>
-			Object.keys(rowSelection)
-				.filter((key) => rowSelection[key])
-				.map((key) => data[Number(key)])
-				.filter(Boolean) as Record<string, unknown>[],
-		[rowSelection, data],
-	);
+	const selectedRows = useCallback((): TableRow[] => {
+		const keys = Object.keys(rowSelection).filter((key) => rowSelection[key]);
+		if (keys.length === 0) return [];
+		const selected = new Set(keys);
+		return data.filter((row, index) => selected.has(rowKeyOf(row, index)));
+	}, [rowSelection, data]);
 
 	const clearSelection = useCallback(() => {
 		setRowSelection({});
 		onSelectionChange?.([]);
 	}, [onSelectionChange]);
 
-	// A selection belongs to the page/filters it was made on: MRT keeps
-	// row-index state across pages, so carrying it would let a bulk action
-	// hit a different row than the one the user ticked.
+	/** Report the selected ids (row.id → operations.id → index key). */
+	const reportSelection = useCallback(
+		(next: RowSelectionState) => {
+			const keys = new Set(Object.keys(next).filter((key) => next[key]));
+			const ids = data
+				.filter((row, index) => keys.has(rowKeyOf(row, index)))
+				.map(
+					(row) =>
+						row.id ??
+						(row.operations as Record<string, unknown> | undefined)?.id,
+				)
+				.filter(Boolean)
+				.map(String);
+			onSelectionChange?.(ids);
+		},
+		[data, onSelectionChange],
+	);
+
+	const handleRowSelectionChange = useCallback<OnChangeFn<RowSelectionState>>(
+		(updater) => {
+			const next = functionalUpdate(updater, rowSelection);
+			setRowSelection(next);
+			reportSelection(next);
+		},
+		[rowSelection, reportSelection],
+	);
+
+	// A selection belongs to the page/filters it was made on: keeping
+	// row-index state across pages would let a bulk action hit a different
+	// row than the one the user ticked.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: these are the triggers that change the result set, not reads in the callback
 	useEffect(() => {
 		setRowSelection({});
@@ -1738,13 +2392,14 @@ export function DynamicTable({
 		includeDeleted,
 	]);
 
+	// ── Bulk action execution (UX-25) ──────────────────────────
 	/**
 	 * Run one request per selected row, in small batches. A non-toggle action
 	 * sends its static body; a toggle action sends the inverse of the row's
 	 * own field, so the same action is also the undo.
 	 */
 	const executeBulkAction = useCallback(
-		async (action: TableBulkAction, rows: Record<string, unknown>[]) => {
+		async (action: TableBulkAction, rows: TableRow[]) => {
 			setBulkRunningId(action.id);
 			try {
 				const baseUrl = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
@@ -1776,7 +2431,7 @@ export function DynamicTable({
 	);
 
 	const requestBulkAction = useCallback(
-		(action: TableBulkAction, rows: Record<string, unknown>[]) => {
+		(action: TableBulkAction, rows: TableRow[]) => {
 			if (action.confirm) {
 				setPendingBulkAction({ action, rows });
 				return;
@@ -1792,7 +2447,7 @@ export function DynamicTable({
 	 * direction ("Activate" after "Deactivate").
 	 */
 	const bulkActionView = useCallback(
-		(action: TableBulkAction, rows: Record<string, unknown>[]) => {
+		(action: TableBulkAction, rows: TableRow[]) => {
 			const inverse =
 				Boolean(action.toggleField) &&
 				rows.length > 0 &&
@@ -1809,808 +2464,443 @@ export function DynamicTable({
 	// ── Empty state (UX-24) ────────────────────────────────────
 	// A table's DSL `emptyState` explains what belongs here and offers the
 	// first action; when a search/filter is active the filtered variant offers
-	// "clear filters" instead. A table without one keeps MRT's generic
-	// "No records to display", and filtering still distinguishes itself with
-	// MRT's own "No results found" copy.
+	// "clear filters" instead. A table without one keeps the renderer's
+	// generic "No records to display" copy.
 	const emptyState = tableMetadata.emptyState ?? null;
 
 	/** Whether a search, column filter or chip narrows the list right now. */
 	const hasActiveFilters = useCallback(
-		(instance: MRT_TableInstance<Record<string, unknown>>): boolean => {
-			const state = instance.getState();
-			return (
-				Boolean(state.globalFilter?.trim()) ||
-				(state.columnFilters ?? []).some(
-					(filter) => filter.value !== "" && filter.value != null,
-				) ||
-				Boolean(chipValue)
-			);
-		},
-		[chipValue],
+		(): boolean =>
+			Boolean(globalFilter.trim()) ||
+			columnFilters.some(
+				(filter) => filter.value !== "" && filter.value != null,
+			) ||
+			Boolean(chipValue),
+		[globalFilter, columnFilters, chipValue],
 	);
 
 	/**
 	 * Clear every filter the user set — search, column filters and the chip
-	 * row — and start again at the first page. The MRT instance is cleared as
-	 * well, because a client-side table keeps its filters inside MRT rather
-	 * than in the controlled server-side state.
+	 * row — and start again at the first page.
 	 */
-	const clearFilters = useCallback(
-		(instance: MRT_TableInstance<Record<string, unknown>>) => {
-			instance.setGlobalFilter("");
-			instance.setColumnFilters([]);
-			setGlobalFilter("");
-			setColumnFilters([]);
-			setChipValue(null);
-			setPagination((previous) => ({ ...previous, pageIndex: 0 }));
-		},
-		[],
-	);
+	const clearFilters = useCallback(() => {
+		setGlobalFilter("");
+		setColumnFilters([]);
+		setChipValue(null);
+		setPagination((previous) => ({ ...previous, pageIndex: 0 }));
+	}, []);
 
 	/**
 	 * The empty table body. Returns `undefined` when the table has no
-	 * `emptyState` (or no filtered copy) so MRT paints its own default, and
-	 * `null` while a fetch is in flight so the tailored state does not flash
-	 * before the first page arrives.
+	 * `emptyState` (or no filtered copy) so the generic copy paints instead,
+	 * and `null` while a fetch is in flight so the tailored state does not
+	 * flash before the first page arrives.
 	 */
-	const renderEmptyState = useCallback(
-		(
-			instance: MRT_TableInstance<Record<string, unknown>>,
-		): ReactNode | undefined => {
-			if (isServerSide && isLoading) return null;
-			if (!emptyState) return undefined;
+	const renderEmptyState = (): ReactNode | undefined => {
+		if (isServerSide && isLoading) return null;
+		if (!emptyState) return undefined;
 
-			if (hasActiveFilters(instance)) {
-				const filtered = emptyState.filtered;
-				if (!filtered) return undefined;
-				return (
-					<Stack spacing={1.5} sx={{ alignItems: "center", py: 6, px: 2 }}>
-						<Box sx={{ color: "text.disabled", display: "flex" }}>
-							<TableIcon name={filtered.icon ?? "Search"} size={42} />
-						</Box>
-						<Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-							{filtered.title}
-						</Typography>
-						{filtered.description ? (
-							<Typography
-								variant="body2"
-								color="text.secondary"
-								sx={{ maxWidth: 420, textAlign: "center" }}
-							>
-								{filtered.description}
-							</Typography>
-						) : null}
-						<Button
-							size="small"
-							variant="outlined"
-							startIcon={<TableIcon name="FilterList" size={18} />}
-							onClick={() => clearFilters(instance)}
-						>
-							{filtered.clearLabel}
-						</Button>
-					</Stack>
-				);
-			}
-
-			// The primary action must be visible on the toolbar. An action the
-			// user's permission, tier or feature flags hide is not offered here.
-			const primary = topActions.find(
-				(action) => action.id === String(emptyState.action ?? ""),
-			);
-
+		if (hasActiveFilters()) {
+			const filtered = emptyState.filtered;
+			if (!filtered) return undefined;
 			return (
-				<Stack spacing={1.5} sx={{ alignItems: "center", py: 6, px: 2 }}>
-					{emptyState.icon ? (
-						<Box sx={{ color: "text.disabled", display: "flex" }}>
-							<TableIcon name={emptyState.icon} size={42} />
-						</Box>
+				<div className="flex flex-col items-center gap-3 px-4 py-8">
+					<TableIcon
+						name={filtered.icon ?? "Search"}
+						size={42}
+						className="text-muted-foreground"
+					/>
+					<p className="text-base font-semibold text-foreground">
+						{filtered.title}
+					</p>
+					{filtered.description ? (
+						<p className="max-w-md text-center text-sm text-muted-foreground">
+							{filtered.description}
+						</p>
 					) : null}
-					<Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-						{emptyState.title}
-					</Typography>
-					{emptyState.description ? (
-						<Typography
-							variant="body2"
-							color="text.secondary"
-							sx={{ maxWidth: 420, textAlign: "center" }}
-						>
-							{emptyState.description}
-						</Typography>
-					) : null}
-					{primary ? (
-						<Button
-							variant="contained"
-							size="small"
-							color={(primary.color as any) ?? "primary"}
-							startIcon={
-								primary.icon ? (
-									<TableIcon name={primary.icon} size={18} />
-								) : undefined
-							}
-							onClick={() => dispatchAction(primary)}
-						>
-							{primary.label}
-						</Button>
-					) : null}
-					{emptyState.prerequisite ? (
-						<Link
-							href={emptyState.prerequisite.href}
-							variant="body2"
-							underline="hover"
-							sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}
-							onClick={(event) => {
-								event.preventDefault();
-								push(emptyState.prerequisite?.href ?? "/");
-							}}
-						>
-							<TableIcon name="ArrowForward" size={16} />
-							{emptyState.prerequisite.label}
-						</Link>
-					) : null}
-				</Stack>
+					<ActionButton
+						variant="outline"
+						icon={<TableIcon name="FilterList" size={18} />}
+						onClick={clearFilters}
+					>
+						{filtered.clearLabel}
+					</ActionButton>
+				</div>
 			);
-		},
-		[
-			emptyState,
-			hasActiveFilters,
-			clearFilters,
-			topActions,
-			dispatchAction,
-			isServerSide,
-			isLoading,
-			push,
-		],
-	);
+		}
 
-	const table = useMaterialReactTable({
-		// MRT paints its table paper with `background.default` (the page
-		// colour), which reads as a white sheet dropped on a themed card.
-		// Use the theme's paper surface so the table sits on the same surface
-		// as the card it lives in, and picks up any palette change.
-		mrtTheme: {
-			baseBackgroundColor: muiTheme.palette.background.paper,
-		},
+		// The primary action must be visible on the toolbar. An action the
+		// user's permission, tier or feature flags hide is not offered here.
+		const primary = topActions.find(
+			(action) => action.id === String(emptyState.action ?? ""),
+		);
 
-		muiTableHeadRowProps() {
-			return { sx: { boxShadow: "none" } };
-		},
+		return (
+			<div className="flex flex-col items-center gap-3 px-4 py-8">
+				{emptyState.icon ? (
+					<TableIcon
+						name={emptyState.icon}
+						size={42}
+						className="text-muted-foreground"
+					/>
+				) : null}
+				<p className="text-base font-semibold text-foreground">
+					{emptyState.title}
+				</p>
+				{emptyState.description ? (
+					<p className="max-w-md text-center text-sm text-muted-foreground">
+						{emptyState.description}
+					</p>
+				) : null}
+				{primary ? (
+					<ActionButton
+						variant={buttonVariant(primary.color)}
+						icon={
+							primary.icon ? (
+								<TableIcon name={primary.icon} size={18} />
+							) : undefined
+						}
+						onClick={() => dispatchAction(primary)}
+					>
+						{primary.label}
+					</ActionButton>
+				) : null}
+				{emptyState.prerequisite ? (
+					<a
+						href={emptyState.prerequisite.href}
+						className="inline-flex items-center gap-1 text-sm text-primary underline-offset-4 hover:underline"
+						onClick={(event) => {
+							event.preventDefault();
+							push(emptyState.prerequisite?.href ?? "/");
+						}}
+					>
+						<TableIcon name="ArrowForward" size={16} />
+						{emptyState.prerequisite.label}
+					</a>
+				) : null}
+			</div>
+		);
+	};
 
-		// ── Core ────────────────────────────────────────────────
-		columns: visibleColumns,
+	// ── Table columns: selection + data + row actions ──────────
+	const hasRowActions = (tableMetadata.rowActions ?? []).length > 0;
+
+	const tableColumns = useMemo<DynamicColumnDef[]>(() => {
+		const selectionColumn: DynamicColumnDef = {
+			id: SELECT_COLUMN_ID,
+			size: SELECT_COLUMN_WIDTH,
+			header: ({ table: instance }) => (
+				<SelectionCheckbox
+					checked={instance.getIsAllPageRowsSelected()}
+					indeterminate={
+						!instance.getIsAllPageRowsSelected() &&
+						instance.getIsSomePageRowsSelected()
+					}
+					onChange={instance.getToggleAllPageRowsSelectedHandler()}
+					disabled={instance.getRowModel().rows.length === 0}
+					label="Select all rows"
+				/>
+			),
+			cell: ({ row }) => (
+				<SelectionCheckbox
+					checked={row.getIsSelected()}
+					onChange={row.getToggleSelectedHandler()}
+					disabled={!row.getCanSelect()}
+					label="Select row"
+				/>
+			),
+			enableSorting: false,
+			enableHiding: false,
+			enableColumnFilter: false,
+			enableGlobalFilter: false,
+			meta: { align: "center" },
+		};
+
+		const actionsColumn: DynamicColumnDef = {
+			id: ACTIONS_COLUMN_ID,
+			size: ACTIONS_COLUMN_WIDTH,
+			header: "",
+			cell: ({ row }) => {
+				const actions = visibleRowActions(row.original);
+				if (actions.length === 0) return null;
+				return (
+					<RowActionsMenu
+						actions={actions}
+						onSelect={(action) => dispatchAction(action, row.original)}
+					/>
+				);
+			},
+			enableSorting: false,
+			enableHiding: false,
+			enableColumnFilter: false,
+			enableGlobalFilter: false,
+			meta: { align: "center" },
+		};
+
+		return [
+			...(hasRowSelection ? [selectionColumn] : []),
+			...visibleColumns,
+			...(hasRowActions ? [actionsColumn] : []),
+		];
+	}, [
+		hasRowSelection,
+		hasRowActions,
+		visibleColumns,
+		visibleRowActions,
+		dispatchAction,
+	]);
+
+	// ── Build the table instance ───────────────────────────────
+	// Server-side tables trust the API for sorting/filtering/pagination
+	// (`manual*`); client-side tables run the TanStack row models.
+	// Row actions pin to the logical END of the table; the identity column
+	// (and the selection checkbox) pin to the logical START. Tailwind's
+	// `start-*`/`end-*` utilities are logical, so both stay at their visual
+	// edge in LTR and RTL.
+	const table = useReactTable<TableRow>({
 		data,
-
-		// ── Loading ─────────────────────────────────────────────
+		columns: tableColumns,
 		state: {
+			pagination,
+			sorting,
+			globalFilter,
+			columnFilters,
 			rowSelection,
-			isLoading: isServerSide && isLoading,
-			showProgressBars: isServerSide && isLoading,
-			pagination: isServerSide ? pagination : undefined,
-			sorting: isServerSide ? sorting : undefined,
-			globalFilter: isServerSide ? globalFilter : undefined,
-			columnFilters: isServerSide ? columnFilters : undefined,
-			// Both edges are pinned: the identity column at the logical START,
-			// the row-action menu at the logical END; MRT flips "left"/"right"
-			// for RTL tables, so each stays at its visual edge in either
-			// direction. The action menu therefore never scrolls out of view,
-			// while the first column keeps identifying each row.
-			columnPinning,
+			columnVisibility,
 		},
-
-		// Pinning is what makes the actions reachable at 1280px: the right
-		// column stays sticky over the horizontally scrolling value columns.
-		// (MRT's `enableColumnPinning` default is false, so the state alone
-		// would be ignored.)
-		enableColumnPinning: true,
-		// Keep the column menu's pin buttons working; the two mandatory pins
-		// are merged back in by `columnPinning` above.
-		onColumnPinningChange: setUserColumnPinning,
-
-		// ── Manual (server-side) controllers ───────────────────
+		getRowId: (row, index) => rowKeyOf(row, index),
+		getCoreRowModel: getCoreRowModel(),
+		getSortedRowModel: isServerSide ? undefined : getSortedRowModel(),
+		getFilteredRowModel: isServerSide ? undefined : getFilteredRowModel(),
+		getPaginationRowModel: isServerSide ? undefined : getPaginationRowModel(),
 		manualPagination: isServerSide,
 		manualSorting: isServerSide,
-		// A server-side table has already had its filtering applied by the
-		// request (the builder sends both `search` and every column filter),
-		// so re-applying it client-side can only ever REMOVE rows the server
-		// correctly returned. Global search is the visible case: searching
-		// `0912 555 4242` matches the normalized `+989125554242` on the
-		// server, but the raw term does not contain the stored value, so the
-		// client filter emptied a one-row response into "No results found".
-		// Matches manualPagination/manualSorting: trust the server.
 		manualFiltering: isServerSide,
 		rowCount: isServerSide ? rowCount : undefined,
-		onPaginationChange: isServerSide ? setPagination : undefined,
-		onSortingChange: isServerSide ? setSorting : undefined,
-		onGlobalFilterChange: isServerSide ? setGlobalFilter : undefined,
-		onColumnFiltersChange: isServerSide ? setColumnFilters : undefined,
-
-		// ── Page size options from the contract ────────────────
-		paginationDisplayMode: "pages",
-		// Honour a seeded override's options — a deliberate page size outside
-		// MRT's defaults (e.g. 31 calendar days) would otherwise select blank.
-		...(datasource.pagination?.pageSizeOptions?.length
-			? {
-					muiPaginationProps: {
-						rowsPerPageOptions: datasource.pagination.pageSizeOptions,
-					},
-				}
-			: {}),
-
-		// ── Initial state (density) ────────────────────────────
-		initialState: {
-			density: toMrtDensity(settings.density),
-			// Client-side tables use MRT's initial state (server-side tables are
-			// controlled above); both start at the platform page size so a
-			// client-side list cannot drift to MRT's default of 10.
-			pagination: {
-				pageIndex: 0,
-				pageSize: initialPageSize,
-			},
-		},
-
-		// ── Sorting ─────────────────────────────────────────────
-		enableSorting: subRow ? false : true,
-
-		// ── Pagination ──────────────────────────────────────────
-		enablePagination: subRow ? false : undefined,
-
-		// ── Filtering ───────────────────────────────────────────
-		enableColumnFilters: subRow ? false : settings.searchable,
-		enableGlobalFilter: subRow ? false : settings.searchable,
-		enableFilters: subRow ? false : settings.searchable,
-
-		// ── Column headers ──────────────────────────────────────
-		enableColumnActions: false,
-		enableColumnOrdering: false,
-		// ── Column visibility toggle ────────────────────────────
-		enableHiding: subRow ? false : settings.columnToggle,
-
-		// ── Row selection ───────────────────────────────────────
-		// Enabled by an explicit `selection` config OR by declaring bulk
-		// actions — a bulk bar without a selection column would be unusable.
 		enableRowSelection: hasRowSelection,
-		editDisplayMode: "cell",
-		enableEditing: true,
-		onEditingRowSave: async ({ row, values }) => {
-			const baseUrl = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
-			const endpoint = resolveRowPlaceholders(
-				datasource.endpoint,
-				row.original,
-			);
-			await getApiClient().request({
-				url: baseUrl + endpoint,
-				method: "PATCH",
-				data: values,
-			});
-			mutate();
+		enableSorting: !isSubRow,
+		enableFilters: !isSubRow && searchable,
+		enableColumnFilters: !isSubRow && searchable,
+		enableGlobalFilter: !isSubRow && searchable,
+		enableMultiSort: false,
+		enableSortingRemoval: true,
+		autoResetPageIndex: false,
+		onPaginationChange: (updater) => {
+			setPagination((previous) => functionalUpdate(updater, previous));
 		},
-
-		onRowSelectionChange: (updater: any) => {
-			const next =
-				typeof updater === "function" ? updater(rowSelection) : updater;
-			setRowSelection(next);
-			const ids = Object.keys(next)
-				.filter((k) => next[k])
-				.map((idx) => {
-					const row = data[Number(idx)] as Record<string, unknown> | undefined;
-					return (row?.id ??
-						(row?.operations as Record<string, unknown> | undefined)
-							?.id) as string;
-				})
-				.filter(Boolean);
-			onSelectionChange?.(ids);
+		onSortingChange: (updater) => {
+			setSorting((previous) => functionalUpdate(updater, previous));
+			// A new sort order reorders the whole result set — start at page 1.
+			setPagination((previous) => ({ ...previous, pageIndex: 0 }));
 		},
-
-		// ── Expandable sub-table rows ───────────────────────────
-		...(tableMetadata.subTable?.tableName ? {} : {}),
-
-		// ── Row actions ─────────────────────────────────────────
-		enableRowActions: (tableMetadata.rowActions ?? []).length > 0,
-		positionActionsColumn: "last",
-		displayColumnDefOptions: {
-			"mrt-row-actions": {
-				header: "",
-				// Fixed width — the actions column holds icon buttons only.
-				size: 50,
-				// grow:0 stops MRT's proportional flex growth (columns grow to
-				// fill the table when there are few columns).
-				grow: 0,
-				// Center the actions icon within the column. MRT hardcodes
-				// ml:10px on the toggle button — reset it so the icon truly
-				// centers in the fixed-width column. A subtle edge shadow marks
-				// the pinned column as floating over the scrolling content.
-				// The app's RTL cache plugin (cssjanus) flips box-shadow
-				// x-offsets, so a single source value renders on the CONTENT
-				// side in both directions: LTR → -4px (left edge), RTL → +4px
-				// (right edge). MRT's own pinned :before shadow assumes LTR —
-				// suppress it so only ours shows.
-				muiTableBodyCellProps: {
-					align: "center",
-					sx: {
-						"& .MuiIconButton-root": { ml: "0 !important" },
-						"&[data-pinned='true']:before": { boxShadow: "none" },
-						boxShadow: "-4px 0 8px -4px rgba(0, 0, 0, 0.08)",
-					},
-				},
-				muiTableHeadCellProps: {
-					align: "center",
-				},
-			},
+		onGlobalFilterChange: (updater) => {
+			setGlobalFilter((previous) => functionalUpdate(updater, previous));
+			setPagination((previous) => ({ ...previous, pageIndex: 0 }));
 		},
-		renderRowActionMenuItems: ({ closeMenu, row, table }) =>
-			visibleRowActions(row.original).map((action) => (
-				<MRT_ActionMenuItem
-					key={action.id}
-					label={action.label}
-					icon={
-						action.icon ? <TableIcon name={action.icon} size={18} /> : undefined
-					}
-					table={table}
-					onClick={() => {
-						dispatchAction(action, row.original);
-						closeMenu();
-					}}
-					style={{
-						color: action.color ? `${action.color}.main` : undefined,
-					}}
-				/>
-			)),
-
-		// ── Toolbar actions ──────────────────────────────────────
-		renderTopToolbarCustomActions: subRow
-			? undefined
-			: ({ table: instance }) => {
-					const selectedCount =
-						Object.values(rowSelection).filter(Boolean).length;
-					const selectionToolbarActions = (
-						tableMetadata.toolbarActions ?? []
-					).filter(
-						(a) => a.action === "linkSelected" || a.action === "unlinkSelected",
-					);
-					const showExport =
-						isServerSide && !hasExternalData && Boolean(settings.exportable);
-
-					if (
-						selectedCount > 0 &&
-						(bulkActions.length > 0 || selectionToolbarActions.length > 0)
-					) {
-						const rows = selectedRows();
-						return (
-							<Stack
-								direction="row"
-								spacing={1}
-								sx={{
-									width: "auto",
-									gap: 1,
-									flexWrap: "wrap",
-									alignItems: "center",
-									alignSelf: "center",
-									"& .MuiButton-root": {
-										width: "auto",
-										flexShrink: 0,
-										whiteSpace: "nowrap",
-									},
-								}}
-							>
-								<Chip
-									label={`${selectedCount} selected`}
-									size="small"
-									color="primary"
-								/>
-								{bulkActions.map((action) => {
-									const view = bulkActionView(action, rows);
-									return (
-										<Button
-											key={action.id}
-											variant="contained"
-											size="small"
-											color={(view.color as any) ?? "primary"}
-											disabled={Boolean(bulkRunningId)}
-											startIcon={
-												view.icon ? (
-													<TableIcon name={view.icon} size={18} />
-												) : undefined
-											}
-											onClick={() => requestBulkAction(action, rows)}
-										>
-											{view.label}
-										</Button>
-									);
-								})}
-								{selectionToolbarActions.map((action) => (
-									<Button
-										key={action.id}
-										variant="contained"
-										size="small"
-										color={(action.color as any) ?? "primary"}
-										startIcon={
-											action.icon ? <TableIcon name={action.icon} /> : undefined
-										}
-										onClick={async () => {
-											const ids = Object.keys(rowSelection)
-												.filter((k) => rowSelection[k])
-												.map((idx) => data[Number(idx)]?.id as string)
-												.filter(Boolean);
-											const baseUrl = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
-											const rawEndpoint = (action as any).endpoint;
-											const endpoint = resolveUrlTemplate(
-												rawEndpoint,
-												resolvedPathParams,
-											);
-											const method = (action as any).method ?? "POST";
-											try {
-												await getApiClient().request({
-													url: `${baseUrl}${endpoint}`,
-													method,
-													data: { operationIds: ids },
-												});
-												mutate();
-												// Close the outer dialog that wraps this table
-												onClose?.();
-											} catch (err) {
-												console.error("Selection action failed:", err);
-											}
-										}}
-									>
-										{action.label}
-									</Button>
-								))}
-								<Tooltip title="Clear selection">
-									<IconButton
-										size="small"
-										onClick={clearSelection}
-										sx={{ alignSelf: "center" }}
-									>
-										<TableIcon name="Close" />
-									</IconButton>
-								</Tooltip>
-							</Stack>
-						);
-					}
-
-					return (
-						<>
-							<Stack
-								spacing={0.5}
-								sx={{
-									width: "auto",
-									gap: 1,
-									flexDirection: "row",
-									flexWrap: "wrap",
-									alignItems: "center",
-									alignSelf: "center",
-									"& .MuiButton-root": {
-										width: "auto",
-										flexShrink: 0,
-										whiteSpace: "nowrap",
-									},
-								}}
-							>
-								{topActions
-									.filter(
-										(a) =>
-											a.action !== "linkSelected" &&
-											a.action !== "unlinkSelected",
-									)
-									.map((action) => (
-										<Button
-											key={action.id}
-											variant="contained"
-											size="small"
-											color={(action.color as any) ?? "primary"}
-											startIcon={
-												action.icon ? (
-													<TableIcon name={action.icon} />
-												) : undefined
-											}
-											onClick={() => dispatchAction(action)}
-										>
-											{action.label}
-										</Button>
-									))}
-								{showExport ? (
-									<Button
-										variant="outlined"
-										size="small"
-										color="inherit"
-										disabled={exporting}
-										startIcon={<TableIcon name="Download" size={18} />}
-										onClick={() => exportCsv(instance)}
-									>
-										{settings.exportLabel ?? "Export CSV"}
-									</Button>
-								) : null}
-							</Stack>
-							{internalActions.length > 0 ? (
-								<Stack
-									direction="row"
-									spacing={0.5}
-									sx={{
-										flexShrink: 0,
-										alignItems: "center",
-										alignSelf: "center",
-									}}
-								>
-									{internalActions.map((action) => {
-										return (
-											<Tooltip
-												key={action.id}
-												title={
-													(action as any).customAction === "toggleDeleted" &&
-													includeDeleted
-														? ((action as any).labelOn ?? "Hide Deleted")
-														: (action as any).customAction === "toggleDeleted"
-															? ((action as any).labelOff ?? action.label)
-															: action.label
-												}
-											>
-												<IconButton
-													size="small"
-													color={
-														"customAction" in action &&
-														action.customAction === "toggleDeleted" &&
-														includeDeleted
-															? "primary"
-															: ((action.color as any) ?? "default")
-													}
-													onClick={() => {
-														if (action.action === "openDialog") {
-															handleAction(action);
-														} else if (action.action === "navigate") {
-															handleAction(action);
-														} else if (action.action === "apiCall") {
-															handleAction(action);
-														} else if (action.action === "custom") {
-															handleAction(action);
-														} else if (
-															action.customAction === "toggleDeleted"
-														) {
-															setIncludeDeleted((v) => !v);
-														} else if (action.customAction === "refreshData") {
-															mutate();
-														} else if (action.redirect) {
-															handleRedirect(action.redirect);
-														}
-													}}
-												>
-													{action.icon ? (
-														<TableIcon name={action.icon} />
-													) : null}
-													{action.iconOn && action.iconOff ? (
-														includeDeleted ? (
-															<TableIcon name={action.iconOn} />
-														) : (
-															<TableIcon name={action.iconOff} />
-														)
-													) : null}
-
-													{/* {action.customAction === "toggleDeleted" ? ( */}
-													{/* 	<TableIcon */}
-													{/* 		name={ */}
-													{/* 			includeDeleted */}
-													{/* 				? (action.iconOn ?? action.icon ?? "Visibility") */}
-													{/* 				: (action.iconOff ?? action.icon ?? "VisibilityOff") */}
-													{/* 		} */}
-													{/* 	/> */}
-													{/* ) : action.icon ? ( */}
-													{/* 	<TableIcon name={action.icon} /> */}
-													{/* ) : undefined} */}
-												</IconButton>
-											</Tooltip>
-										);
-									})}
-								</Stack>
-							) : null}
-						</>
-					);
-				},
-
-		// UX-24 — a configured empty state replaces MRT's generic copy. When
-		// the table has none, returning undefined keeps "No records to
-		// display" (and MRT's own "No results found" while filtering).
-		renderEmptyRowsFallback: ({ table: instance }) =>
-			renderEmptyState(instance),
-
-		// ── Styling & display ──────────────────────────────────
-		enableStickyHeader: subRow ? false : settings.stickyHeader,
-		enableFullScreenToggle: subRow ? false : true,
-		enableDensityToggle: subRow ? false : true,
-
-		// ── Error / selection banner ─────────────────────────
-		renderToolbarAlertBannerContent: subRow
-			? undefined
-			: () => {
-					if (fetchError) {
-						return (
-							<div style={{ color: "error.main", padding: "8px" }}>
-								{fetchError}
-							</div>
-						);
-					}
-					return null;
-				},
-		positionToolbarAlertBanner: "none",
-
-		// ── Hide empty toolbar containers in subRow mode ────────
-		muiTopToolbarProps: subRow
-			? { sx: { display: "none" } }
-			: {
-					// The action row must wrap instead of pushing the internal
-					// toolbar buttons (search, columns, density) off a phone.
-					sx: { "& > div": { flexWrap: "wrap", rowGap: 1 } },
-				},
-		muiBottomToolbarProps: subRow ? { sx: { display: "none" } } : undefined,
-
-		// ── Paper / outer wrapper ───────────────────────────────
-		muiTablePaperProps: {
-			elevation: 0,
-			sx: {
-				border: settings.bordered ? "1px solid" : "none",
-				borderColor: "divider",
-				// The panel draws the border, so the radius has to live here —
-				// a radius on the container alone is clipped by this surface.
-				// Passed as a string: `sx` multiplies a numeric `borderRadius`
-				// by `shape.borderRadius`, which would give 4 units × 4 = 64px.
-				borderRadius: `${Number(muiTheme.shape.borderRadius) * 4}px`,
-				// Clip the flush table so its square cell corners cannot poke
-				// out of the rounded panel.
-				overflow: "hidden",
-				// Never let the panel's min-content width push the page
-				// sideways on a phone: the value columns scroll INSIDE the
-				// card (see muiTableContainerProps), not the whole page.
-				maxWidth: "100%",
-				minWidth: 0,
-			},
+		onColumnFiltersChange: (updater) => {
+			setColumnFilters((previous) => functionalUpdate(updater, previous));
+			setPagination((previous) => ({ ...previous, pageIndex: 0 }));
 		},
-
-		// The table sits flush inside the paper, so the concentric rule makes
-		// the inner radius equal the outer one. The container is left to the
-		// theme (`MuiTableContainer` uses the same box tier) instead of
-		// restating a radius here, which only drifted from it.
-		muiTableContainerProps: {
-			// Horizontal scroll inside the card: the minimum a DSL table owes
-			// a phone at 375px. MRT already sets overflow:auto; the explicit
-			// max-width is what stops a wide column set from widening the page.
-			// `sx`, not a Tailwind class: this package is not scanned by the
-			// front's Tailwind build.
-			sx: { maxWidth: "100%", overflowX: "auto" },
-		},
-
-		// ── Rows ────────────────────────────────────────────────
-		muiTableBodyRowProps: ({ row }) => {
-			const onClick = tableMetadata.onRowClick;
-			// The detail route this row declares, when the table declares one.
-			// Only a navigation yields a URL — openDialog/apiCall rows stay
-			// click-only, so a middle click cannot open a page that does not exist.
-			const detailHref = resolveRowHref(row.original);
-
-			const handleRowClick = () => {
-				if (!onClick) return;
-				// Skip navigation if a dialog was just closed (avoid stray clicks)
-				if (document.querySelector(".MuiDialog-root")) return;
-
-				// New action-discriminant format: navigate / apiCall / openDialog
-				if (onClick.action === "navigate" && onClick.path) {
-					if (detailHref) push(detailHref);
-					return;
-				}
-				if (onClick.action === "apiCall" && onClick.endpoint) {
-					const baseUrl = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
-					const endpoint = resolveRowPlaceholders(
-						onClick.endpoint,
-						row.original,
-					);
-					getApiClient().request({
-						url: `${baseUrl}${endpoint}`,
-						method: onClick.method ?? "GET",
-						data: row.original,
-					});
-					return;
-				}
-				if (onClick.action === "openDialog" && onClick.dialog) {
-					const extraObj = {
-						_actionId: "onRowClick",
-						...resolvedPathParams,
-						id: String(row.original.id ?? ""),
-					};
-					setDialogState(
-						onClick.dialog.context ?? "edit",
-						String(row.original.id ?? ""),
-						String(onClick.dialog.componentId ?? ""),
-						JSON.stringify(extraObj),
-					);
-					return;
-				}
-
-				// Legacy redirect/endpoint format. The redirect — including its
-				// feature-gated fallback — is resolved once by `resolveRowHref`.
-				if (onClick.redirect) {
-					if (detailHref) push(detailHref);
-				} else if (onClick.endpoint) {
-					const baseUrl = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
-					const endpoint = resolveRowPlaceholders(
-						onClick.endpoint,
-						row.original,
-					);
-					getApiClient().request({
-						url: `${baseUrl}${endpoint}`,
-						method: onClick.method ?? "GET",
-						data: row.original,
-					});
-				}
-			};
-
-			// First matching row condition wins (e.g. failed rows get a
-			// reddish background).
-			const matchedCondition = (settings.rowConditions ?? []).find((c) =>
-				matchRowCondition(row.original, c),
-			);
-
-			return {
-				sx: {
-					cursor: onClick ? "pointer" : undefined,
-					// Rows sit on the table's surface, not on a hardcoded white
-					// sheet — the theme's paper colour keeps the table on the
-					// same surface as the card it lives in.
-					backgroundColor:
-						matchedCondition?.backgroundColor ??
-						muiTheme.palette.background.paper,
-					// A detail row is keyboard focusable; show where focus is.
-					...(detailHref
-						? {
-								"&:focus-visible": {
-									outline: `2px solid ${muiTheme.palette.primary.main}`,
-									outlineOffset: "-2px",
-								},
-							}
-						: {}),
-				},
-				className: matchedCondition?.className,
-				// A row with a detail route behaves like a link: focusable, Enter
-				// opens it, middle-click opens it in a new tab. Clicks on the
-				// row's own controls (action menu, selection checkbox, cell
-				// widgets) are excluded, so those keep working without navigating.
-				...(detailHref
-					? {
-							tabIndex: 0,
-							onKeyDown: (event: ReactKeyboardEvent<HTMLTableRowElement>) => {
-								if (event.key !== "Enter") return;
-								// Enter belongs to a focused control (action button,
-								// link, checkbox); on the row or one of its cells it
-								// opens the detail route. MRT makes cells focusable,
-								// so the event usually targets a cell, not the row.
-								if (isRowControlTarget(event.target)) return;
-								event.preventDefault();
-								handleRowClick();
-							},
-							onAuxClick: (event: ReactMouseEvent<HTMLTableRowElement>) => {
-								if (event.button !== 1) return;
-								if (isRowControlTarget(event.target)) return;
-								event.preventDefault();
-								window.open(detailHref, "_blank", "noopener,noreferrer");
-							},
-						}
-					: {}),
-				onClick: onClick
-					? (event: ReactMouseEvent<HTMLTableRowElement>) => {
-							if (isRowControlTarget(event.target)) return;
-							handleRowClick();
-						}
-					: undefined,
-			};
+		onRowSelectionChange: handleRowSelectionChange,
+		onColumnVisibilityChange: (updater) => {
+			setColumnVisibility((previous) => functionalUpdate(updater, previous));
 		},
 	});
 
+	// ── Pinning / pagination derived values ────────────────────
+	const visibleLeafColumns = table.getVisibleLeafColumns();
+	const firstDataColumn = visibleLeafColumns.find(
+		(column) => !column.id.startsWith("__"),
+	);
+	const pageCount = Math.max(1, table.getPageCount());
+	const pageSizeOptions = useMemo(() => {
+		const configured = (
+			datasource.pagination?.pageSizeOptions ?? DEFAULT_PAGE_SIZE_OPTIONS
+		).filter((size) => typeof size === "number" && size > 0);
+		const base = configured.length > 0 ? configured : DEFAULT_PAGE_SIZE_OPTIONS;
+		return Array.from(
+			new Set([...base, initialPageSize, pagination.pageSize]),
+		).sort((a, b) => a - b);
+	}, [
+		datasource.pagination?.pageSizeOptions,
+		initialPageSize,
+		pagination.pageSize,
+	]);
+
+	/** Sticky start/end classes for a column, in header or body position. */
+	const stickyColumnClass = (columnId: string, isHeader: boolean): string => {
+		const isSelection = columnId === SELECT_COLUMN_ID;
+		const isFirstData = columnId === firstDataColumn?.id;
+		if (isSelection || isFirstData) {
+			const inset = isSelection
+				? "start-0"
+				: hasRowSelection
+					? STICKY_FIRST_COLUMN_OFFSET
+					: "start-0";
+			return `sticky ${inset} ${isHeader ? "z-30" : "z-10"}`;
+		}
+		if (columnId === ACTIONS_COLUMN_ID) {
+			return `sticky end-0 ${isHeader ? "z-30" : "z-10"}`;
+		}
+		return "";
+	};
+
+	const stickyEndShadow =
+		"shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)] rtl:shadow-[4px_0_8px_-4px_rgba(0,0,0,0.08)]";
+
+	// ── Filtering / pagination intent ──────────────────────────
+	const filteringEnabled = !isSubRow && searchable;
+	const showFilterRow =
+		filteringEnabled &&
+		visibleLeafColumns.some((column) => Boolean(columnMeta(column).filterType));
+
+	const setColumnFilter = useCallback((columnId: string, value: string) => {
+		setColumnFilters((previous) => {
+			const next = previous.filter((filter) => filter.id !== columnId);
+			if (value !== "") next.push({ id: columnId, value });
+			return next;
+		});
+		setPagination((previous) => ({ ...previous, pageIndex: 0 }));
+	}, []);
+
+	const changePageSize = useCallback((pageSize: number) => {
+		if (!Number.isFinite(pageSize) || pageSize <= 0) return;
+		// A bigger/smaller page changes which rows page N holds — start over.
+		setPagination({ pageIndex: 0, pageSize });
+	}, []);
+
+	const goToPage = useCallback(
+		(pageIndex: number) => {
+			setPagination((previous) => ({
+				...previous,
+				pageIndex: Math.min(Math.max(pageIndex, 0), pageCount - 1),
+			}));
+		},
+		[pageCount],
+	);
+
+	// ── Toolbar derived content ────────────────────────────────
+	const selectionToolbarActions = (tableMetadata.toolbarActions ?? []).filter(
+		(action) =>
+			action.action === "linkSelected" || action.action === "unlinkSelected",
+	);
+	const selectionCount = Object.values(rowSelection).filter(Boolean).length;
+	const showExport =
+		isServerSide && !hasExternalData && Boolean(settings.exportable);
+
+	/** linkSelected / unlinkSelected: one request with the selected ids. */
+	const runSelectionAction = useCallback(
+		async (action: TableAction) => {
+			const ids = selectedRows()
+				.map((row) => row.id as string)
+				.filter(Boolean);
+			const baseUrl = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
+			const rawEndpoint = (action as any).endpoint;
+			const endpoint = resolveUrlTemplate(
+				String(rawEndpoint ?? ""),
+				resolvedPathParams,
+			);
+			const method = (action as any).method ?? "POST";
+			try {
+				await getApiClient().request({
+					url: `${baseUrl}${endpoint}`,
+					method,
+					data: { operationIds: ids },
+				});
+				mutate();
+				// Close the outer dialog that wraps this table
+				onClose?.();
+			} catch (err) {
+				console.error("Selection action failed:", err);
+			}
+		},
+		[selectedRows, resolvedPathParams, mutate, onClose],
+	);
+
+	// ── Inline cell editing ────────────────────────────────────
 	/**
-	 * The phone presentation (opt-in through `settings.mobileCard`). A wide
-	 * DSL table can always scroll sideways inside its card, but the job (find
-	 * a row, read its status, act on it) is better served by a short card:
-	 * title, subtitle, status, row actions — nothing else.
+	 * Save the edited cell with a PATCH against the table's own endpoint
+	 * (the same target and `{placeholder}` resolution the table uses) and
+	 * revalidate so the row shows the server's answer.
 	 */
-	const mobileCard = subRow ? null : (settings.mobileCard ?? null);
-	const cardValue = (
-		row: Record<string, unknown>,
-		accessor?: string,
-	): string => {
+	const saveCellEdit = useCallback(async () => {
+		const editing = editingCell;
+		if (!editing) return;
+		setEditingCell(null);
+		const baseUrl = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
+		const endpoint = resolveRowPlaceholders(
+			datasource.endpoint,
+			editing.original,
+		);
+		const body = nestedBody(editing.accessor, editingValue);
+		try {
+			await getApiClient().request({
+				url: `${baseUrl}${endpoint}`,
+				method: "PATCH",
+				data: body,
+			});
+			await mutate();
+		} catch (error) {
+			await snack.error(error);
+		}
+	}, [
+		editingCell,
+		editingValue,
+		datasource.endpoint,
+		resolveRowPlaceholders,
+		mutate,
+		snack,
+	]);
+
+	// ── Full-screen exit ──────────────────────────────────────
+	useEffect(() => {
+		if (!fullscreen) return;
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key === "Escape") setFullscreen(false);
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, [fullscreen]);
+
+	// ── Filter chips (category-style) ──────────────────────────
+	// Shown above both presentations. Clicking the active chip clears the
+	// filter, so there is no separate "All" caption to translate.
+	const chipsRow =
+		filterChips && (chipOptions?.length ?? 0) > 0 ? (
+			<div
+				role="group"
+				aria-label="Filters"
+				className="mb-2 flex flex-wrap items-center gap-2"
+			>
+				{chipOptions?.map((option) => {
+					const selected = chipValue === option.value;
+					return (
+						<button
+							key={option.value}
+							type="button"
+							aria-pressed={selected}
+							onClick={() => selectChip(selected ? null : option.value)}
+							className={`inline-flex h-9 items-center rounded-md border px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+								selected
+									? "border-transparent bg-primary text-primary-foreground"
+									: "border-border bg-transparent text-foreground hover:bg-muted"
+							}`}
+						>
+							{option.label}
+						</button>
+					);
+				})}
+			</div>
+		) : null;
+
+	const emptyNode = renderEmptyState();
+
+	// ── Mobile card presentation (opt-in) ──────────────────────
+	// A wide DSL table can always scroll sideways inside its card, but the
+	// job (find a row, read its status, act on it) is better served by a
+	// short card: title, subtitle, status, row actions.
+	const mobileCard = isSubRow ? null : (settings.mobileCard ?? null);
+	const cardValue = (row: TableRow, accessor?: string): string => {
 		if (!accessor) return "";
 		const value = row[accessor];
 		if (value === null || value === undefined) return "";
@@ -2619,190 +2909,714 @@ export function DynamicTable({
 		return String(value);
 	};
 
-	// ── Filter chips (category-style) ──────────────────────────
-	// Shown above both presentations. Clicking the active chip clears the
-	// filter, so there is no separate "All" caption to translate.
-	const chipsRow =
-		filterChips && (chipOptions?.length ?? 0) > 0 ? (
-			<Box
-				sx={{
-					display: "flex",
-					flexWrap: "wrap",
-					alignItems: "center",
-					gap: 1,
-					mb: 1,
-				}}
-			>
-				{chipOptions?.map((option) => {
-					const selected = chipValue === option.value;
-					return (
-						<Chip
-							key={option.value}
-							label={option.label}
-							size="small"
-							color={selected ? "primary" : "default"}
-							variant={selected ? "filled" : "outlined"}
-							onClick={() => selectChip(selected ? null : option.value)}
-						/>
-					);
-				})}
-			</Box>
-		) : null;
-
 	if (isPhone && mobileCard) {
 		return (
-			<Stack spacing={1}>
+			<div className="flex flex-col gap-2">
 				{chipsRow}
-				{data.length === 0
-					? // UX-24 — the phone card shows the same contextual (or
-						// filtered) empty state as the table body; without one it
-						// keeps MRT's own copy. `undefined` means "no configured
-						// state"; `null` means "fetching, show nothing".
-						(() => {
-							const node = renderEmptyState(table);
-							if (node !== undefined) return node;
-							return (
-								<Typography
-									variant="body2"
-									color="text.secondary"
-									sx={{ py: 4, textAlign: "center" }}
-								>
-									{hasActiveFilters(table)
-										? (table.options.localization?.noResultsFound ??
-											"No results found")
-										: (table.options.localization?.noRecordsToDisplay ??
-											"No records to display")}
-								</Typography>
-							);
-						})()
-					: data.map((row, index) => {
+				{data.length === 0 ? (
+					<div>
+						{/* UX-24 — the phone card shows the same contextual (or
+						    filtered) empty state as the table body; without one it
+						    keeps the generic copy. `undefined` means "no configured
+						    state"; `null` means "fetching, show nothing". */}
+						{emptyNode === null
+							? null
+							: (emptyNode ?? (
+									<p className="py-4 text-center text-sm text-muted-foreground">
+										{hasActiveFilters()
+											? "No results found"
+											: "No records to display"}
+									</p>
+								))}
+					</div>
+				) : (
+					<ul className="flex flex-col gap-2">
+						{data.map((row, index) => {
 							const actions =
 								mobileCard.actions === false ? [] : visibleRowActions(row);
 							const status = cardValue(row, mobileCard.status);
 							const href = resolveRowHref(row);
 							return (
-								<Box
+								<li
 									key={String(row.id ?? index)}
 									onClick={href ? () => push(href) : undefined}
-									sx={{
-										p: 1.5,
-										border: "1px solid",
-										borderColor: "divider",
-										borderRadius: 2,
-										bgcolor: "background.paper",
-										cursor: href ? "pointer" : undefined,
-									}}
+									className={`flex items-start justify-between gap-2 rounded-lg border border-border bg-card p-3 ${
+										href ? "cursor-pointer hover:bg-muted" : ""
+									}`}
 								>
-									<Stack
-										direction="row"
-										spacing={1}
-										sx={{
-											alignItems: "flex-start",
-											justifyContent: "space-between",
-										}}
-									>
-										<Box sx={{ minWidth: 0, flex: 1 }}>
-											<Typography
-												sx={{
-													fontWeight: 600,
-													overflow: "hidden",
-													textOverflow: "ellipsis",
-													whiteSpace: "nowrap",
-												}}
-											>
-												{cardValue(row, mobileCard.title)}
-											</Typography>
-											{mobileCard.subtitle ? (
-												<Typography
-													variant="body2"
-													color="text.secondary"
-													sx={{
-														overflow: "hidden",
-														textOverflow: "ellipsis",
-														whiteSpace: "nowrap",
-													}}
-												>
-													{cardValue(row, mobileCard.subtitle)}
-												</Typography>
-											) : null}
-										</Box>
-										{status ? (
-											<Chip size="small" variant="outlined" label={status} />
+									<div className="min-w-0 flex-1">
+										<p className="truncate font-semibold text-foreground">
+											{cardValue(row, mobileCard.title)}
+										</p>
+										{mobileCard.subtitle ? (
+											<p className="truncate text-sm text-muted-foreground">
+												{cardValue(row, mobileCard.subtitle)}
+											</p>
 										) : null}
-										{actions.length > 0 ? (
-											<Stack direction="row" spacing={0.5}>
-												{actions.map((action) => (
-													<Tooltip key={action.id} title={action.label}>
-														<IconButton
-															size="small"
-															color={(action.color as any) ?? "default"}
-															onClick={(event) => {
-																event.stopPropagation();
-																dispatchAction(action, row);
-															}}
-														>
-															{action.icon ? (
-																<TableIcon name={action.icon} />
-															) : null}
-														</IconButton>
-													</Tooltip>
-												))}
-											</Stack>
-										) : null}
-									</Stack>
-								</Box>
+									</div>
+									<div className="flex shrink-0 items-center gap-1">
+										{status ? <Chip tone="outline">{status}</Chip> : null}
+										{actions.map((action) => (
+											<IconActionButton
+												key={action.id}
+												label={action.label}
+												icon={
+													action.icon ? (
+														<TableIcon name={action.icon} size={18} />
+													) : null
+												}
+												onClick={() => dispatchAction(action, row)}
+											/>
+										))}
+									</div>
+								</li>
 							);
 						})}
-			</Stack>
+					</ul>
+				)}
+			</div>
 		);
 	}
 
+	// ── Toolbar ────────────────────────────────────────────────
+	const selectionBar =
+		selectionCount > 0 &&
+		(bulkActions.length > 0 || selectionToolbarActions.length > 0) ? (
+			<div className="flex flex-wrap items-center gap-2">
+				<Chip tone="primary">{selectionCount} selected</Chip>
+				{bulkActions.map((action) => {
+					const view = bulkActionView(action, selectedRows());
+					return (
+						<ActionButton
+							key={action.id}
+							variant={buttonVariant(view.color)}
+							disabled={Boolean(bulkRunningId)}
+							icon={
+								view.icon ? <TableIcon name={view.icon} size={18} /> : undefined
+							}
+							onClick={() => requestBulkAction(action, selectedRows())}
+						>
+							{view.label}
+						</ActionButton>
+					);
+				})}
+				{selectionToolbarActions.map((action) => (
+					<ActionButton
+						key={action.id}
+						variant={buttonVariant(action.color)}
+						icon={
+							action.icon ? (
+								<TableIcon name={action.icon} size={18} />
+							) : undefined
+						}
+						onClick={() => runSelectionAction(action)}
+					>
+						{action.label}
+					</ActionButton>
+				))}
+				<IconActionButton
+					label="Clear selection"
+					icon={<TableIcon name="Close" size={18} />}
+					onClick={clearSelection}
+				/>
+			</div>
+		) : null;
+
+	const internalActionButtons = internalActions.map((action) => {
+		const customAction = (action as { customAction?: string }).customAction;
+		const isToggleDeleted = customAction === "toggleDeleted";
+		const label = isToggleDeleted
+			? includeDeleted
+				? ((action as { labelOn?: string }).labelOn ?? "Hide Deleted")
+				: ((action as { labelOff?: string }).labelOff ?? action.label)
+			: action.label;
+		const iconName = isToggleDeleted
+			? includeDeleted
+				? (action.iconOn ?? action.icon ?? "Visibility")
+				: (action.iconOff ?? action.icon ?? "VisibilityOff")
+			: action.icon;
+		return (
+			<IconActionButton
+				key={action.id}
+				label={label}
+				pressed={isToggleDeleted ? includeDeleted : undefined}
+				icon={iconName ? <TableIcon name={iconName} size={18} /> : null}
+				onClick={() => dispatchAction(action)}
+			/>
+		);
+	});
+
+	const hideableColumns = table
+		.getAllLeafColumns()
+		.filter((column) => column.getCanHide());
+
+	const toolbar = isSubRow ? null : (
+		<div className="flex flex-col gap-2 p-2">
+			{fetchError ? (
+				<div
+					role="alert"
+					className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+				>
+					{fetchError}
+				</div>
+			) : null}
+			<div className="flex flex-wrap items-center justify-between gap-2">
+				<div className="flex flex-wrap items-center gap-2">
+					{selectionBar ?? (
+						<div className="flex flex-wrap items-center gap-2">
+							{topActions.map((action) => (
+								<ActionButton
+									key={action.id}
+									variant={buttonVariant(action.color)}
+									icon={
+										action.icon ? (
+											<TableIcon name={action.icon} size={18} />
+										) : undefined
+									}
+									onClick={() => dispatchAction(action)}
+								>
+									{action.label}
+								</ActionButton>
+							))}
+							{showExport ? (
+								<ActionButton
+									variant="outline"
+									disabled={exporting}
+									icon={<TableIcon name="Download" size={18} />}
+									onClick={() => exportCsv(table)}
+								>
+									{settings.exportLabel ?? "Export CSV"}
+								</ActionButton>
+							) : null}
+						</div>
+					)}
+					{internalActionButtons.length > 0 ? (
+						<div className="flex items-center gap-1">
+							{internalActionButtons}
+						</div>
+					) : null}
+				</div>
+				<div className="flex flex-wrap items-center gap-2">
+					{filteringEnabled ? (
+						<DebouncedInput
+							value={globalFilter}
+							onChange={(value) => {
+								setGlobalFilter(value);
+								setPagination((previous) => ({
+									...previous,
+									pageIndex: 0,
+								}));
+							}}
+							label="Search"
+							type="search"
+							placeholder="Search…"
+							className="h-9 w-44 rounded-md border border-input bg-transparent px-3 text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+						/>
+					) : null}
+					{columnToggle && hideableColumns.length > 0 ? (
+						<details className="relative">
+							<summary
+								aria-label="Toggle columns"
+								title="Toggle columns"
+								className={`${ICON_BUTTON_CLASS} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}
+							>
+								<TableIcon name="ViewColumn" size={18} />
+							</summary>
+							<div className="absolute end-0 z-40 mt-1 min-w-45 rounded-md border border-border bg-popover p-2 text-start text-popover-foreground shadow-md">
+								<p className="mb-1 px-1 text-xs font-medium text-muted-foreground">
+									Columns
+								</p>
+								{hideableColumns.map((column) => (
+									<label
+										key={column.id}
+										className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-sm text-foreground hover:bg-muted"
+									>
+										<input
+											type="checkbox"
+											checked={column.getIsVisible()}
+											onChange={column.getToggleVisibilityHandler()}
+											className="h-4 w-4 accent-primary"
+										/>
+										<span className="truncate">
+											{typeof column.columnDef.header === "string"
+												? column.columnDef.header
+												: column.id}
+										</span>
+									</label>
+								))}
+							</div>
+						</details>
+					) : null}
+					<label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+						<span className="sr-only">Row density</span>
+						<select
+							aria-label="Row density"
+							title="Row density"
+							value={density}
+							onChange={(event) =>
+								setDensity(event.target.value as TableDensity)
+							}
+							className="h-9 rounded-md border border-input bg-transparent ps-3 pe-8 text-sm text-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+						>
+							<option value="compact">Compact</option>
+							<option value="normal">Normal</option>
+							<option value="comfortable">Comfortable</option>
+						</select>
+					</label>
+					<IconActionButton
+						label={fullscreen ? "Exit full screen" : "Full screen"}
+						pressed={fullscreen}
+						icon={
+							<TableIcon
+								name={fullscreen ? "FullscreenExit" : "Fullscreen"}
+								size={18}
+							/>
+						}
+						onClick={() => setFullscreen((previous) => !previous)}
+					/>
+				</div>
+			</div>
+		</div>
+	);
+
+	const bodyCellPadding =
+		DENSITY_CELL_CLASS[density] ?? DENSITY_CELL_CLASS.normal;
+	const headerSticky = Boolean(settings.stickyHeader) && !isSubRow;
+	const rows = table.getRowModel().rows;
+
 	return (
-		<Box>
+		<div
+			className={
+				fullscreen
+					? "fixed inset-0 z-50 flex flex-col overflow-auto bg-background p-4"
+					: undefined
+			}
+		>
 			{chipsRow}
-			<MaterialReactTable table={table} />
+			<div
+				aria-busy={isServerSide && isLoading}
+				className={`flex max-w-full flex-col ${
+					fullscreen ? "min-h-0 flex-1" : ""
+				}`}
+			>
+				{toolbar}
+				{isServerSide && isLoading ? (
+					<div
+						role="progressbar"
+						aria-label="Loading"
+						className="h-0.5 w-full overflow-hidden bg-muted"
+					>
+						<div className="h-full w-1/3 animate-pulse bg-primary" />
+					</div>
+				) : null}
+				<div
+					className={`${
+						settings.bordered === false
+							? "relative w-full overflow-auto rounded-lg"
+							: TABLE_WRAPPER_CLASS
+					} ${fullscreen ? "min-h-0 flex-1 overflow-y-auto" : ""}`}
+				>
+					<table
+						aria-label={tableMetadata.title || tableMetadata.name || "Table"}
+						className="w-full caption-bottom text-sm"
+					>
+						<colgroup>
+							{visibleLeafColumns.map((column) => {
+								const width = column.columnDef.size;
+								return (
+									<col key={column.id} style={width ? { width } : undefined} />
+								);
+							})}
+						</colgroup>
+						<thead className="[&_tr]:border-b">
+							{table.getHeaderGroups().map((headerGroup) => (
+								<tr key={headerGroup.id} className="border-b border-border">
+									{headerGroup.headers.map((header) => {
+										const column = header.column;
+										const meta = columnMeta(column);
+										const sorted = column.getIsSorted();
+										const canSort =
+											column.getCanSort() && !column.id.startsWith("__");
+										const isActions = column.id === ACTIONS_COLUMN_ID;
+										const pinnedHeader = stickyColumnClass(column.id, true);
+										const headerContent = flexRender(
+											column.columnDef.header,
+											header.getContext(),
+										);
+										return (
+											<th
+												key={header.id}
+												scope="col"
+												aria-sort={
+													sorted === "asc"
+														? "ascending"
+														: sorted === "desc"
+															? "descending"
+															: undefined
+												}
+												className={`h-10 px-2 align-middle font-medium whitespace-nowrap text-muted-foreground ${alignText(meta.align)} ${
+													headerSticky ? "sticky top-0" : ""
+												} ${headerSticky || pinnedHeader ? "bg-background" : ""} ${pinnedHeader} ${
+													headerSticky && !pinnedHeader ? "z-20" : ""
+												} ${isActions ? stickyEndShadow : ""} ${
+													isActions ? "w-[50px] min-w-[50px]" : ""
+												} ${
+													column.id === SELECT_COLUMN_ID ? "w-10 min-w-10" : ""
+												}`}
+											>
+												{canSort ? (
+													<button
+														type="button"
+														onClick={
+															column.getToggleSortingHandler() ?? undefined
+														}
+														className={`inline-flex w-full items-center gap-1 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${alignFlex(meta.align)}`}
+													>
+														<span className="truncate">{headerContent}</span>
+														<TableIcon
+															name={
+																sorted === "asc"
+																	? "ArrowDropUp"
+																	: sorted === "desc"
+																		? "ArrowDropDown"
+																		: "Sort"
+															}
+															size={14}
+															className={sorted ? "opacity-100" : "opacity-50"}
+														/>
+													</button>
+												) : (
+													headerContent
+												)}
+											</th>
+										);
+									})}
+								</tr>
+							))}
+							{showFilterRow ? (
+								<tr className="border-b border-border">
+									{visibleLeafColumns.map((column) => (
+										<th
+											key={`filter-${column.id}`}
+											scope="col"
+											className={`bg-background p-2 align-middle font-normal ${
+												headerSticky ? "sticky top-10 z-20" : ""
+											} ${stickyColumnClass(column.id, true)}`}
+										>
+											<ColumnFilterControl
+												label={
+													typeof column.columnDef.header === "string"
+														? column.columnDef.header
+														: column.id
+												}
+												meta={columnMeta(column)}
+												value={
+													columnFilters.find(
+														(filter) => filter.id === column.id,
+													)?.value
+												}
+												onChange={(value) => setColumnFilter(column.id, value)}
+											/>
+										</th>
+									))}
+								</tr>
+							) : null}
+						</thead>
+						<tbody className="[&_tr:last-child]:border-0">
+							{rows.length === 0 ? (
+								emptyNode === null ? null : (
+									<tr>
+										<td
+											colSpan={Math.max(visibleLeafColumns.length, 1)}
+											className="p-2"
+										>
+											{emptyNode ?? (
+												<p className="py-8 text-center text-sm text-muted-foreground">
+													{hasActiveFilters()
+														? "No results found"
+														: "No records to display"}
+												</p>
+											)}
+										</td>
+									</tr>
+								)
+							) : (
+								rows.map((row) => {
+									const matchedCondition = (settings.rowConditions ?? []).find(
+										(condition) => matchRowCondition(row.original, condition),
+									);
+									const detailHref = resolveRowHref(row.original);
+									const rowOnClick = tableMetadata.onRowClick;
+									const pinningClass = (columnId: string) =>
+										stickyColumnClass(columnId, false);
+									return (
+										<tr
+											key={row.id}
+											data-state={row.getIsSelected() ? "selected" : undefined}
+											tabIndex={detailHref ? 0 : undefined}
+											className={`border-b border-border transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted ${settings.striped ? "even:bg-muted/50" : ""} ${
+												detailHref
+													? "cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
+													: rowOnClick
+														? "cursor-pointer"
+														: ""
+											} ${matchedCondition?.className ?? ""}`}
+											style={
+												matchedCondition?.backgroundColor
+													? {
+															backgroundColor: matchedCondition.backgroundColor,
+														}
+													: undefined
+											}
+											onClick={
+												rowOnClick
+													? (event) => {
+															if (isRowControlTarget(event.target)) return;
+															handleRowClick(row.original);
+														}
+													: undefined
+											}
+											onKeyDown={
+												detailHref
+													? (
+															event: ReactKeyboardEvent<HTMLTableRowElement>,
+														) => {
+															if (event.key !== "Enter") return;
+															// Enter belongs to a focused control (action button,
+															// link, checkbox); on the row or one of its cells it
+															// opens the detail route.
+															if (isRowControlTarget(event.target)) return;
+															event.preventDefault();
+															handleRowClick(row.original);
+														}
+													: undefined
+											}
+											onAuxClick={
+												detailHref
+													? (event: ReactMouseEvent<HTMLTableRowElement>) => {
+															if (event.button !== 1) return;
+															if (isRowControlTarget(event.target)) return;
+															event.preventDefault();
+															window.open(
+																detailHref,
+																"_blank",
+																"noopener,noreferrer",
+															);
+														}
+													: undefined
+											}
+										>
+											{row.getVisibleCells().map((cell) => {
+												const meta = columnMeta(cell.column);
+												const isActions = cell.column.id === ACTIONS_COLUMN_ID;
+												const pinned =
+													cell.column.id === SELECT_COLUMN_ID ||
+													cell.column.id === ACTIONS_COLUMN_ID ||
+													cell.column.id === firstDataColumn?.id;
+												const isEditing =
+													editingCell?.rowId === row.id &&
+													editingCell?.columnId === cell.column.id;
+												return (
+													<td
+														key={cell.id}
+														className={`align-middle ${bodyCellPadding} ${alignText(meta.align)} ${
+															meta.fixedWidth
+																? "overflow-hidden text-ellipsis whitespace-nowrap"
+																: "whitespace-nowrap"
+														} ${pinningClass(cell.column.id)} ${
+															pinned ? "bg-background" : ""
+														} ${isActions ? stickyEndShadow : ""}`}
+														style={
+															meta.fixedWidth
+																? { maxWidth: meta.fixedWidth }
+																: undefined
+														}
+														onDoubleClick={
+															!isEditing && meta.editable && meta.accessor
+																? () => {
+																		cancelEditRef.current = false;
+																		setEditingValue(
+																			cell.getValue() == null
+																				? ""
+																				: String(cell.getValue()),
+																		);
+																		setEditingCell({
+																			rowId: row.id,
+																			columnId: cell.column.id,
+																			accessor: meta.accessor as string,
+																			original: row.original,
+																		});
+																	}
+																: undefined
+														}
+													>
+														{isEditing ? (
+															<input
+																// biome-ignore lint/a11y/noAutofocus: editing a cell the user just double-clicked
+																autoFocus
+																value={editingValue}
+																aria-label={`Edit ${meta.accessor ?? cell.column.id}`}
+																onChange={(event) =>
+																	setEditingValue(event.target.value)
+																}
+																onBlur={() => {
+																	if (cancelEditRef.current) {
+																		cancelEditRef.current = false;
+																		return;
+																	}
+																	saveCellEdit();
+																}}
+																onKeyDown={(event) => {
+																	if (event.key === "Enter") {
+																		event.preventDefault();
+																		saveCellEdit();
+																	} else if (event.key === "Escape") {
+																		event.preventDefault();
+																		cancelEditRef.current = true;
+																		setEditingCell(null);
+																	}
+																}}
+																className="w-full min-w-0 rounded-md border border-input bg-transparent px-2 py-1 text-sm text-foreground outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+															/>
+														) : (
+															flexRender(
+																cell.column.columnDef.cell,
+																cell.getContext(),
+															)
+														)}
+													</td>
+												);
+											})}
+										</tr>
+									);
+								})
+							)}
+						</tbody>
+					</table>
+				</div>
+				{isSubRow ? null : (
+					<div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
+						<div className="flex items-center gap-2">
+							<label
+								htmlFor="dynamic-table-rows-per-page"
+								className="font-medium text-muted-foreground"
+							>
+								Rows per page
+							</label>
+							<select
+								id="dynamic-table-rows-per-page"
+								value={pagination.pageSize}
+								onChange={(event) => changePageSize(Number(event.target.value))}
+								className="h-9 rounded-md border border-input bg-transparent ps-3 pe-8 text-sm text-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+							>
+								{pageSizeOptions.map((size) => (
+									<option key={size} value={size}>
+										{size}
+									</option>
+								))}
+							</select>
+						</div>
+						<div className="flex items-center justify-end gap-2">
+							<span className="text-muted-foreground">
+								Page {pagination.pageIndex + 1} of {pageCount}
+							</span>
+							<div className="flex items-center gap-2">
+								<IconActionButton
+									label="Go to first page"
+									disabled={pagination.pageIndex <= 0}
+									className={PAGINATION_BUTTON_CLASS}
+									icon={
+										<TableIcon
+											name="ArrowBack"
+											size={18}
+											className="rtl:rotate-180"
+										/>
+									}
+									onClick={() => goToPage(0)}
+								/>
+								<IconActionButton
+									label="Go to previous page"
+									disabled={pagination.pageIndex <= 0}
+									className={PAGINATION_BUTTON_CLASS}
+									icon={
+										<TableIcon
+											name="ChevronLeft"
+											size={18}
+											className="rtl:rotate-180"
+										/>
+									}
+									onClick={() => goToPage(pagination.pageIndex - 1)}
+								/>
+								<IconActionButton
+									label="Go to next page"
+									disabled={pagination.pageIndex + 1 >= pageCount}
+									className={PAGINATION_BUTTON_CLASS}
+									icon={
+										<TableIcon
+											name="ChevronRight"
+											size={18}
+											className="rtl:rotate-180"
+										/>
+									}
+									onClick={() => goToPage(pagination.pageIndex + 1)}
+								/>
+								<IconActionButton
+									label="Go to last page"
+									disabled={pagination.pageIndex + 1 >= pageCount}
+									className={PAGINATION_BUTTON_CLASS}
+									icon={
+										<TableIcon
+											name="ArrowForward"
+											size={18}
+											className="rtl:rotate-180"
+										/>
+									}
+									onClick={() => goToPage(pageCount - 1)}
+								/>
+							</div>
+						</div>
+					</div>
+				)}
+			</div>
 			{/* UX-25 — a bulk action may declare a confirmation (destructive). */}
-			<Dialog
+			<ModalDialog
 				open={Boolean(pendingBulkAction)}
+				title={
+					pendingBulkAction?.action.confirm?.title ??
+					pendingBulkAction?.action.label ??
+					""
+				}
 				onClose={() => {
 					if (!bulkRunningId) setPendingBulkAction(null);
 				}}
-				maxWidth="xs"
-				fullWidth
+				footer={
+					<>
+						<ActionButton
+							variant="outline"
+							disabled={Boolean(bulkRunningId)}
+							onClick={() => setPendingBulkAction(null)}
+						>
+							Cancel
+						</ActionButton>
+						<ActionButton
+							variant="danger"
+							disabled={Boolean(bulkRunningId)}
+							onClick={() => {
+								if (pendingBulkAction) {
+									executeBulkAction(
+										pendingBulkAction.action,
+										pendingBulkAction.rows,
+									);
+								}
+							}}
+						>
+							{pendingBulkAction?.action.label}
+						</ActionButton>
+					</>
+				}
 			>
-				<DialogTitle>
-					{pendingBulkAction?.action.confirm?.title ??
-						pendingBulkAction?.action.label}
-				</DialogTitle>
-				<DialogContent>
-					<DialogContentText>
-						{pendingBulkAction?.action.confirm?.message}
-					</DialogContentText>
-				</DialogContent>
-				<DialogActions>
-					<Button
-						disabled={Boolean(bulkRunningId)}
-						onClick={() => setPendingBulkAction(null)}
-					>
-						Cancel
-					</Button>
-					<Button
-						variant="contained"
-						color="error"
-						disabled={Boolean(bulkRunningId)}
-						onClick={() => {
-							if (pendingBulkAction) {
-								executeBulkAction(
-									pendingBulkAction.action,
-									pendingBulkAction.rows,
-								);
-							}
-						}}
-					>
-						{pendingBulkAction?.action.label}
-					</Button>
-				</DialogActions>
-			</Dialog>
-		</Box>
+				{pendingBulkAction?.action.confirm?.message}
+			</ModalDialog>
+		</div>
 	);
 }

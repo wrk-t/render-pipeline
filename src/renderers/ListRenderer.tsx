@@ -13,15 +13,6 @@
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Card from "@mui/material/Card";
-import Chip from "@mui/material/Chip";
-import CircularProgress from "@mui/material/CircularProgress";
-import IconButton from "@mui/material/IconButton";
-import Stack from "@mui/material/Stack";
-import Tooltip from "@mui/material/Tooltip";
-import Typography from "@mui/material/Typography";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
@@ -99,6 +90,34 @@ function resolvePlaceholders(
 }
 
 // ── Component ──────────────────────────────────────────────────
+
+/**
+ * Action `color` names from the metadata contract → shadcn button skin.
+ * Stock shadcn has no warning/info/success button variant, so those keep
+ * their meaning through the default Tailwind palette's 600 shades.
+ */
+const TOOLBAR_COLOR_CLASSES: Record<string, string> = {
+	primary: "bg-primary text-primary-foreground hover:bg-primary/90",
+	secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+	inherit: "bg-primary text-primary-foreground hover:bg-primary/90",
+	error: "bg-destructive text-white hover:bg-destructive/90",
+	warning: "bg-amber-600 text-white hover:bg-amber-600/90",
+	success: "bg-emerald-600 text-white hover:bg-emerald-600/90",
+	info: "bg-sky-600 text-white hover:bg-sky-600/90",
+};
+
+/** Row-action icon button tones — shadcn's ghost icon button. */
+const ICON_COLOR_CLASSES: Record<string, string> = {
+	default: "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+	primary: "text-primary hover:bg-accent hover:text-accent-foreground",
+	secondary:
+		"text-secondary-foreground hover:bg-accent hover:text-accent-foreground",
+	inherit: "text-foreground hover:bg-accent hover:text-accent-foreground",
+	error: "text-destructive hover:bg-destructive/10",
+	warning: "text-amber-600 hover:bg-amber-600/10 dark:text-amber-500",
+	success: "text-emerald-600 hover:bg-emerald-600/10 dark:text-emerald-500",
+	info: "text-sky-600 hover:bg-sky-600/10 dark:text-sky-400",
+};
 
 export function ListRenderer({
 	component,
@@ -390,81 +409,51 @@ export function ListRenderer({
 	const valueField = settings.valueField ?? "value";
 
 	return (
-		<Box>
+		<div>
 			{/* ── Header + toolbar actions ── */}
 			{(title || visibleToolbarActions.length > 0) && (
-				<Stack
-					sx={{
-						mb: 1.5,
-						width: "100%",
-						gap: 2,
-						flexDirection: "column",
-						alignItems: "flex-start",
-						"@media (min-width:768px)": {
-							flexDirection: "row",
-							alignItems: "center",
-							justifyContent: "space-between",
-						},
-					}}
-				>
+				<div className="mb-3 flex w-full flex-col items-start gap-4 md:flex-row md:items-center md:justify-between">
 					{title && (
-						<Typography
-							variant="h6"
-							sx={{ minWidth: 0, fontWeight: 700, wordBreak: "break-word" }}
-						>
+						<h2 className="min-w-0 break-words text-start text-lg font-semibold tracking-tight text-foreground">
 							{title}
-						</Typography>
+						</h2>
 					)}
 					{visibleToolbarActions.length > 0 && (
-						<Stack
-							sx={{
-								gap: 2,
-								width: "100%",
-								flexDirection: "column",
-								alignItems: "stretch",
-								"& .MuiButton-root": { width: "100%" },
-								"@media (min-width:600px)": {
-									width: "auto",
-									flexDirection: "row",
-									alignItems: "center",
-									"& .MuiButton-root": { width: "auto" },
-								},
-							}}
-						>
+						<div className="flex w-full flex-col items-stretch gap-4 sm:w-auto sm:flex-row sm:items-center">
 							{visibleToolbarActions.map((action) => (
-								<Button
+								<button
 									key={action.id}
-									variant="contained"
-									size="small"
-									color={(action.color as any) ?? "primary"}
-									startIcon={
-										action.icon ? <TableIcon name={action.icon} /> : undefined
-									}
+									type="button"
 									onClick={() => openActionDialog(action)}
+									className={`inline-flex h-9 w-full items-center justify-center gap-2 rounded-md px-4 text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 sm:w-auto ${
+										TOOLBAR_COLOR_CLASSES[String(action.color ?? "primary")] ??
+										TOOLBAR_COLOR_CLASSES.primary
+									}`}
 								>
+									{action.icon ? <TableIcon name={action.icon} /> : null}
 									{action.label}
-								</Button>
+								</button>
 							))}
-						</Stack>
+						</div>
 					)}
-				</Stack>
+				</div>
 			)}
 
 			{/* ── Body ── */}
 			{isLoading ? (
-				<Stack className="items-center py-8">
-					<CircularProgress size={24} />
-				</Stack>
+				<div className="flex items-center justify-center py-8">
+					<span
+						role="status"
+						aria-label="Loading"
+						className="size-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary"
+					/>
+				</div>
 			) : items.length === 0 ? (
-				<Typography
-					variant="body2"
-					color="text.secondary"
-					className="py-8 text-center"
-				>
+				<p className="py-8 text-center text-sm text-muted-foreground">
 					{emptyMessage}
-				</Typography>
+				</p>
 			) : (
-				<Stack spacing={1}>
+				<ul className="flex flex-col gap-2">
 					{items.map((item) => {
 						const actions = visibleRowActions(item);
 						const cardDialogAction =
@@ -472,81 +461,74 @@ export function ListRenderer({
 								? actions.find((a) => a.action === "openDialog")
 								: undefined;
 						return (
-							<Card
+							<li
 								key={String(item.id ?? "")}
-								variant="outlined"
-								className={`w-full ${cardDialogAction ? "cursor-pointer hover:bg-gray-50" : ""}`}
 								onClick={
 									cardDialogAction
 										? () => openActionDialog(cardDialogAction, item)
 										: undefined
 								}
+								className={`w-full rounded-lg border border-border bg-card text-card-foreground shadow-sm ${
+									cardDialogAction
+										? "cursor-pointer transition-colors hover:bg-accent/50"
+										: ""
+								}`}
 							>
-								<Stack
-									direction="row"
-									spacing={2}
-									className="items-center justify-between px-3 py-2"
-								>
-									<Stack spacing={0.25} className="min-w-0 flex-1">
-										<Stack direction="row" spacing={1} className="items-center">
-											<Typography
-												variant="subtitle2"
-												className="font-bold"
-												sx={{ fontFamily: "monospace" }}
-											>
+								<div className="flex items-center justify-between gap-4 px-4 py-3">
+									<div className="flex min-w-0 flex-1 flex-col gap-1">
+										<div className="flex items-center gap-2">
+											<h3 className="text-start font-mono text-sm font-medium text-foreground">
 												{String(item.key ?? item.name ?? item.id ?? "")}
-											</Typography>
+											</h3>
 											{showTypeBadge && item.type ? (
-												<Chip
-													label={String(item.type)}
-													size="small"
-													variant="outlined"
-													sx={{ height: 18, fontSize: "0.65rem" }}
-												/>
+												<span className="rounded-md border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground">
+													{String(item.type)}
+												</span>
 											) : null}
-										</Stack>
+										</div>
 										{item.description ? (
-											<Typography
-												variant="caption"
-												color="text.secondary"
-												className="truncate"
-											>
+											<p className="truncate text-start text-xs text-muted-foreground">
 												{String(item.description)}
-											</Typography>
+											</p>
 										) : null}
 										{item[valueField] !== undefined &&
 										item[valueField] !== null ? (
-											<Typography variant="body2" className="break-all">
+											<p className="break-all text-start text-sm text-foreground">
 												{String(item[valueField])}
-											</Typography>
+											</p>
 										) : null}
-									</Stack>
+									</div>
 
 									{actions.length > 0 && (
-										<Stack direction="row" spacing={0.5}>
+										<div className="flex items-center gap-1">
 											{actions.map((action) => (
-												<Tooltip key={action.id} title={action.label}>
-													<IconButton
-														size="small"
-														color={(action.color as any) ?? "default"}
-														onClick={(e) => {
-															e.stopPropagation();
-															openActionDialog(action, item);
-														}}
-													>
-														{action.icon ? (
-															<TableIcon name={action.icon} size={18} />
-														) : null}
-													</IconButton>
-												</Tooltip>
+												<button
+													key={action.id}
+													type="button"
+													title={action.label}
+													aria-label={action.label}
+													onClick={(e) => {
+														e.stopPropagation();
+														openActionDialog(action, item);
+													}}
+													className={`inline-flex size-9 items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${
+														ICON_COLOR_CLASSES[
+															String(action.color ?? "default")
+														] ?? ICON_COLOR_CLASSES.default
+													}`}
+												>
+													{action.icon ? (
+														<TableIcon name={action.icon} size={18} />
+													) : null}
+												</button>
 											))}
-										</Stack>
+										</div>
 									)}
-								</Stack>
-							</Card>
+								</div>
+							</li>
 						);
 					})}
-				</Stack>
+				</ul>
 			)}
 
 			{/* ── Confirm dialog (apiCall + confirm) ── */}
@@ -579,7 +561,9 @@ export function ListRenderer({
 						},
 					}}
 				>
-					<Typography>{confirmPayload.message}</Typography>
+					<p className="text-start text-sm text-foreground">
+						{confirmPayload.message}
+					</p>
 				</BaseDialog>
 			)}
 
@@ -638,6 +622,6 @@ export function ListRenderer({
 					/>
 				</BaseDialog>
 			)}
-		</Box>
+		</div>
 	);
 }

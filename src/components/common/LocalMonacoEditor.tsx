@@ -16,7 +16,6 @@
 
 import Editor from "@monaco-editor/react";
 import { loader } from "@monaco-editor/react";
-import Box from "@mui/material/Box";
 import { useEffect, useState, type ReactElement } from "react";
 
 // Monaco's stylesheet — imported statically so bundlers extract it;
@@ -49,9 +48,7 @@ export interface LocalMonacoEditorProps {
 	options?: Record<string, unknown>;
 }
 
-export function LocalMonacoEditor(
-	props: LocalMonacoEditorProps,
-): ReactElement {
+export function LocalMonacoEditor(props: LocalMonacoEditorProps): ReactElement {
 	const [ready, setReady] = useState(false);
 
 	useEffect(() => {
@@ -65,9 +62,15 @@ export function LocalMonacoEditor(
 	}, []);
 
 	if (!ready) {
-		// Reserve the editor's space until monaco is ready — avoids
-		// layout jumps when the real editor appears.
-		return <Box sx={{ height: props.height ?? 300 }} />;
+		// Reserve the editor's space until monaco is ready — a muted skeleton
+		// block (no border, since hosts like FormJsonField draw their own)
+		// avoids layout jumps when the real editor appears.
+		return (
+			<div
+				style={{ height: props.height ?? 300 }}
+				className="w-full animate-pulse rounded-md bg-muted"
+			/>
+		);
 	}
 
 	return <Editor {...(props as any)} />;
