@@ -13,17 +13,11 @@
 //   - component_ref elements nest their child card inside the box
 //   - field elements render as compact chips (label + field type)
 //
-// Pure HTML/MUI — no canvas. The tree shape mirrors the arch schema
+// Pure HTML/Tailwind — no canvas. The tree shape mirrors the arch schema
 // (components + elements), so the same data can later drive an editor.
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
-import Box from "@mui/material/Box";
-import Card from "@mui/material/Card";
-import Chip from "@mui/material/Chip";
-import CircularProgress from "@mui/material/CircularProgress";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
 import { type ReactElement, useMemo } from "react";
 import useSWR from "swr";
 import { getApiClient } from "../deps";
@@ -73,26 +67,23 @@ interface ScreenTreePayload {
 	roots?: TreeNode[];
 }
 
-// ── Blueprint → chip color hint ─────────────────────────────────
+// ── Blueprint → badge tint ─────────────────────────────────────
 
-const BP_COLOR: Record<
-	string,
-	"primary" | "success" | "warning" | "error" | "info" | "secondary" | "default"
-> = {
-	screen_layout_general: "primary",
-	page: "primary",
-	table: "info",
-	form: "success",
-	section: "warning",
-	tabs: "secondary",
-	info: "secondary",
-	list: "secondary",
-	"raw-json": "secondary",
-	"audit-history": "secondary",
+const BP_BADGE: Record<string, string> = {
+	screen_layout_general: "border-primary/50 text-primary",
+	page: "border-primary/50 text-primary",
+	table: "border-info-main/50 text-info-main",
+	form: "border-success-main/50 text-success-main",
+	section: "border-warning-main/50 text-warning-main",
+	tabs: "border-border text-muted-foreground",
+	info: "border-border text-muted-foreground",
+	list: "border-border text-muted-foreground",
+	"raw-json": "border-border text-muted-foreground",
+	"audit-history": "border-border text-muted-foreground",
 };
 
-function bpColor(type: string | null): string {
-	return BP_COLOR[type ?? ""] ?? "default";
+function bpBadgeClass(type: string | null): string {
+	return BP_BADGE[type ?? ""] ?? "border-border text-muted-foreground";
 }
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -115,9 +106,7 @@ function groupByRow(
 		.sort((a, b) => a[0] - b[0])
 		.map(([row, items]) => ({
 			row,
-			items: [...items].sort(
-				(a, b) => (a.grid?.col ?? 0) - (b.grid?.col ?? 0),
-			),
+			items: [...items].sort((a, b) => (a.grid?.col ?? 0) - (b.grid?.col ?? 0)),
 		}));
 }
 
@@ -136,110 +125,70 @@ function FieldChip({ el }: { el: TreeElement }): ReactElement {
 		(el.overrides?.name as string | undefined) ?? fd?.name ?? null;
 
 	return (
-		<Box
-			sx={{
-				border: 1,
-				borderColor: "divider",
-				borderRadius: 1,
-				bgcolor: "action.hover",
-				px: 1,
-				py: 0.5,
-			}}
-		>
-			<Stack direction="row" spacing={1} className="items-center" sx={{ minWidth: 0 }}>
-				<Typography
-					variant="caption"
-					className="font-semibold"
-					sx={{ fontWeight: 600 }}
-					noWrap
-				>
+		<div className="rounded-md border border-border bg-muted px-2 py-1">
+			<div className="flex min-w-0 items-center gap-2">
+				<span className="truncate text-xs font-semibold text-foreground">
 					{elementLabel(el)}
-				</Typography>
+				</span>
 				{fd?.type ? (
-					<Chip
-						label={fd.type}
-						size="small"
-						variant="outlined"
-						sx={{ height: 16, fontSize: "0.6rem" }}
-					/>
+					<span className="shrink-0 rounded-full border border-border px-1.5 text-[0.6rem] leading-4 text-muted-foreground">
+						{fd.type}
+					</span>
 				) : null}
 				{bodyKey && bodyKey !== elementLabel(el) ? (
-					<Typography
-						variant="caption"
-						color="text.secondary"
-						sx={{ fontFamily: "monospace", fontSize: "0.65rem" }}
-						noWrap
-					>
+					<span className="truncate font-mono text-[0.65rem] text-muted-foreground">
 						{bodyKey}
-					</Typography>
+					</span>
 				) : null}
-			</Stack>
-		</Box>
+			</div>
+		</div>
 	);
 }
 
-function NodeCard({ node, depth }: { node: TreeNode; depth: number }): ReactElement {
+function NodeCard({
+	node,
+	depth,
+}: {
+	node: TreeNode;
+	depth: number;
+}): ReactElement {
 	const rows = groupByRow(node.elements);
 
 	return (
-		<Card
-			variant="outlined"
-			sx={{
-				width: "100%",
-				borderLeft: depth > 0 ? 3 : 1,
-				borderLeftColor: depth > 0 ? "divider" : "primary.main",
-			}}
+		<article
+			className={`w-full rounded-lg border border-border bg-card ${
+				depth > 0 ? "border-s-[3px] border-s-border" : "border-s-primary"
+			}`}
 		>
 			{/* Header */}
-			<Stack
-				direction="row"
-				spacing={1}
-				className="items-center justify-between px-3 py-2"
-				sx={{ borderBottom: 1, borderColor: "divider" }}
-			>
-				<Stack direction="row" spacing={1} className="min-w-0 items-center">
-					<Typography variant="subtitle2" className="font-bold" noWrap>
+			<header className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+				<div className="flex min-w-0 items-center gap-2">
+					<h4 className="truncate text-sm font-bold text-foreground">
 						{node.displayName ?? node.name}
-					</Typography>
+					</h4>
 					{node.type ? (
-						<Chip
-							label={node.type}
-							size="small"
-							variant="outlined"
-							color={bpColor(node.type) as any}
-							sx={{ height: 18, fontSize: "0.65rem" }}
-						/>
+						<span
+							className={`shrink-0 rounded-full border px-1.5 text-[0.65rem] leading-4 ${bpBadgeClass(node.type)}`}
+						>
+							{node.type}
+						</span>
 					) : null}
-					<Typography
-						variant="caption"
-						color="text.secondary"
-						sx={{ fontFamily: "monospace" }}
-						noWrap
-					>
+					<span className="truncate font-mono text-xs text-muted-foreground">
 						{node.name}
-					</Typography>
-				</Stack>
-				<Typography
-					variant="caption"
-					color="text.secondary"
-					sx={{ whiteSpace: "nowrap" }}
-				>
+					</span>
+				</div>
+				<span className="whitespace-nowrap text-xs text-muted-foreground">
 					{node.elements.length} element{node.elements.length === 1 ? "" : "s"}
-				</Typography>
-			</Stack>
+				</span>
+			</header>
 
 			{/* Body: slot groups → grid rows */}
 			{node.elements.length === 0 ? (
-				<Typography
-					variant="caption"
-					color="text.disabled"
-					className="px-3 py-2"
-					component="div"
-				>
+				<p className="px-3 py-2 text-xs text-muted-foreground/50">
 					no elements
-				</Typography>
+				</p>
 			) : (
-				<Stack spacing={1.5} className="px-3 py-2">
+				<div className="flex flex-col gap-3 px-3 py-2">
 					{groupByRow(node.elements)
 						.reduce<Array<{ slot: string; rows: typeof rows }>>((acc, r) => {
 							const last = acc[acc.length - 1];
@@ -251,26 +200,19 @@ function NodeCard({ node, depth }: { node: TreeNode; depth: number }): ReactElem
 							return acc;
 						}, [])
 						.map((group) => (
-							<Box key={group.slot || "slot"}>
+							<div key={group.slot || "slot"}>
 								{group.slot ? (
-									<Typography
-										variant="overline"
-										color="text.secondary"
-										sx={{ fontSize: "0.6rem", letterSpacing: 0.08 }}
-									>
+									<span className="text-[0.6rem] uppercase tracking-[0.08em] text-muted-foreground">
 										slot: {group.slot}
-									</Typography>
+									</span>
 								) : null}
-								<Stack spacing={0.75}>
+								<div className="flex flex-col gap-1.5">
 									{group.rows.map((row) => (
-										<Box
-											key={row.row}
-											sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}
-										>
+										<div key={row.row} className="flex flex-wrap gap-2">
 											{row.items.map((el) => (
-												<Box
+												<div
 													key={el.id}
-													sx={{
+													style={{
 														flex: `0 0 calc(${gridWidth(el)}% - 8px)`,
 														minWidth: 140,
 													}}
@@ -279,36 +221,25 @@ function NodeCard({ node, depth }: { node: TreeNode; depth: number }): ReactElem
 														el.child ? (
 															<NodeCard node={el.child} depth={depth + 1} />
 														) : (
-															<Box
-																sx={{
-																	border: "1px dashed",
-																	borderColor: "divider",
-																	borderRadius: 1,
-																	px: 1,
-																	py: 0.5,
-																}}
-															>
-																<Typography
-																	variant="caption"
-																	color="text.disabled"
-																>
+															<div className="rounded-md border border-dashed border-border px-2 py-1">
+																<span className="text-xs text-muted-foreground/50">
 																	missing component
-																</Typography>
-															</Box>
+																</span>
+															</div>
 														)
 													) : (
 														<FieldChip el={el} />
 													)}
-												</Box>
+												</div>
 											))}
-										</Box>
+										</div>
 									))}
-								</Stack>
-							</Box>
+								</div>
+							</div>
 						))}
-				</Stack>
+				</div>
 			)}
-		</Card>
+		</article>
 	);
 }
 
@@ -355,46 +286,45 @@ export function ScreenTreeRenderer({
 	const screen = data?.screen ?? null;
 
 	return (
-		<Box>
+		<div>
 			{/* ── Header ── */}
 			{(title || screen?.displayName) && (
-				<Stack
-					direction="row"
-					className="mb-3 w-full items-center justify-between"
-				>
-					<Stack direction="row" spacing={1} className="items-center">
+				<div className="mb-3 flex w-full items-center justify-between">
+					<div className="flex items-center gap-2">
 						{title && (
-							<Typography variant="h6" className="font-bold">
+							<h2 className="text-start text-xl font-bold text-foreground">
 								{title}
-							</Typography>
+							</h2>
 						)}
 						{screen?.displayName ? (
-							<Chip label={screen.displayName} size="small" variant="outlined" />
+							<span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
+								{screen.displayName}
+							</span>
 						) : null}
-					</Stack>
-				</Stack>
+					</div>
+				</div>
 			)}
 
 			{/* ── Body ── */}
 			{isLoading ? (
-				<Stack className="items-center py-8">
-					<CircularProgress size={24} />
-				</Stack>
+				<div className="flex items-center justify-center py-8">
+					<span
+						role="status"
+						aria-label="Loading"
+						className="h-6 w-6 animate-spin rounded-full border-2 border-muted border-t-primary"
+					/>
+				</div>
 			) : roots.length === 0 ? (
-				<Typography
-					variant="body2"
-					color="text.secondary"
-					className="py-8 text-center"
-				>
+				<p className="py-8 text-center text-sm text-muted-foreground">
 					{emptyMessage}
-				</Typography>
+				</p>
 			) : (
-				<Stack spacing={2}>
+				<div className="flex flex-col gap-4">
 					{roots.map((root) => (
 						<NodeCard key={root.id} node={root} depth={0} />
 					))}
-				</Stack>
+				</div>
 			)}
-		</Box>
+		</div>
 	);
 }

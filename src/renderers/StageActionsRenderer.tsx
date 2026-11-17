@@ -1,10 +1,5 @@
 "use client";
 
-import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import CircularProgress from "@mui/material/CircularProgress";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
 import {
 	type ReactElement,
 	useCallback,
@@ -17,13 +12,10 @@ import { getApiClient } from "../deps";
 import type { RenderedComponent } from "../types";
 import { useVersion, type VersionInfo } from "./VersionContext";
 
-const STAGE_COLORS: Record<
-	string,
-	"default" | "warning" | "success" | "error"
-> = {
-	draft: "warning",
-	published: "success",
-	deprecated: "error",
+const STAGE_BADGE: Record<string, string> = {
+	draft: "border-warning-main/50 bg-warning-main/10 text-warning-main",
+	published: "border-success-main/50 bg-success-main/10 text-success-main",
+	deprecated: "border-error-main/50 bg-error-main/10 text-error-main",
 };
 
 const NEXT_STAGE: Record<string, { label: string; target: string } | null> = {
@@ -150,15 +142,15 @@ function LifecycleDates({
 }): ReactElement | null {
 	if (!(version.releaseDate || version.sunsetDate)) return null;
 	return (
-		<Typography variant="caption" color="text.secondary">
+		<p className="text-start text-xs text-muted-foreground">
 			{version.releaseDate && `Released: ${formatDate(version.releaseDate)}`}
 			{version.releaseDate && version.sunsetDate ? " · " : ""}
 			{version.sunsetDate && `Sunset: ${formatDate(version.sunsetDate)}`}
-		</Typography>
+		</p>
 	);
 }
 
-	export function StageActionsRenderer({
+export function StageActionsRenderer({
 	component,
 	pathParams,
 }: {
@@ -209,54 +201,69 @@ function LifecycleDates({
 
 	if (isLoading) {
 		return (
-			<Stack direction="row" spacing={1} className="items-center">
-				<CircularProgress size={16} />
-			</Stack>
+			<div className="flex items-center gap-2">
+				<span
+					role="status"
+					aria-label="Loading"
+					className="inline-block size-4 animate-spin rounded-full border-2 border-muted border-t-primary"
+				/>
+			</div>
 		);
 	}
 
 	if (!version) {
 		return (
-			<Typography variant="body2" color="text.secondary">
+			<p className="text-start text-sm text-muted-foreground">
 				No versions yet
-			</Typography>
+			</p>
 		);
 	}
 
 	return (
-		<Stack spacing={1}>
-			<Stack direction="row" spacing={1} className="items-center">
-				<Typography variant="body2" color="text.secondary">
+		<div className="flex flex-col gap-2">
+			<div className="flex flex-wrap items-center gap-2">
+				<span className="text-sm text-muted-foreground">
 					{component.displayName || "Stage"}:
-				</Typography>
+				</span>
 				{version.version && (
-					<Typography variant="body2" color="text.primary">
-						{version.version}
-					</Typography>
+					<span className="text-sm text-foreground">{version.version}</span>
 				)}
-				<Chip
-					label={stage}
-					size="small"
-					color={STAGE_COLORS[stage] ?? "default"}
-				/>
+				<span
+					className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${
+						STAGE_BADGE[stage] ?? "border-border text-muted-foreground"
+					}`}
+				>
+					{stage}
+				</span>
 				{nextAction && (
-					<Button
-						size="small"
-						variant="outlined"
-						color={nextAction.target === "published" ? "success" : "warning"}
+					<button
+						type="button"
 						onClick={handleTransition}
 						disabled={transitioning}
+						className={`inline-flex min-w-16 items-center justify-center gap-2 whitespace-nowrap rounded-lg border px-3 py-1 text-sm font-medium uppercase tracking-[0.02857em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${
+							nextAction.target === "published"
+								? "border-success-main/50 text-success-main hover:border-success-main hover:bg-success-main/5"
+								: "border-warning-main/50 text-warning-main hover:border-warning-main hover:bg-warning-main/5"
+						}`}
 					>
-						{transitioning ? <CircularProgress size={16} /> : nextAction.label}
-					</Button>
+						{transitioning ? (
+							<span
+								role="status"
+								aria-label="Loading"
+								className="inline-block size-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+							/>
+						) : (
+							nextAction.label
+						)}
+					</button>
 				)}
 				{error && (
-					<Typography variant="caption" color="error">
+					<span role="alert" className="text-xs text-error-main">
 						{error}
-					</Typography>
+					</span>
 				)}
-			</Stack>
+			</div>
 			<LifecycleDates version={version} />
-		</Stack>
+		</div>
 	);
 }

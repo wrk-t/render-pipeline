@@ -6,24 +6,12 @@
 // present, options are fetched once on mount via SWR.
 //
 // CONTROLLED value: uses `useField` and always passes `value ?? ""`
-// to the MUI Select. The previous formik-mui `FastSelect` wrapper
-// passed `value={undefined}` on first render (MUI warns + misbehaves
-// when a Select switches uncontrolled→controlled) and its `onClose`
-// read `e.target.dataset` — an event shape MUI v9 no longer provides,
-// so closing the dropdown threw during the Select's internal sync and
-// froze the page (the Style tab).
+// to the native <select>. A select must stay controlled from the
+// first render (an uncontrolled→controlled switch warns and
+// misbehaves), and an empty string maps to the placeholder option.
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
-import {
-	FormControl,
-	FormHelperText,
-	InputLabel,
-	MenuItem,
-	Select,
-	Stack,
-	Typography,
-} from "@mui/material";
 import { useField } from "formik";
 import type { ReactElement } from "react";
 import useSWR from "swr";
@@ -60,6 +48,10 @@ function toSelectOption(item: unknown, entityMeta?: EntityMeta): SelectOption {
 		value: obj[valueField] ?? obj.id ?? obj.value,
 	};
 }
+
+/** Native select skin shared across the metadata-driven fields. */
+const SELECT_CLASS =
+	"w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-60";
 
 // ─────────────────────────────────────────────────────────────
 // Component
@@ -149,44 +141,62 @@ export function FormSelectField({
 	const isError = Boolean(meta.touched && meta.error);
 	// A select with no resolvable label was announced by its id (a CUID) —
 	// bind the label (and a fallback name) explicitly so every screen is named.
-	const labelId = `field-select-${field.name}`;
+	const inputId = `field-select-${field.name}`;
 	const accessibleName = fieldAccessibleName(field);
+	const placeholder = field.uiOverrides?.behavior?.placeholder ?? "Select…";
 
 	return (
-		<Stack spacing={0.2}>
-			<FormControl
-				fullWidth
-				size="small"
-				error={isError}
-				required={field.isRequired}
+		<div className="flex flex-col gap-1">
+			<label htmlFor={inputId} className="text-sm font-medium text-foreground">
+				{field.label}
+				{field.isRequired ? (
+					<span className="text-destructive" aria-hidden="true">
+						{" "}
+						*
+					</span>
+				) : null}
+			</label>
+			<select
+				id={inputId}
+				name={field.name}
+				aria-label={accessibleName}
+				aria-invalid={isError || undefined}
+				aria-required={field.isRequired || undefined}
+				value={value ?? ""}
 				disabled={field.isReadOnly}
+				onChange={(event) => {
+					setValue(event.target.value as string);
+					setTouched(true);
+				}}
+				onBlur={() => setTouched(true)}
+				className={[
+					SELECT_CLASS,
+					isError
+						? "border-destructive focus:border-destructive focus:ring-destructive/20"
+						: "focus:border-ring",
+				].join(" ")}
 			>
-				<InputLabel id={labelId}>{field.label}</InputLabel>
-				<Select
-					name={field.name}
-					labelId={labelId}
-					label={field.label}
-					SelectDisplayProps={{ "aria-label": accessibleName }}
-					value={value ?? ""}
-					onChange={(e) => {
-						setValue(e.target.value as string);
-						setTouched(true);
-					}}
-					onBlur={() => setTouched(true)}
-				>
-					{visibleOptions.map((opt) => (
-						<MenuItem key={String(opt.value)} value={opt.value as string}>
-							{opt.label}
-						</MenuItem>
-					))}
-				</Select>
-				{isError && <FormHelperText error>{meta.error}</FormHelperText>}
-			</FormControl>
+				{/* The old MUI select had no empty item, so a chosen value could
+				    not be cleared; keep the placeholder non-selectable. */}
+				<option value="" disabled className="text-muted-foreground">
+					{placeholder}
+				</option>
+				{visibleOptions.map((opt) => (
+					<option
+						key={String(opt.value)}
+						value={String(opt.value ?? "")}
+						disabled={opt.disabled}
+					>
+						{opt.label}
+					</option>
+				))}
+			</select>
+			{isError && <p className="text-xs text-destructive">{meta.error}</p>}
 			{field.fieldOverrides?.description ? (
-				<Typography variant="caption" color="text.secondary" className="pl-3">
+				<p className="ps-1 text-xs text-muted-foreground">
 					{field.fieldOverrides.description}
-				</Typography>
+				</p>
 			) : null}
-		</Stack>
+		</div>
 	);
 }

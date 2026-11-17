@@ -1,8 +1,5 @@
 "use client";
 
-import Box from "@mui/material/Box";
-import CircularProgress from "@mui/material/CircularProgress";
-import Typography from "@mui/material/Typography";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getApiClient } from "../../deps";
 import { useSnack } from "../../hooks/useSnack";
@@ -33,6 +30,16 @@ const toBase64 = (input: string): string => {
 	return btoa(binary);
 };
 
+const Spinner: React.FC<{ className?: string }> = ({ className }) => (
+	<span
+		role="status"
+		aria-label="Loading"
+		className={`inline-block animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary ${
+			className ?? "size-7"
+		}`}
+	/>
+);
+
 export const QrPreviewDialog: React.FC<QrPreviewDialogProps> = ({
 	open,
 	id,
@@ -59,12 +66,9 @@ export const QrPreviewDialog: React.FC<QrPreviewDialogProps> = ({
 		// `ts` cache-buster: the QR style can change, so never reuse a
 		// browser-cached SVG from a previous style.
 		getApiClient()
-			.get(
-				`${base}/api/v1/qr-codes/${id}/qr.svg?ts=${Date.now()}`,
-				{
-					responseType: "text",
-				},
-			)
+			.get(`${base}/api/v1/qr-codes/${id}/qr.svg?ts=${Date.now()}`, {
+				responseType: "text",
+			})
 			.then((res) => {
 				if (cancelled) return;
 				const svg = typeof res.data === "string" ? res.data : "";
@@ -93,8 +97,7 @@ export const QrPreviewDialog: React.FC<QrPreviewDialogProps> = ({
 				`${base}/api/v1/qr-codes/${id}/qr.png?ts=${Date.now()}`,
 				{ responseType: "blob" },
 			);
-			const blob =
-				res.data instanceof Blob ? res.data : new Blob([res.data]);
+			const blob = res.data instanceof Blob ? res.data : new Blob([res.data]);
 			const url = URL.createObjectURL(blob);
 			const a = document.createElement("a");
 			a.href = url;
@@ -129,11 +132,11 @@ export const QrPreviewDialog: React.FC<QrPreviewDialogProps> = ({
 				closeButton: { show: true, props: { children: "Close" } },
 			}}
 		>
-			<Box
+			<div
 				className="flex flex-col items-center gap-4 py-2"
 				data-testid="qr-preview"
 			>
-				{loading && !svgUrl && <CircularProgress size={32} />}
+				{loading && !svgUrl && <Spinner className="size-8" />}
 				{svgUrl && (
 					<img
 						src={svgUrl}
@@ -143,11 +146,11 @@ export const QrPreviewDialog: React.FC<QrPreviewDialogProps> = ({
 					/>
 				)}
 				{!loading && !svgUrl && (
-					<Typography color="textSecondary">
+					<p className="text-sm text-muted-foreground">
 						Could not load QR code
-					</Typography>
+					</p>
 				)}
-			</Box>
+			</div>
 		</BaseDialog>
 	);
 };

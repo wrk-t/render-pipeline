@@ -7,19 +7,20 @@
 // minimum-character thresholds.  Static datasources are filtered
 // client-side as before.
 //
+// The control is a small custom combobox (text input + listbox):
+// Up/Down move the active option, Enter selects it, Escape closes
+// the list.
+//
 // The field stores only the **option value** (e.g. the entity ID)
 // in Formik, not the full option object. This keeps the form
 // values clean and passes schema validation (string / number).
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
-import { Stack, Typography } from "@mui/material";
-import Autocomplete from "@mui/material/Autocomplete";
-import TextField from "@mui/material/TextField";
 import { useField, useFormikContext } from "formik";
 import {
+	type KeyboardEvent,
 	type ReactElement,
-	type SyntheticEvent,
 	useCallback,
 	useEffect,
 	useRef,
@@ -59,6 +60,12 @@ function toSelectOption(item: unknown, entityMeta?: EntityMeta): SelectOption {
 	};
 }
 
+const INPUT_CLASS =
+	"w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60";
+
+const LISTBOX_CLASS =
+	"absolute start-0 top-full z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-border bg-card p-1 shadow-sm";
+
 // ─────────────────────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────────────────────
@@ -90,23 +97,25 @@ export function FormReferenceField({
 				)
 			: [];
 
-	// ── Search state (debounced server-side search) ────────────
+	// ── Search / combobox state ────────────────────────────────
 	const [inputValue, setInputValue] = useState("");
 	const [search, setSearch] = useState<string | null>(null);
+	const [open, setOpen] = useState(false);
+	const [highlightedIndex, setHighlightedIndex] = useState(-1);
+	const listRef = useRef<HTMLDivElement | null>(null);
 	const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const debounceMs = 300;
 	const minChars = 2;
 
-	const handleInputChange = useCallback(
-		(_event: SyntheticEvent, value: string) => {
-			setInputValue(value);
-			if (debounceRef.current) clearTimeout(debounceRef.current);
-			debounceRef.current = setTimeout(() => {
-				setSearch(value.length >= minChars ? value : null);
-			}, debounceMs);
-		},
-		[],
-	);
+	const handleInputChange = useCallback((next: string) => {
+		setInputValue(next);
+		setOpen(true);
+		setHighlightedIndex(-1);
+		if (debounceRef.current) clearTimeout(debounceRef.current);
+		debounceRef.current = setTimeout(() => {
+			setSearch(next.length >= minChars ? next : null);
+		}, debounceMs);
+	}, []);
 
 	useEffect(() => {
 		return () => {
@@ -165,66 +174,250 @@ export function FormReferenceField({
 			: []
 		: staticOptions;
 
-	const selectedOption = options.find((opt) => opt.value === value) ?? null;
+	// Server-side filtering is already done for service datasources; static
+	// options are matched locally on their label (the old MUI default).
+	const query = inputValue.trim().toLowerCase();
+	const visibleOptions: SelectOption[] = isService
+		? options
+		: query
+			? options.filter((opt) => opt.label.toLowerCase().includes(query))
+			: options;
+
+	// ── Selected option — a stable reference for the current value ──
+	const [selectedOption, setSelectedOption] = useState<SelectOption | null>(
+		null,
+	);
+	const prevValueRef = useRef<string | number | null>(value);
+
+	useEffect(() => {
+		const valueChanged = prevValueRef.current !== value;
+		prevValueRef.current = value;
+		if (valueChanged) {
+			setSelectedOption(
+				!value ? null : (options.find((opt) => opt.value === value) ?? null),
+			);
+			return;
+		}
+		// Value unchanged — populate the selection once options arrive for a
+		// preset value.
+		if (!selectedOption && value) {
+			const match = options.find((opt) => opt.value === value);
+			if (match) setSelectedOption(match);
+		}
+	}, [value, options, selectedOption]);
+
+	// The visible text follows the selection whenever it changes from
+	// outside (form reset, preset value, async options arriving).
+	useEffect(() => {
+		setInputValue(selectedOption?.label ?? "");
+	}, [selectedOption]);
 
 	// UX-9 — name the control explicitly: a seed field with no displayName
 	// otherwise reaches the input unnamed (a CUID or nothing at all).
 	const accessibleName = fieldAccessibleName(field);
-	const handleChange = (
-		_event: SyntheticEvent,
-		option: SelectOption | null,
-	): void => {
-		setValue(option ? (option.value as string | number) : null);
+
+	const choose = (option: SelectOption): void => {
+		setValue(option.value as string | number);
+		setSelectedOption(option);
+		setInputValue(option.label);
+		setOpen(false);
+		setHighlightedIndex(-1);
 		setTouched(true);
 	};
 
+	const clearSelection = (): void => {
+		setValue(null);
+		setSelectedOption(null);
+		setInputValue("");
+		setOpen(false);
+		setHighlightedIndex(-1);
+		setTouched(true);
+	};
+
+	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
+		if (event.key === "ArrowDown") {
+			event.preventDefault();
+			if (!open) {
+				setOpen(true);
+				setHighlightedIndex(visibleOptions.length > 0 ? 0 : -1);
+				return;
+			}
+			setHighlightedIndex((index) =>
+				visibleOptions.length === 0
+					? -1
+					: Math.min(index + 1, visibleOptions.length - 1),
+			);
+			return;
+		}
+		if (event.key === "ArrowUp") {
+			event.preventDefault();
+			if (!open) {
+				setOpen(true);
+				setHighlightedIndex(
+					visibleOptions.length > 0 ? visibleOptions.length - 1 : -1,
+				);
+				return;
+			}
+			setHighlightedIndex((index) => (index <= 0 ? 0 : index - 1));
+			return;
+		}
+		if (event.key === "Escape") {
+			if (!open) return;
+			event.preventDefault();
+			setOpen(false);
+			setHighlightedIndex(-1);
+			return;
+		}
+		if (event.key !== "Enter") return;
+		if (!open || highlightedIndex < 0) return;
+		const option = visibleOptions[highlightedIndex];
+		if (!option) return;
+		event.preventDefault();
+		choose(option);
+	};
+
+	// Keep the keyboard-active option visible inside the scrollable listbox.
+	useEffect(() => {
+		if (!open || highlightedIndex < 0) return;
+		const active = listRef.current?.querySelector<HTMLElement>(
+			'[data-active="true"]',
+		);
+		active?.scrollIntoView({ block: "nearest" });
+	}, [open, highlightedIndex]);
+
+	const isError = Boolean(meta.touched && meta.error);
+	const hasValue = value !== null && value !== undefined && value !== "";
+	const inputId = `field-reference-${field.name}`;
+	const listboxId = `${inputId}-listbox`;
+	const placeholder = field.uiOverrides.behavior?.displayField ?? "";
+	const noOptionsText =
+		search && search.length >= minChars
+			? "No results found"
+			: `Type at least ${minChars} characters to search`;
+
 	return (
-		<Stack spacing={0.2}>
-			<Autocomplete<SelectOption, false, false, false>
-				value={selectedOption}
-				onChange={handleChange}
-				inputValue={inputValue}
-				onInputChange={handleInputChange}
-				options={options}
-				getOptionLabel={(opt: SelectOption) => opt.label}
-				isOptionEqualToValue={(opt: SelectOption, val: SelectOption) =>
-					opt.value === val.value
-				}
-				loading={serviceLoading}
-				loadingText="Searching..."
-				noOptionsText={
-					search && search.length >= minChars
-						? "No results found"
-						: `Type at least ${minChars} characters to search`
-				}
-				filterOptions={isService ? (x) => x : undefined}
-				renderInput={(params) => (
-					<TextField
-						{...params}
-						name={field.name}
-						slotProps={{
-							...params.slotProps,
-							htmlInput: {
-								...params.slotProps.htmlInput,
-								"aria-label": accessibleName,
-							},
-						}}
-						label={field.label}
-						placeholder={field.uiOverrides.behavior?.displayField ?? ""}
-						error={meta.touched && Boolean(meta.error)}
-						helperText={meta.touched ? meta.error : undefined}
-						required={field.isRequired}
-					/>
-				)}
-				disabled={field.isReadOnly}
-				fullWidth
-			/>
-			{field.fieldOverrides?.description ? (
-				<Typography variant="caption" color="text.secondary" className="pl-3">
-					{field.fieldOverrides.description}
-				</Typography>
+		<div className="flex flex-col gap-1">
+			<label htmlFor={inputId} className="text-sm font-medium text-foreground">
+				{field.label}
+				{field.isRequired ? (
+					<span className="text-destructive" aria-hidden="true">
+						{" "}
+						*
+					</span>
+				) : null}
+			</label>
+			<div className="relative">
+				<input
+					id={inputId}
+					name={field.name}
+					type="text"
+					role="combobox"
+					autoComplete="off"
+					aria-label={accessibleName}
+					aria-expanded={open}
+					aria-controls={listboxId}
+					aria-autocomplete="list"
+					aria-activedescendant={
+						open && highlightedIndex >= 0
+							? `${inputId}-option-${highlightedIndex}`
+							: undefined
+					}
+					aria-invalid={isError || undefined}
+					aria-required={field.isRequired || undefined}
+					value={inputValue}
+					placeholder={placeholder}
+					disabled={field.isReadOnly}
+					onChange={(event) => handleInputChange(event.target.value)}
+					onFocus={() => setOpen(true)}
+					onBlur={() => {
+						setOpen(false);
+						setHighlightedIndex(-1);
+						setInputValue(selectedOption?.label ?? "");
+					}}
+					onKeyDown={handleKeyDown}
+					className={[
+						INPUT_CLASS,
+						hasValue ? "pe-8" : "",
+						isError
+							? "border-destructive focus:border-destructive focus:ring-destructive/20"
+							: "border-border focus:border-ring focus:ring-ring/20",
+					].join(" ")}
+				/>
+				{hasValue && !field.isReadOnly ? (
+					<button
+						type="button"
+						aria-label="Clear selection"
+						onMouseDown={(event) => event.preventDefault()}
+						onClick={clearSelection}
+						className="absolute end-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+					>
+						<span aria-hidden="true">×</span>
+					</button>
+				) : null}
+				{open ? (
+					<div
+						ref={listRef}
+						id={listboxId}
+						role="listbox"
+						aria-label={accessibleName}
+						className={LISTBOX_CLASS}
+					>
+						{serviceLoading ? (
+							<div className="px-2 py-1.5 text-sm text-muted-foreground">
+								Searching...
+							</div>
+						) : visibleOptions.length === 0 ? (
+							<div className="px-2 py-1.5 text-sm text-muted-foreground">
+								{noOptionsText}
+							</div>
+						) : (
+							visibleOptions.map((option, index) => {
+								const isSelected = option.value === value;
+								return (
+									<div
+										key={String(option.value)}
+										id={`${inputId}-option-${index}`}
+										role="option"
+										tabIndex={-1}
+										aria-selected={isSelected}
+										data-active={index === highlightedIndex || undefined}
+										onMouseDown={(event) => {
+											// Keep the input focused so the click is a selection,
+											// not a blur that closes the list first.
+											event.preventDefault();
+										}}
+										onClick={() => choose(option)}
+										onKeyDown={(event) => {
+											if (event.key !== "Enter" && event.key !== " ") return;
+											event.preventDefault();
+											choose(option);
+										}}
+										onMouseEnter={() => setHighlightedIndex(index)}
+										className={[
+											"cursor-pointer rounded-md px-2 py-1.5 text-start text-sm",
+											index === highlightedIndex ? "bg-muted" : "",
+											isSelected
+												? "font-medium text-primary"
+												: "text-foreground",
+										].join(" ")}
+									>
+										{option.label}
+									</div>
+								);
+							})
+						)}
+					</div>
+				) : null}
+			</div>
+			{isError ? (
+				<p className="text-xs text-destructive">{meta.error}</p>
 			) : null}
-		</Stack>
+			{field.fieldOverrides?.description ? (
+				<p className="ps-1 text-xs text-muted-foreground">
+					{field.fieldOverrides.description}
+				</p>
+			) : null}
+		</div>
 	);
 }
 

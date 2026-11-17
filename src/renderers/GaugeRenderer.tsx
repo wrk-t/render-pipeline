@@ -1,7 +1,5 @@
 "use client";
 
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
 import type { ReactElement } from "react";
 import type { RenderedComponent } from "../types";
 import { ChartWrapper } from "./ChartWrapper";
@@ -66,11 +64,11 @@ export function GaugeRenderer({
 				const formatted = unit ? `${rounded} ${unit}` : String(rounded);
 
 				return (
-					<Box className="flex flex-col items-center justify-center py-8">
-						<Typography variant="h3" className="font-bold" color="primary">
+					<div className="flex flex-col items-center justify-center py-8">
+						<h3 className="text-5xl font-bold tabular-nums text-primary">
 							{formatted}
-						</Typography>
-					</Box>
+						</h3>
+					</div>
 				);
 			}}
 		</ChartWrapper>

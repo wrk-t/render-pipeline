@@ -1,18 +1,5 @@
 "use client";
 
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
-import Paper from "@mui/material/Paper";
-import Stack from "@mui/material/Stack";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { getApiClient } from "../deps";
@@ -116,6 +103,17 @@ function extractColumns(
 			label: k.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()),
 		})),
 	];
+}
+
+/** The inline spinner used while a query runs or the result loads. */
+function Spinner({ className }: { className: string }) {
+	return (
+		<span
+			role="status"
+			aria-label="Loading"
+			className={`inline-block animate-spin rounded-full border-2 border-current border-t-transparent ${className}`}
+		/>
+	);
 }
 
 export function RawJsonRenderer({
@@ -245,137 +243,137 @@ export function RawJsonRenderer({
 			})
 		: [];
 
+	const columns = extractColumns(sortedData);
+
 	return (
-		<Stack spacing={2} className="h-40">
-			<Typography variant="subtitle1" className="font-bold">
+		<div className="flex min-h-40 flex-col gap-4">
+			<h3 className="text-start text-base font-bold text-foreground">
 				{component.displayName}
-			</Typography>
+			</h3>
 
 			{!hasConfigParams && params.length > 0 && (
-				<Stack direction="row" spacing={2}>
+				<div className="flex flex-wrap items-end gap-4">
 					{params.map((p: any) => (
-						<TextField
-							key={p.name}
-							size="small"
-							label={p.label}
-							required={p.required}
-							value={paramValues[p.name] ?? ""}
-							onChange={(e) =>
-								setParamValues((prev) => ({
-									...prev,
-									[p.name]: e.target.value,
-								}))
-							}
-							sx={{ minWidth: 200 }}
-							// eslint-disable-next-line @typescript-eslint/no-explicit-any
-							{...({
-								type:
+						<label key={p.name} className="flex min-w-[200px] flex-col gap-1">
+							<span className="text-start text-xs font-medium text-muted-foreground">
+								{p.label}
+								{p.required ? (
+									<span className="ms-0.5 text-error-main">*</span>
+								) : null}
+							</span>
+							<input
+								type={
 									p.type === "datetime"
 										? "datetime-local"
 										: p.type === "number"
 											? "number"
-											: "text",
-								InputLabelProps:
-									p.type === "datetime" ? { shrink: true } : undefined,
-							} as any)}
-						/>
+											: "text"
+								}
+								value={paramValues[p.name] ?? ""}
+								onChange={(e) =>
+									setParamValues((prev) => ({
+										...prev,
+										[p.name]: e.target.value,
+									}))
+								}
+								className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+							/>
+						</label>
 					))}
-				</Stack>
+				</div>
 			)}
 
 			{!hasConfigParams && (
-				<Stack direction="row" spacing={2} className="items-center">
-					<Button
-						variant="contained"
-						size="small"
+				<div className="flex flex-wrap items-center gap-4">
+					<button
+						type="button"
 						onClick={() => execute()}
 						disabled={loading || !queryId}
+						className="inline-flex min-w-16 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-primary px-4 py-1.5 text-sm font-medium uppercase tracking-[0.02857em] text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
 					>
-						{loading ? <CircularProgress size={16} /> : "Execute"}
-					</Button>
-				</Stack>
+						{loading ? <Spinner className="size-4" /> : "Execute"}
+					</button>
+				</div>
 			)}
 
 			{error && (
-				<Typography variant="body2" color="error">
+				<p role="alert" className="text-start text-sm text-error-main">
 					{error}
-				</Typography>
+				</p>
 			)}
 
 			{loading && (
-				<Box className="flex items-center justify-center py-8">
-					<CircularProgress />
-				</Box>
+				<div className="flex items-center justify-center py-8">
+					<span
+						role="status"
+						aria-label="Loading"
+						className="h-10 w-10 animate-spin rounded-full border-2 border-muted border-t-primary"
+					/>
+				</div>
 			)}
 
 			{result != null && !loading && isTableData && (
-				<TableContainer component={Paper} variant="outlined">
-					<Table size="small">
-						<TableHead>
-							<TableRow>
-								{extractColumns(sortedData).map((col) => (
-									<TableCell
-										key={col.key}
-										sx={{ fontWeight: 600, whiteSpace: "nowrap" }}
-									>
-										{col.label}
-									</TableCell>
-								))}
-							</TableRow>
-						</TableHead>
-						<TableBody>
-							{sortedData.map((row: any, i: number) => {
-								const isUnmatched = !row.id && row.packageId === "_unmatched";
-								const displayRow = {
-									...row,
-									displayName: isUnmatched
-										? "Other"
-										: row.displayName || row.name || "",
-								};
-								return (
-									<TableRow
-										key={row.id ?? row.packageId ?? i}
-										sx={isUnmatched ? { opacity: 0.5 } : undefined}
-									>
-										{extractColumns(sortedData).map((col) => (
-											<TableCell key={col.key} sx={{ whiteSpace: "nowrap" }}>
-												{col.format
-													? col.format(displayRow[col.key])
-													: String(displayRow[col.key] ?? "")}
-											</TableCell>
-										))}
-									</TableRow>
-								);
-							})}
-						</TableBody>
-					</Table>
+				<div className="overflow-hidden rounded-lg border border-border bg-card">
+					<div className="overflow-x-auto">
+						<table className="w-full border-collapse text-sm">
+							<thead>
+								<tr className="border-b border-border bg-muted/40">
+									{columns.map((col) => (
+										<th
+											key={col.key}
+											scope="col"
+											className="whitespace-nowrap px-3 py-2 text-start text-xs font-semibold text-foreground"
+										>
+											{col.label}
+										</th>
+									))}
+								</tr>
+							</thead>
+							<tbody className="divide-y divide-border">
+								{sortedData.map((row: any, i: number) => {
+									const isUnmatched = !row.id && row.packageId === "_unmatched";
+									const displayRow = {
+										...row,
+										displayName: isUnmatched
+											? "Other"
+											: row.displayName || row.name || "",
+									};
+									return (
+										<tr
+											key={row.id ?? row.packageId ?? i}
+											className={isUnmatched ? "opacity-50" : undefined}
+										>
+											{columns.map((col) => (
+												<td
+													key={col.key}
+													className="whitespace-nowrap px-3 py-2 text-sm text-foreground"
+												>
+													{col.format
+														? col.format(displayRow[col.key])
+														: String(displayRow[col.key] ?? "")}
+												</td>
+											))}
+										</tr>
+									);
+								})}
+							</tbody>
+						</table>
+					</div>
 					{resultMeta && (
-						<Box sx={{ p: 1, textAlign: "right" }}>
-							<Typography variant="caption" color="text.secondary">
+						<div className="border-t border-border p-2 text-end">
+							<span className="text-xs text-muted-foreground">
 								{resultMeta.total} row{resultMeta.total === 1 ? "" : "s"}
-							</Typography>
-						</Box>
+							</span>
+						</div>
 					)}
-				</TableContainer>
+				</div>
 			)}
 
 			{result != null && !loading && !isTableData && (
-				<Box
-					component="pre"
-					sx={{
-						p: 2,
-						backgroundColor: "grey.900",
-						color: "grey.100",
-						borderRadius: 1,
-						overflow: "auto",
-						maxHeight: 500,
-						fontSize: 13,
-						fontFamily: "monospace",
-					}}
-				>
+				<pre className="max-h-[500px] overflow-auto rounded-lg bg-foreground p-4 font-mono text-[13px] leading-5 text-background">
 					{JSON.stringify(result, null, 2)}
-				</Box>
+				</pre>
 			)}
-		</Stack>
+		</div>
 	);
 }

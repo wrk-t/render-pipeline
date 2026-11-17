@@ -8,7 +8,6 @@
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
-import { Box, Button, IconButton, Stack, Typography } from "@mui/material";
 import { useField } from "formik";
 import {
 	type ChangeEvent,
@@ -16,6 +15,7 @@ import {
 	type ReactElement,
 	useCallback,
 	useEffect,
+	useId,
 	useMemo,
 	useRef,
 	useState,
@@ -78,6 +78,7 @@ export function FormImageField({ field }: { field: ImageField }): ReactElement {
 
 	const inputRef = useRef<HTMLInputElement>(null);
 	const objectUrlRef = useRef<string | null>(null);
+	const inputId = useId();
 
 	const [dragOver, setDragOver] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -222,20 +223,20 @@ export function FormImageField({ field }: { field: ImageField }): ReactElement {
 	);
 
 	// ── Drag & drop handlers ───────────────────────────────────
-	const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+	const handleDragOver = useCallback((e: DragEvent<HTMLElement>) => {
 		e.preventDefault();
 		e.stopPropagation();
 		setDragOver(true);
 	}, []);
 
-	const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+	const handleDragLeave = useCallback((e: DragEvent<HTMLElement>) => {
 		e.preventDefault();
 		e.stopPropagation();
 		setDragOver(false);
 	}, []);
 
 	const handleDrop = useCallback(
-		async (e: DragEvent<HTMLDivElement>) => {
+		async (e: DragEvent<HTMLElement>) => {
 			e.preventDefault();
 			e.stopPropagation();
 			setDragOver(false);
@@ -271,56 +272,54 @@ export function FormImageField({ field }: { field: ImageField }): ReactElement {
 
 	// ── Render ─────────────────────────────────────────────────
 	return (
-		<Stack spacing={0.2}>
+		<div className="flex flex-col gap-1">
 			{/* Label */}
-			<Typography variant="body1" component="label" className="font-medium">
+			<label htmlFor={inputId} className="text-sm font-medium text-foreground">
 				{field.label}
-				{field.isRequired && <span className="text-error ml-0.5">*</span>}
-			</Typography>
+				{field.isRequired && (
+					<span aria-hidden="true" className="ms-0.5 text-destructive">
+						*
+					</span>
+				)}
+			</label>
 
 			{/* Hidden file input */}
 			<input
 				ref={inputRef}
+				id={inputId}
 				type="file"
 				accept={accept}
 				multiple={false}
 				disabled={field.isReadOnly}
-				style={{ display: "none" }}
+				className="hidden"
 				onChange={handleFileChange}
 				onBlur={() => setTouched(true)}
 			/>
 
 			{/* Drop zone or preview */}
 			{previewSrc ? (
-				<Box
-					className="p-4 relative w-full max-w-[320px] min-h-[160px] border border-dashed rounded-lg overflow-hidden"
+				<div
+					className="relative min-h-[160px] w-full max-w-[320px] overflow-hidden rounded-lg border border-dashed border-border p-4"
 					style={{
 						opacity: field.isReadOnly ? 0.7 : 1,
 						pointerEvents: field.isReadOnly ? "none" : undefined,
 					}}
 				>
 					{!field.isReadOnly && (
-						<IconButton
+						<button
+							type="button"
 							onClick={handleRemove}
-							size="small"
-							color="error"
-							className="!absolute !top-1 !right-1"
 							aria-label="Remove image"
+							className="absolute end-1 top-1 inline-flex size-7 items-center justify-center rounded-md text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 						>
 							<Unicon name="CloseOutlined" size={20} />
-						</IconButton>
+						</button>
 					)}
-					<Box className="relative w-full h-60">
+					<div className="relative h-60 w-full">
 						<img
 							src={previewSrc ?? ""}
 							alt="Uploaded preview"
-							style={{
-								display: "block",
-								maxHeight: "160px",
-								width: "100%",
-								height: "100%",
-								objectFit: "contain",
-							}}
+							className="block h-full max-h-40 w-full object-contain"
 							onError={(e) => {
 								// A broken image URL is a data problem, not an application
 								// crash; `warn` avoids the Next dev error overlay.
@@ -331,90 +330,71 @@ export function FormImageField({ field }: { field: ImageField }): ReactElement {
 								);
 							}}
 						/>
-					</Box>
-				</Box>
+					</div>
+				</div>
 			) : field.isReadOnly ? (
-				<Box className="flex flex-col items-center justify-center gap-1 w-full max-w-[320px] min-h-[160px] border-2 border-dashed rounded-lg opacity-60">
+				<div className="flex min-h-[160px] w-full max-w-[320px] flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-border opacity-60">
 					<Unicon
 						name="CloudUploadOutlined"
 						size={40}
-						className="!text-text-secondary"
+						className="text-muted-foreground"
 					/>
-					<Typography
-						variant="body2"
-						color="text.secondary"
-						className="text-center"
-					>
+					<p className="text-center text-sm text-muted-foreground">
 						No image uploaded
-					</Typography>
-				</Box>
+					</p>
+				</div>
 			) : (
-				<Box
+				<button
+					type="button"
 					onClick={handleClick}
 					onDragOver={handleDragOver}
 					onDragLeave={handleDragLeave}
 					onDrop={handleDrop}
-					className="flex flex-col items-center justify-center gap-1 w-full max-w-[320px] min-h-[160px] rounded-lg cursor-pointer transition-[border-color,background-color] duration-200 border border-dashed p-4"
-					style={{
-						borderColor: dragOver
-							? "var(--mui-palette-primary-main)"
-							: undefined,
-						backgroundColor: dragOver
-							? "var(--mui-palette-action-hover)"
-							: undefined,
-					}}
+					className={`flex min-h-[160px] w-full max-w-[320px] cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed p-4 transition-[border-color,background-color] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+						dragOver ? "border-primary bg-muted" : "border-border bg-background"
+					}`}
 				>
 					<Unicon
 						name="CloudUploadOutlined"
 						size={40}
-						className="!text-text-secondary"
+						className="text-muted-foreground"
 					/>
-					<Typography
-						variant="body2"
-						color="text.secondary"
-						className="text-center"
-					>
+					<span className="text-center text-sm text-muted-foreground">
 						{uploading
 							? "Uploading…"
 							: "Drag & drop an image here, or click to browse"}
-					</Typography>
-					<Typography variant="caption" color="text.disabled">
+					</span>
+					<span className="text-xs text-muted-foreground">
 						Accepted: {accept} &middot; Max: {formatFileSize(maxSize)}
-					</Typography>
-				</Box>
+					</span>
+				</button>
 			)}
 
 			{/* Library picker — choose an already-uploaded file */}
 			{resolvedLibraryEndpoint && !field.isReadOnly ? (
-				<Stack direction="row" spacing={1} className="items-center">
-					<Button
-						size="small"
-						variant="outlined"
+				<div className="flex items-center gap-2">
+					<button
+						type="button"
 						onClick={() => setPickerOpen(true)}
+						className="inline-flex items-center justify-center rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 					>
 						Choose from library
-					</Button>
-				</Stack>
+					</button>
+				</div>
 			) : null}
 
 			{/* Error message — upload failure first, then the form's own rule
           (e.g. a required image) so a red field never appears unexplained. */}
-			{error && (
-				<Typography variant="caption" color="error">
-					{error}
-				</Typography>
-			)}
+			{error && <p className="text-xs text-destructive">{error}</p>}
 			{!error && meta.touched && meta.error && (
-				<Typography variant="caption" color="error">
-					{meta.error}
-				</Typography>
+				<p className="text-xs text-destructive">{meta.error}</p>
 			)}
 
 			{/* Description */}
 			{field.fieldOverrides?.description ? (
-				<Typography variant="caption" color="text.secondary">
+				<p className="text-xs text-muted-foreground">
 					{field.fieldOverrides.description}
-				</Typography>
+				</p>
 			) : null}
 
 			{resolvedLibraryEndpoint ? (
@@ -428,6 +408,6 @@ export function FormImageField({ field }: { field: ImageField }): ReactElement {
 					endpoint={resolvedLibraryEndpoint}
 				/>
 			) : null}
-		</Stack>
+		</div>
 	);
 }
