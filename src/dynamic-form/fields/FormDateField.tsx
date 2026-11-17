@@ -54,6 +54,24 @@ const toBoundDate = (value?: string): Date | undefined => {
 	return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 };
 
+// react-multi-date-picker injects its own base stylesheet, whose default skin
+// is blue with round day pills. These utilities are scoped under the panel, so
+// their specificity beats the injected rules and the calendar reads as shadcn
+// (neutral today/selected/range states, muted weekdays) without global CSS.
+const CALENDAR_CLASS = [
+	"[&_.rmdp-wrapper]:rounded-md [&_.rmdp-wrapper]:bg-transparent [&_.rmdp-wrapper]:text-foreground",
+	"[&_.rmdp-calendar]:bg-transparent",
+	"[&_.rmdp-month-picker]:bg-popover [&_.rmdp-year-picker]:bg-popover",
+	"[&_.rmdp-header-values]:text-sm [&_.rmdp-header-values]:font-medium",
+	"[&_.rmdp-week-day]:text-xs [&_.rmdp-week-day]:font-normal [&_.rmdp-week-day]:text-muted-foreground",
+	"[&_.rmdp-arrow]:border-foreground [&_.rmdp-arrow-container:hover]:bg-muted",
+	"[&_.rmdp-day]:text-foreground",
+	"[&_.rmdp-day_span]:rounded-md [&_.rmdp-day_span]:text-sm",
+	"[&_.rmdp-wrapper_.rmdp-day_span:hover]:bg-muted [&_.rmdp-wrapper_.rmdp-day_span:hover]:text-foreground",
+	"[&_.rmdp-wrapper_.rmdp-day.rmdp-today_span]:bg-muted [&_.rmdp-wrapper_.rmdp-day.rmdp-today_span]:text-foreground",
+	"[&_.rmdp-wrapper_.rmdp-day.rmdp-selected_span]:bg-primary [&_.rmdp-wrapper_.rmdp-day.rmdp-selected_span]:text-primary-foreground [&_.rmdp-wrapper_.rmdp-day.rmdp-selected_span]:shadow-none",
+].join(" ");
+
 export function FormDateField({ field }: { field: DateField }): ReactElement {
 	const [formikField, meta, helpers] = useField(field.name);
 	const { setFieldValue } = useFormikContext<Record<string, unknown>>();
@@ -110,8 +128,11 @@ export function FormDateField({ field }: { field: DateField }): ReactElement {
 	}, [open]);
 
 	return (
-		<div className="flex flex-col gap-0.5">
-			<label htmlFor={inputId} className="text-sm font-medium text-foreground">
+		<div className="flex flex-col gap-2">
+			<label
+				htmlFor={inputId}
+				className="text-sm font-medium leading-none text-foreground"
+			>
 				{field.label}
 				{field.isRequired ? (
 					<span aria-hidden="true" className="ms-0.5 text-destructive">
@@ -146,23 +167,23 @@ export function FormDateField({ field }: { field: DateField }): ReactElement {
 							setOpen(true);
 						}
 					}}
-					className={`w-full cursor-pointer rounded-lg border bg-background px-3 py-2 pe-10 text-start text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+					className={`flex h-9 w-full cursor-pointer rounded-md border bg-transparent ps-3 pe-9 py-1 text-start text-sm shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
 						isError
-							? "border-destructive focus:border-destructive focus:ring-destructive/20"
-							: "border-border focus:border-ring focus:ring-ring/20"
+							? "border-destructive focus-visible:ring-destructive/20"
+							: "border-input"
 					}`}
 				/>
 				<Unicon
 					name="DateRange"
-					size={18}
-					className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+					size={16}
+					className="pointer-events-none absolute end-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
 				/>
 				{open ? (
 					<div
 						id={panelId}
 						role="dialog"
 						aria-label={field.label}
-						className="absolute start-0 top-full z-50 mt-1 rounded-lg border border-border bg-card p-2 text-card-foreground shadow-lg"
+						className={`absolute start-0 top-full z-50 mt-1 rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-md ${CALENDAR_CLASS}`}
 					>
 						<Calendar
 							value={value}
@@ -176,12 +197,12 @@ export function FormDateField({ field }: { field: DateField }): ReactElement {
 				) : null}
 			</div>
 			{isError ? (
-				<p id={errorId} className="text-xs text-destructive">
+				<p id={errorId} className="text-sm text-destructive">
 					{meta.error}
 				</p>
 			) : null}
 			{description ? (
-				<p id={descriptionId} className="ps-3 text-xs text-muted-foreground">
+				<p id={descriptionId} className="text-sm text-muted-foreground">
 					{description}
 				</p>
 			) : null}

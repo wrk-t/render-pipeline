@@ -23,8 +23,8 @@ export function FormSwitchField({
 	const description = field.fieldOverrides?.description;
 
 	return (
-		<div className="flex flex-col gap-0.5">
-			<label className="flex items-center gap-2 text-start text-sm text-foreground">
+		<div className="flex flex-col gap-2">
+			<label className="flex items-center gap-2 text-start text-sm font-medium leading-none text-foreground">
 				<span className="relative inline-flex h-5 w-9 shrink-0">
 					<input
 						type="checkbox"
@@ -39,7 +39,7 @@ export function FormSwitchField({
 						aria-label={accessibleName}
 						aria-invalid={isError || undefined}
 						aria-describedby={isError ? errorId : undefined}
-						className="peer h-5 w-9 cursor-pointer appearance-none rounded-full border border-transparent bg-muted transition-colors checked:bg-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+						className="peer h-5 w-9 cursor-pointer appearance-none rounded-full border border-transparent bg-input transition-colors checked:bg-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
 					/>
 					<span
 						aria-hidden="true"
@@ -49,12 +49,12 @@ export function FormSwitchField({
 				{field.label}
 			</label>
 			{isError ? (
-				<p id={errorId} className="text-xs text-destructive">
+				<p id={errorId} className="text-sm text-destructive">
 					{meta.error}
 				</p>
 			) : null}
 			{description ? (
-				<p className="ps-3 text-xs text-muted-foreground">{description}</p>
+				<p className="text-sm text-muted-foreground">{description}</p>
 			) : null}
 		</div>
 	);

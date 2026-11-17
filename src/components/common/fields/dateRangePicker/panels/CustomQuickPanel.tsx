@@ -8,7 +8,7 @@ import { CustomQuickValue, DateTimeParts } from "../config";
 const TIME_UNITS = Object.keys(DateTimeParts) as TTimeUnit[];
 
 const INPUT_CLASS =
-	"rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50";
+	"h-9 rounded-md border border-input bg-transparent px-3 text-sm text-foreground shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
 interface Props {
 	value: TDatePickerValue | null;
@@ -29,15 +29,15 @@ export const CustomQuickPanel: FC<Props> = ({ value, onChange }) => {
 	};
 
 	return (
-		<div className="flex flex-row items-center gap-4 px-4 pb-3 pt-2">
+		<div className="flex flex-row items-center gap-3">
 			<button
 				type="button"
 				aria-pressed={isSelected}
 				onClick={handleToggle}
-				className={`rounded-lg px-4 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20 ${
+				className={`h-9 shrink-0 rounded-md px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
 					isSelected
 						? "bg-primary text-primary-foreground shadow-sm"
-						: "border border-border text-foreground hover:bg-muted"
+						: "border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground"
 				}`}
 			>
 				{dp("favoriteTime")}
@@ -60,7 +60,7 @@ export const CustomQuickPanel: FC<Props> = ({ value, onChange }) => {
 						aria-label={dp("favoriteTime")}
 						value={cq.unit}
 						onChange={(e) => onChange(cq.withUnit(e.target.value as TTimeUnit))}
-						className={`w-[100px] ${INPUT_CLASS}`}
+						className={`w-24 ${INPUT_CLASS}`}
 					>
 						{TIME_UNITS.map((unit) => (
 							<option key={unit} value={unit}>

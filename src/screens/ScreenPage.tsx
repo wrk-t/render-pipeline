@@ -44,7 +44,7 @@ export function ScreenPage({ params }: ScreenPageProps): ReactElement {
 				<span
 					role="status"
 					aria-label="Loading"
-					className="size-10 animate-spin rounded-full border-2 border-current border-t-transparent text-primary"
+					className="size-6 animate-spin rounded-full border-2 border-muted border-t-primary"
 				/>
 			</div>
 		);

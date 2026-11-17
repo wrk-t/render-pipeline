@@ -18,15 +18,15 @@ export interface VariantRow {
 }
 
 const INPUT_CLASS =
-	"w-full rounded-lg border border-border bg-background px-3 py-2 text-start text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-60";
+	"flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm text-start shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
-const LABEL_CLASS = "text-xs text-muted-foreground";
+const LABEL_CLASS = "text-sm font-medium leading-none text-foreground";
 
 const GHOST_BUTTON_CLASS =
-	"inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium text-primary transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
+	"inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
 
 const REMOVE_BUTTON_CLASS =
-	"inline-flex size-8 shrink-0 items-center justify-center rounded-md text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
+	"inline-flex size-9 shrink-0 items-center justify-center rounded-md text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
 
 export function VariantEditorField({
 	field,
@@ -61,7 +61,7 @@ export function VariantEditorField({
 
 	return (
 		<div className="flex flex-col gap-2">
-			<span className="text-sm font-medium text-foreground">
+			<span className="text-sm font-medium leading-none text-foreground">
 				{field.label}
 				{field.isRequired && (
 					<span className="ms-0.5 text-destructive" aria-hidden="true">
@@ -71,14 +71,14 @@ export function VariantEditorField({
 			</span>
 
 			{rows.length === 0 && (
-				<p className="text-xs text-muted-foreground">
+				<p className="text-sm text-muted-foreground">
 					No variants — the item's base price is used.
 				</p>
 			)}
 
 			{rows.map((row, i) => (
 				<div key={i} className="flex flex-wrap items-end gap-2">
-					<div className="flex min-w-40 flex-1 flex-col gap-0.5">
+					<div className="flex min-w-40 flex-1 flex-col gap-2">
 						<label htmlFor={`${baseId}-label-${i}`} className={LABEL_CLASS}>
 							Label
 						</label>
@@ -91,7 +91,7 @@ export function VariantEditorField({
 							className={INPUT_CLASS}
 						/>
 					</div>
-					<div className="flex w-24 flex-col gap-0.5">
+					<div className="flex w-24 flex-col gap-2">
 						<label htmlFor={`${baseId}-price-${i}`} className={LABEL_CLASS}>
 							Price +
 						</label>
@@ -106,13 +106,13 @@ export function VariantEditorField({
 							className={INPUT_CLASS}
 						/>
 					</div>
-					<label className="inline-flex h-9 items-center gap-1.5 text-sm text-foreground">
+					<label className="inline-flex h-9 items-center gap-2 text-sm font-medium leading-none text-foreground">
 						<input
 							type="checkbox"
 							checked={row.isDefault}
 							disabled={disabled}
 							onChange={(e) => updateRow(i, { isDefault: e.target.checked })}
-							className="size-4 rounded border-border accent-primary disabled:cursor-not-allowed disabled:opacity-60"
+							className="size-4 rounded border-input accent-primary disabled:cursor-not-allowed disabled:opacity-50"
 						/>
 						Default
 					</label>
@@ -140,7 +140,7 @@ export function VariantEditorField({
 				</button>
 			</div>
 			{meta.touched && meta.error && (
-				<p className="text-xs text-destructive">{meta.error}</p>
+				<p className="text-sm text-destructive">{meta.error}</p>
 			)}
 		</div>
 	);

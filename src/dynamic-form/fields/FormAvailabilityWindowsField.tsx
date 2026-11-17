@@ -32,15 +32,15 @@ const DAY_OPTIONS = [
 ];
 
 const INPUT_CLASS =
-	"w-full rounded-lg border border-border bg-background px-3 py-2 text-start text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-60";
+	"flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm text-start shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
-const LABEL_CLASS = "text-xs text-muted-foreground";
+const LABEL_CLASS = "text-sm font-medium leading-none text-foreground";
 
 const GHOST_BUTTON_CLASS =
-	"inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium text-primary transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
+	"inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
 
 const REMOVE_BUTTON_CLASS =
-	"inline-flex size-8 shrink-0 items-center justify-center rounded-md text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
+	"inline-flex size-9 shrink-0 items-center justify-center rounded-md text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
 
 export function FormAvailabilityWindowsField({
 	field,
@@ -77,7 +77,7 @@ export function FormAvailabilityWindowsField({
 
 	return (
 		<div className="flex flex-col gap-2">
-			<span className="text-sm font-medium text-foreground">
+			<span className="text-sm font-medium leading-none text-foreground">
 				{field.label}
 				{field.isRequired && (
 					<span className="ms-0.5 text-destructive" aria-hidden="true">
@@ -87,14 +87,14 @@ export function FormAvailabilityWindowsField({
 			</span>
 
 			{rows.length === 0 && (
-				<p className="text-xs text-muted-foreground">
+				<p className="text-sm text-muted-foreground">
 					No windows — the item is always available.
 				</p>
 			)}
 
 			{rows.map((row, i) => (
 				<div key={i} className="flex flex-wrap items-end gap-2">
-					<div className="flex w-32 flex-col gap-0.5">
+					<div className="flex w-32 flex-col gap-2">
 						<label htmlFor={`${baseId}-day-${i}`} className={LABEL_CLASS}>
 							Day
 						</label>
@@ -114,7 +114,7 @@ export function FormAvailabilityWindowsField({
 							))}
 						</select>
 					</div>
-					<div className="flex w-28 flex-col gap-0.5">
+					<div className="flex w-28 flex-col gap-2">
 						<label htmlFor={`${baseId}-open-${i}`} className={LABEL_CLASS}>
 							Open
 						</label>
@@ -127,7 +127,7 @@ export function FormAvailabilityWindowsField({
 							className={INPUT_CLASS}
 						/>
 					</div>
-					<div className="flex w-28 flex-col gap-0.5">
+					<div className="flex w-28 flex-col gap-2">
 						<label htmlFor={`${baseId}-close-${i}`} className={LABEL_CLASS}>
 							Close
 						</label>
@@ -164,7 +164,7 @@ export function FormAvailabilityWindowsField({
 				</button>
 			</div>
 			{meta.touched && meta.error && (
-				<p className="text-xs text-destructive">{meta.error}</p>
+				<p className="text-sm text-destructive">{meta.error}</p>
 			)}
 		</div>
 	);

@@ -174,7 +174,7 @@ export function SwitchCell({ cell }: SwitchCellProps): ReactElement {
 				{/* Track — the native input stays accessible but invisible. */}
 				<span
 					aria-hidden
-					className="absolute inset-0 rounded-full bg-input transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-disabled:opacity-50"
+					className="absolute inset-0 rounded-full bg-input transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background peer-disabled:opacity-50"
 				/>
 				{/* Thumb — `ms` flips with the writing direction. */}
 				<span

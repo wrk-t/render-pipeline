@@ -15,7 +15,12 @@ interface Props {
 }
 
 const TIME_SELECT_CLASS =
-	"min-w-[100px] rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/20";
+	"h-9 min-w-24 rounded-md border border-input bg-transparent px-3 text-sm text-foreground shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+
+const TIME_LABEL_CLASS = "flex flex-col gap-1.5";
+
+const TIME_LABEL_TEXT_CLASS =
+	"text-sm font-medium leading-none text-foreground";
 
 const Times: FC<Props> = ({ value, onChange }) => {
 	const dp = useTranslations("datePicker");
@@ -63,9 +68,9 @@ const Times: FC<Props> = ({ value, onChange }) => {
 	if (!(value instanceof AbsoluteDateValue)) return null;
 
 	return (
-		<div className="flex flex-row items-start gap-4 px-4 pb-3 pt-2">
-			<label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
-				<span>{dp("from")}</span>
+		<div className="flex flex-row items-start gap-3 pt-2">
+			<label className={TIME_LABEL_CLASS}>
+				<span className={TIME_LABEL_TEXT_CLASS}>{dp("from")}</span>
 				<select
 					value={value.fromTime}
 					onChange={(e) => onChange(value.withFromTime(e.target.value))}
@@ -79,8 +84,8 @@ const Times: FC<Props> = ({ value, onChange }) => {
 				</select>
 			</label>
 
-			<label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
-				<span>{dp("to")}</span>
+			<label className={TIME_LABEL_CLASS}>
+				<span className={TIME_LABEL_TEXT_CLASS}>{dp("to")}</span>
 				<select
 					value={value.toTime}
 					onChange={(e) => {

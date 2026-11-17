@@ -8,20 +8,20 @@ import { BaseDialogHeader } from "./BaseDialogHeader";
 import { DialogDirtyProvider } from "./dialogDirtyContext";
 import type { DialogSize, IBaseDialogProps } from "./types";
 
-/** Tailwind max-width per size. `fullScreen` owns the viewport instead. */
+/** Tailwind max-width per size — shadcn's dialog scale. `fullScreen` owns the viewport instead. */
 const MAX_WIDTH: Record<Exclude<DialogSize, "fullScreen">, string> = {
-	sm: "max-w-[600px]",
-	md: "max-w-[900px]",
-	lg: "max-w-[1200px]",
+	sm: "max-w-lg",
+	md: "max-w-2xl",
+	lg: "max-w-5xl",
 };
 
-/** MUI's `sm` breakpoint: every DSL dialog is full-screen on a phone. */
+/** Tailwind's `sm` breakpoint: every DSL dialog is full-screen on a phone. */
 const PHONE_QUERY = "(max-width: 639.98px)";
 
 /**
  * Native replacement for MUI's `useMediaQuery(theme.breakpoints.down("sm"))`.
- * Starts `false` on the server and on the first client paint (same as MUI's
- * default `noSsr: false`), then tracks the media query.
+ * Starts `false` on the server and on the first client paint (the same
+ * hydration-safe default), then tracks the media query.
  */
 const usePhoneLayout = (): boolean => {
 	const [isPhone, setIsPhone] = useState(false);
@@ -211,8 +211,8 @@ export const BaseDialog: FC<IBaseDialogProps> = ({
 	const fullScreenDialog = phoneLayout || size === "fullScreen";
 
 	const panelClassName = fullScreenDialog
-		? "flex h-[100dvh] max-h-none w-full max-w-none flex-col overflow-hidden rounded-none border-0 bg-card text-foreground"
-		: `flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-lg border border-border bg-card text-foreground shadow-lg ${MAX_WIDTH[size]}`;
+		? "flex h-[100dvh] max-h-none w-full max-w-none flex-col overflow-hidden rounded-none border-0 bg-background text-foreground"
+		: `flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-lg border border-border bg-background text-foreground shadow-lg ${MAX_WIDTH[size]}`;
 
 	return (
 		<DialogDirtyProvider onDirtyChange={setDirty}>
@@ -238,7 +238,7 @@ export const BaseDialog: FC<IBaseDialogProps> = ({
 					 * Full-screen: the content owns the remaining height instead of a
 					 * fixed 90vh cap, so the footer stays at the bottom of the screen.
 					 */}
-					<div className="min-h-24 flex-1 overflow-y-auto px-6 py-5">
+					<div className="min-h-24 flex-1 overflow-y-auto px-6 pb-4 pt-2">
 						<div className="flex w-full flex-1 flex-col">{children}</div>
 					</div>
 					<BaseDialogActions
@@ -266,12 +266,12 @@ export const BaseDialog: FC<IBaseDialogProps> = ({
 				className={DIALOG_CENTERED}
 				ariaLabel={discardTitle}
 			>
-				<div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-[444px] flex-col overflow-hidden rounded-lg border border-border bg-card text-foreground shadow-lg">
+				<div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-lg border border-border bg-background text-foreground shadow-lg">
 					<BaseDialogHeader
 						title={discardTitle}
 						onClose={() => setConfirmDiscard(false)}
 					/>
-					<div className="min-h-24 flex-1 overflow-y-auto px-6 py-5">
+					<div className="min-h-24 flex-1 overflow-y-auto px-6 pb-4 pt-2">
 						<p className="text-sm text-muted-foreground">{discardMessage}</p>
 					</div>
 					<BaseDialogActions

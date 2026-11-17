@@ -85,12 +85,10 @@ export function LayoutChildren({
 					return (
 						<div
 							key={el.id}
-							className="flex flex-row items-center justify-between"
+							className="flex items-center justify-between gap-4 py-1 text-sm"
 						>
-							<span className="text-sm text-muted-foreground">
-								{displayName}
-							</span>
-							<span className="text-sm text-foreground">
+							<span className="text-muted-foreground">{displayName}</span>
+							<span className="font-medium text-foreground">
 								{/* Placeholder — value comes from parent data */}—
 							</span>
 						</div>

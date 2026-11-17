@@ -36,7 +36,7 @@ export const AutoRefreshPanel: FC<Props> = ({
 		<div className="mt-auto w-full border-t border-border p-3">
 			<div className="flex flex-wrap items-center gap-4">
 				<div className="w-full lg:w-1/3">
-					<label className="flex items-center gap-2 text-sm text-foreground">
+					<label className="flex items-center gap-2 text-sm font-medium leading-none text-foreground">
 						<span className="relative inline-flex h-5 w-9 shrink-0">
 							<input
 								type="checkbox"
@@ -45,7 +45,7 @@ export const AutoRefreshPanel: FC<Props> = ({
 								aria-checked={isActive}
 								aria-label={dp("autoRefresh")}
 								onChange={(event) => handleToggle(event.target.checked)}
-								className="peer h-5 w-9 cursor-pointer appearance-none rounded-full border border-transparent bg-muted transition-colors checked:bg-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+								className="peer h-5 w-9 cursor-pointer appearance-none rounded-full border border-transparent bg-input transition-colors checked:bg-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
 							/>
 							<span
 								aria-hidden="true"
@@ -61,7 +61,7 @@ export const AutoRefreshPanel: FC<Props> = ({
 							aria-label={dp("autoRefresh")}
 							value={selectedItem?.id ?? ""}
 							onChange={(e) => onChangeAutoRefresh(e.target.value)}
-							className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/20"
+							className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm text-foreground shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 						>
 							{autoRefreshItems.map((item) => (
 								<option key={item.id} value={item.id}>

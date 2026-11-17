@@ -363,7 +363,7 @@ function downloadCsv(filename: string, csv: string): void {
 interface TableColumnMeta {
 	/** Raw row accessor (may be dotted). */
 	accessor?: string;
-	/** Logical text alignment; the table default is centered. */
+	/** Logical text alignment; shadcn's table default is start-aligned. */
 	align?: "left" | "center" | "right";
 	/** Which native filter control the header row renders. */
 	filterType?: "text" | "number" | "select" | "date" | "boolean" | null;
@@ -496,8 +496,7 @@ function buildColumnDef(
 
 	const meta: TableColumnMeta = {
 		accessor,
-		align:
-			config?.align && config.align !== "justify" ? config.align : "center",
+		align: config?.align && config.align !== "justify" ? config.align : "left",
 		filterType,
 		filterOptions: selectOptions,
 		fixedWidth: numOrUndefined(config?.maxWidth ?? config?.width),
@@ -589,10 +588,14 @@ function isRowControlTarget(target: EventTarget | null): boolean {
 
 /** Cell padding per contract density (compact < normal < comfortable). */
 const DENSITY_CELL_CLASS: Record<TableDensity, string> = {
-	compact: "px-2 py-1",
-	normal: "px-2 py-2",
-	comfortable: "px-3 py-3",
+	compact: "p-2 py-1",
+	normal: "p-2",
+	comfortable: "p-2 py-3",
 };
+
+/** The shadcn table wrapper: scroll container, radius and hairline border. */
+const TABLE_WRAPPER_CLASS =
+	"relative w-full overflow-x-auto rounded-md border border-border";
 
 type ColumnAlign = "left" | "center" | "right";
 
@@ -609,11 +612,11 @@ const ALIGN_FLEX_CLASS: Record<ColumnAlign, string> = {
 };
 
 function alignText(align: ColumnAlign | undefined): string {
-	return ALIGN_TEXT_CLASS[align ?? "center"];
+	return ALIGN_TEXT_CLASS[align ?? "left"];
 }
 
 function alignFlex(align: ColumnAlign | undefined): string {
-	return ALIGN_FLEX_CLASS[align ?? "center"];
+	return ALIGN_FLEX_CLASS[align ?? "left"];
 }
 
 /** Build a nested PATCH body from a possibly dotted row accessor. */
@@ -753,12 +756,13 @@ function buildSearchParams({
 type ButtonVariant = "primary" | "outline" | "ghost" | "danger";
 
 const BUTTON_BASE =
-	"inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
+	"inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0";
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
 	primary: "bg-primary text-primary-foreground hover:bg-primary/90",
-	outline: "border border-border bg-card text-foreground hover:bg-muted",
-	ghost: "text-foreground hover:bg-muted",
+	outline:
+		"border border-input bg-background hover:bg-muted hover:text-foreground",
+	ghost: "hover:bg-muted hover:text-foreground",
 	danger: "bg-destructive text-white hover:bg-destructive/90",
 };
 
@@ -796,7 +800,10 @@ function ActionButton({
 }
 
 const ICON_BUTTON_CLASS =
-	"inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
+	"inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
+
+/** Pagination's outline icon button — shadcn `variant="outline" size="icon"`. */
+const PAGINATION_BUTTON_CLASS = "border border-input bg-transparent";
 
 interface IconActionButtonProps {
 	label: string;
@@ -804,6 +811,8 @@ interface IconActionButtonProps {
 	onClick?: () => void;
 	disabled?: boolean;
 	pressed?: boolean;
+	/** Extra utilities (e.g. the pagination buttons' outline border). */
+	className?: string;
 }
 
 function IconActionButton({
@@ -812,6 +821,7 @@ function IconActionButton({
 	onClick,
 	disabled,
 	pressed,
+	className,
 }: IconActionButtonProps): ReactElement {
 	return (
 		<button
@@ -821,7 +831,7 @@ function IconActionButton({
 			aria-pressed={pressed}
 			disabled={disabled}
 			onClick={onClick}
-			className={ICON_BUTTON_CLASS}
+			className={`${ICON_BUTTON_CLASS} ${className ?? ""}`}
 		>
 			{icon}
 		</button>
@@ -836,13 +846,13 @@ function Chip({
 	tone?: "muted" | "primary" | "outline";
 }): ReactElement {
 	const tones: Record<"muted" | "primary" | "outline", string> = {
-		muted: "bg-muted text-foreground",
-		primary: "bg-primary text-primary-foreground",
-		outline: "border border-border text-muted-foreground",
+		muted: "border-transparent bg-secondary text-secondary-foreground",
+		primary: "border-transparent bg-primary text-primary-foreground",
+		outline: "border-border text-foreground",
 	};
 	return (
 		<span
-			className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${tones[tone]}`}
+			className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${tones[tone]}`}
 		>
 			{children}
 		</span>
@@ -933,8 +943,8 @@ function ModalDialog({
 			}}
 			className="fixed inset-0 z-50 m-auto h-fit max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-auto rounded-lg border border-border bg-card p-0 text-foreground shadow-lg [&::backdrop]:bg-black/50"
 		>
-			<div className="flex flex-col gap-4 p-5">
-				<h2 className="text-base font-semibold text-foreground">{title}</h2>
+			<div className="flex flex-col gap-4 p-6">
+				<h2 className="text-lg font-semibold text-foreground">{title}</h2>
 				<div className="text-sm text-muted-foreground">{children}</div>
 				<div className="flex justify-end gap-2">{footer}</div>
 			</div>
@@ -1026,7 +1036,7 @@ function DebouncedInput({
 }
 
 const FILTER_CONTROL_CLASS =
-	"h-8 w-full min-w-0 rounded-lg border border-border bg-background px-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+	"h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
 interface ColumnFilterControlProps {
 	label: string;
@@ -1171,7 +1181,7 @@ function RowActionsMenu({
 				<div
 					onClick={(event) => event.stopPropagation()}
 					style={{ position: "fixed", top: position.top, left: position.left }}
-					className="z-50 min-w-44 rounded-lg border border-border bg-card p-1 text-start shadow-lg"
+					className="z-50 min-w-44 rounded-md border border-border bg-popover p-1 text-start text-popover-foreground shadow-md"
 				>
 					{actions.map((action) => (
 						<button
@@ -1182,7 +1192,7 @@ function RowActionsMenu({
 								setOpen(false);
 								onSelect(action);
 							}}
-							className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-start text-sm text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-start text-sm text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 						>
 							{action.icon ? <TableIcon name={action.icon} size={16} /> : null}
 							<span
@@ -2870,10 +2880,10 @@ export function DynamicTable({
 							type="button"
 							aria-pressed={selected}
 							onClick={() => selectChip(selected ? null : option.value)}
-							className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+							className={`inline-flex h-9 items-center rounded-md border px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
 								selected
-									? "border-primary bg-primary text-primary-foreground"
-									: "border-border bg-card text-foreground hover:bg-muted"
+									? "border-transparent bg-primary text-primary-foreground"
+									: "border-border bg-transparent text-foreground hover:bg-muted"
 							}`}
 						>
 							{option.label}
@@ -3045,7 +3055,7 @@ export function DynamicTable({
 			{fetchError ? (
 				<div
 					role="alert"
-					className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+					className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
 				>
 					{fetchError}
 				</div>
@@ -3100,7 +3110,7 @@ export function DynamicTable({
 							label="Search"
 							type="search"
 							placeholder="Search…"
-							className="h-8 w-44 rounded-lg border border-border bg-background px-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							className="h-9 w-44 rounded-md border border-input bg-transparent px-3 text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 						/>
 					) : null}
 					{columnToggle && hideableColumns.length > 0 ? (
@@ -3112,7 +3122,7 @@ export function DynamicTable({
 							>
 								<TableIcon name="ViewColumn" size={18} />
 							</summary>
-							<div className="absolute end-0 z-40 mt-1 min-w-45 rounded-lg border border-border bg-card p-2 text-start shadow-lg">
+							<div className="absolute end-0 z-40 mt-1 min-w-45 rounded-md border border-border bg-popover p-2 text-start text-popover-foreground shadow-md">
 								<p className="mb-1 px-1 text-xs font-medium text-muted-foreground">
 									Columns
 								</p>
@@ -3137,7 +3147,7 @@ export function DynamicTable({
 							</div>
 						</details>
 					) : null}
-					<label className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+					<label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
 						<span className="sr-only">Row density</span>
 						<select
 							aria-label="Row density"
@@ -3146,7 +3156,7 @@ export function DynamicTable({
 							onChange={(event) =>
 								setDensity(event.target.value as TableDensity)
 							}
-							className="h-8 rounded-lg border border-border bg-background px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							className="h-9 rounded-md border border-input bg-transparent ps-3 pe-8 text-sm text-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 						>
 							<option value="compact">Compact</option>
 							<option value="normal">Normal</option>
@@ -3185,9 +3195,9 @@ export function DynamicTable({
 			{chipsRow}
 			<div
 				aria-busy={isServerSide && isLoading}
-				className={`flex max-w-full flex-col overflow-hidden bg-card ${
-					settings.bordered ? "rounded-lg border border-border" : "rounded-lg"
-				} ${fullscreen ? "min-h-0 flex-1" : ""}`}
+				className={`flex max-w-full flex-col ${
+					fullscreen ? "min-h-0 flex-1" : ""
+				}`}
 			>
 				{toolbar}
 				{isServerSide && isLoading ? (
@@ -3200,13 +3210,15 @@ export function DynamicTable({
 					</div>
 				) : null}
 				<div
-					className={`relative w-full max-w-full overflow-x-auto ${
-						fullscreen ? "min-h-0 flex-1 overflow-y-auto" : ""
-					}`}
+					className={`${
+						settings.bordered === false
+							? "relative w-full overflow-auto rounded-lg"
+							: TABLE_WRAPPER_CLASS
+					} ${fullscreen ? "min-h-0 flex-1 overflow-y-auto" : ""}`}
 				>
 					<table
 						aria-label={tableMetadata.title || tableMetadata.name || "Table"}
-						className="w-full caption-bottom border-collapse text-sm"
+						className="w-full caption-bottom text-sm"
 					>
 						<colgroup>
 							{visibleLeafColumns.map((column) => {
@@ -3216,9 +3228,9 @@ export function DynamicTable({
 								);
 							})}
 						</colgroup>
-						<thead className="border-b border-border">
+						<thead className="[&_tr]:border-b">
 							{table.getHeaderGroups().map((headerGroup) => (
-								<tr key={headerGroup.id}>
+								<tr key={headerGroup.id} className="border-b border-border">
 									{headerGroup.headers.map((header) => {
 										const column = header.column;
 										const meta = columnMeta(column);
@@ -3242,9 +3254,9 @@ export function DynamicTable({
 															? "descending"
 															: undefined
 												}
-												className={`h-10 border-b border-border bg-muted px-2 align-middle text-sm font-semibold whitespace-nowrap text-foreground ${alignText(meta.align)} ${
+												className={`h-10 px-2 align-middle font-medium whitespace-nowrap text-muted-foreground ${alignText(meta.align)} ${
 													headerSticky ? "sticky top-0" : ""
-												} ${pinnedHeader} ${
+												} ${headerSticky || pinnedHeader ? "bg-background" : ""} ${pinnedHeader} ${
 													headerSticky && !pinnedHeader ? "z-20" : ""
 												} ${isActions ? stickyEndShadow : ""} ${
 													isActions ? "w-[50px] min-w-[50px]" : ""
@@ -3258,7 +3270,7 @@ export function DynamicTable({
 														onClick={
 															column.getToggleSortingHandler() ?? undefined
 														}
-														className={`inline-flex w-full items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${alignFlex(meta.align)}`}
+														className={`inline-flex w-full items-center gap-1 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${alignFlex(meta.align)}`}
 													>
 														<span className="truncate">{headerContent}</span>
 														<TableIcon
@@ -3270,7 +3282,7 @@ export function DynamicTable({
 																		: "Sort"
 															}
 															size={14}
-															className={sorted ? "opacity-100" : "opacity-40"}
+															className={sorted ? "opacity-100" : "opacity-50"}
 														/>
 													</button>
 												) : (
@@ -3282,13 +3294,13 @@ export function DynamicTable({
 								</tr>
 							))}
 							{showFilterRow ? (
-								<tr className="border-b border-border bg-card">
+								<tr className="border-b border-border">
 									{visibleLeafColumns.map((column) => (
 										<th
 											key={`filter-${column.id}`}
 											scope="col"
-											className={`px-2 pb-2 align-middle font-normal ${
-												headerSticky ? "sticky top-10 z-10 bg-card" : ""
+											className={`bg-background p-2 align-middle font-normal ${
+												headerSticky ? "sticky top-10 z-20" : ""
 											} ${stickyColumnClass(column.id, true)}`}
 										>
 											<ColumnFilterControl
@@ -3316,10 +3328,10 @@ export function DynamicTable({
 									<tr>
 										<td
 											colSpan={Math.max(visibleLeafColumns.length, 1)}
-											className="px-4 py-6"
+											className="p-2"
 										>
 											{emptyNode ?? (
-												<p className="text-center text-sm text-muted-foreground">
+												<p className="py-8 text-center text-sm text-muted-foreground">
 													{hasActiveFilters()
 														? "No results found"
 														: "No records to display"}
@@ -3342,7 +3354,7 @@ export function DynamicTable({
 											key={row.id}
 											data-state={row.getIsSelected() ? "selected" : undefined}
 											tabIndex={detailHref ? 0 : undefined}
-											className={`border-b border-border bg-card transition-colors hover:bg-accent data-[state=selected]:bg-muted ${settings.striped ? "even:bg-muted" : ""} ${
+											className={`border-b border-border transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted ${settings.striped ? "even:bg-muted/50" : ""} ${
 												detailHref
 													? "cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
 													: rowOnClick
@@ -3412,7 +3424,7 @@ export function DynamicTable({
 																? "overflow-hidden text-ellipsis whitespace-nowrap"
 																: "whitespace-nowrap"
 														} ${pinningClass(cell.column.id)} ${
-															pinned ? "bg-inherit" : ""
+															pinned ? "bg-background" : ""
 														} ${isActions ? stickyEndShadow : ""}`}
 														style={
 															meta.fixedWidth
@@ -3464,7 +3476,7 @@ export function DynamicTable({
 																		setEditingCell(null);
 																	}
 																}}
-																className="w-full min-w-0 rounded border border-border bg-background px-1 py-0.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+																className="w-full min-w-0 rounded-md border border-input bg-transparent px-2 py-1 text-sm text-foreground outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 															/>
 														) : (
 															flexRender(
@@ -3483,11 +3495,11 @@ export function DynamicTable({
 					</table>
 				</div>
 				{isSubRow ? null : (
-					<div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-3 py-2 text-sm">
+					<div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
 						<div className="flex items-center gap-2">
 							<label
 								htmlFor="dynamic-table-rows-per-page"
-								className="text-muted-foreground"
+								className="font-medium text-muted-foreground"
 							>
 								Rows per page
 							</label>
@@ -3495,7 +3507,7 @@ export function DynamicTable({
 								id="dynamic-table-rows-per-page"
 								value={pagination.pageSize}
 								onChange={(event) => changePageSize(Number(event.target.value))}
-								className="h-8 rounded-lg border border-border bg-background px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+								className="h-9 rounded-md border border-input bg-transparent ps-3 pe-8 text-sm text-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 							>
 								{pageSizeOptions.map((size) => (
 									<option key={size} value={size}>
@@ -3504,14 +3516,15 @@ export function DynamicTable({
 								))}
 							</select>
 						</div>
-						<div className="flex items-center gap-2">
+						<div className="flex items-center justify-end gap-2">
 							<span className="text-muted-foreground">
 								Page {pagination.pageIndex + 1} of {pageCount}
 							</span>
-							<div className="flex items-center gap-1">
+							<div className="flex items-center gap-2">
 								<IconActionButton
 									label="Go to first page"
 									disabled={pagination.pageIndex <= 0}
+									className={PAGINATION_BUTTON_CLASS}
 									icon={
 										<TableIcon
 											name="ArrowBack"
@@ -3524,6 +3537,7 @@ export function DynamicTable({
 								<IconActionButton
 									label="Go to previous page"
 									disabled={pagination.pageIndex <= 0}
+									className={PAGINATION_BUTTON_CLASS}
 									icon={
 										<TableIcon
 											name="ChevronLeft"
@@ -3536,6 +3550,7 @@ export function DynamicTable({
 								<IconActionButton
 									label="Go to next page"
 									disabled={pagination.pageIndex + 1 >= pageCount}
+									className={PAGINATION_BUTTON_CLASS}
 									icon={
 										<TableIcon
 											name="ChevronRight"
@@ -3548,6 +3563,7 @@ export function DynamicTable({
 								<IconActionButton
 									label="Go to last page"
 									disabled={pagination.pageIndex + 1 >= pageCount}
+									className={PAGINATION_BUTTON_CLASS}
 									icon={
 										<TableIcon
 											name="ArrowForward"

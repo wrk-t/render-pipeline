@@ -74,13 +74,20 @@ const nativeButtonAttrs = (
 	return attrs;
 };
 
+// shadcn/ui button metrics: `h-9 rounded-md px-4 text-sm font-medium`, with
+// the footer's three roles mapped to shadcn's default / outline / ghost
+// treatments. Stock shadcn has no tertiary footer button, so the outlined
+// secondary action keeps the same focus ring and disabled behaviour.
 const BUTTON_BASE =
-	"inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg border border-transparent px-4 text-sm font-medium whitespace-nowrap transition-colors outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 max-sm:w-full";
-const BUTTON_GHOST = "text-foreground hover:bg-muted";
+	"inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border px-4 text-sm font-medium whitespace-nowrap transition-colors outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 max-sm:w-full";
+const BUTTON_GHOST =
+	"border-transparent text-foreground hover:bg-accent hover:text-accent-foreground";
 const BUTTON_OUTLINE =
-	"border-border bg-background text-foreground hover:bg-muted";
-const BUTTON_PRIMARY = "bg-primary text-primary-foreground hover:bg-primary/80";
-const BUTTON_DESTRUCTIVE = "bg-destructive text-white hover:bg-destructive/90";
+	"border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground";
+const BUTTON_PRIMARY =
+	"border-transparent bg-primary text-primary-foreground hover:bg-primary/90";
+const BUTTON_DESTRUCTIVE =
+	"border-transparent bg-destructive text-white hover:bg-destructive/90";
 
 const buttonClassName = (variantClasses: string, className?: string) =>
 	className
@@ -169,10 +176,11 @@ export const BaseDialogActions: FC<IBaseDialogActionsProps> = ({
 	return (
 		<div
 			ref={actionsRef}
-			// One footer everywhere (UX-7): secondary Cancel to the LEFT of
-			// the primary action, the pair right-aligned. Phones stack the
-			// footer and give every action a full-width tap target.
-			className="flex shrink-0 flex-wrap items-center justify-end gap-4 px-6 py-4"
+			// One footer everywhere (UX-7): secondary Cancel next to the
+			// primary action, the pair right-aligned (`justify-end` is already
+			// direction-aware in RTL). Phones stack the footer — the primary
+			// action first — and give every action a full-width tap target.
+			className="flex shrink-0 flex-col-reverse gap-2 px-6 pb-6 pt-2 sm:flex-row sm:justify-end"
 		>
 			{slotProps?.closeButton?.show === false ? null : (
 				<button

@@ -138,12 +138,14 @@ export const QrPreviewDialog: React.FC<QrPreviewDialogProps> = ({
 			>
 				{loading && !svgUrl && <Spinner className="size-8" />}
 				{svgUrl && (
-					<img
-						src={svgUrl}
-						alt={`QR code — ${label}`}
-						className="h-64 w-64"
-						style={{ imageRendering: "pixelated" }}
-					/>
+					<div className="flex items-center justify-center rounded-lg border border-border bg-muted p-4">
+						<img
+							src={svgUrl}
+							alt={`QR code — ${label}`}
+							className="h-64 w-64"
+							style={{ imageRendering: "pixelated" }}
+						/>
+					</div>
 				)}
 				{!loading && !svgUrl && (
 					<p className="text-sm text-muted-foreground">

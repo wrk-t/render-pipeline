@@ -30,6 +30,33 @@ export interface RangeDatePickerProps {
 // MUI's `useMediaQuery(theme.breakpoints.up("lg"))` was true from 1200px up.
 const LG_QUERY = "(min-width: 1200px)";
 
+// react-multi-date-picker injects its own base stylesheet, whose default skin
+// is blue with round day pills. These utilities are scoped under the panel, so
+// their specificity beats the injected rules and the calendar reads as shadcn
+// (neutral today/selected/range states, muted weekdays) without global CSS.
+const CALENDAR_CLASS = [
+	"[&_.rmdp-wrapper]:rounded-md [&_.rmdp-wrapper]:bg-transparent [&_.rmdp-wrapper]:text-foreground",
+	"[&_.rmdp-calendar]:bg-transparent",
+	"[&_.rmdp-month-picker]:bg-popover [&_.rmdp-year-picker]:bg-popover",
+	"[&_.rmdp-header-values]:text-sm [&_.rmdp-header-values]:font-medium",
+	"[&_.rmdp-week-day]:text-xs [&_.rmdp-week-day]:font-normal [&_.rmdp-week-day]:text-muted-foreground",
+	"[&_.rmdp-arrow]:border-foreground [&_.rmdp-arrow-container:hover]:bg-muted",
+	"[&_.rmdp-day]:text-foreground",
+	"[&_.rmdp-day_span]:rounded-md [&_.rmdp-day_span]:text-sm",
+	"[&_.rmdp-wrapper_.rmdp-day_span:hover]:bg-muted [&_.rmdp-wrapper_.rmdp-day_span:hover]:text-foreground",
+	"[&_.rmdp-wrapper_.rmdp-day.rmdp-today_span]:bg-muted [&_.rmdp-wrapper_.rmdp-day.rmdp-today_span]:text-foreground",
+	"[&_.rmdp-wrapper_.rmdp-day.rmdp-selected_span]:bg-primary [&_.rmdp-wrapper_.rmdp-day.rmdp-selected_span]:text-primary-foreground [&_.rmdp-wrapper_.rmdp-day.rmdp-selected_span]:shadow-none",
+	"[&_.rmdp-range]:bg-primary [&_.rmdp-range]:text-primary-foreground [&_.rmdp-range]:shadow-none",
+	"[&_.rmdp-range-hover]:bg-muted [&_.rmdp-range-hover]:text-foreground",
+].join(" ");
+
+// shadcn/ui button metrics: `h-9 rounded-md px-4 text-sm font-medium`.
+const BUTTON_CLASS =
+	"h-9 min-w-20 rounded-md px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
+
+const TAB_CLASS =
+	"flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+
 /** `false` on the server and the first client render (like MUI), then live. */
 function useIsLargeScreen(): boolean {
 	const [isLarge, setIsLarge] = useState(false);
@@ -130,21 +157,22 @@ const RangeDatePickerInner: FC<Omit<RangeDatePickerProps, "config">> = ({
 					: "-";
 
 	return (
-		<div
-			ref={containerRef}
-			className="relative flex h-full w-full max-w-xs cursor-pointer items-stretch rounded-lg bg-card"
-		>
+		<div ref={containerRef} className="relative w-full max-w-xs cursor-pointer">
 			<button
 				type="button"
 				aria-haspopup="dialog"
 				aria-expanded={open}
 				aria-controls={open ? panelId : undefined}
 				onClick={() => setOpen(true)}
-				className="flex min-h-10 w-full min-w-56 cursor-pointer items-center gap-2 rounded-lg px-4 text-start text-sm text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20"
+				className="flex h-9 w-full min-w-56 cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-3 text-start text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 			>
-				<Unicon name="DateRange" size={22} className="shrink-0" />
-				<span aria-hidden="true" className="h-8 w-px shrink-0 bg-border" />
-				<span className="h-[1.15rem] w-full truncate">{label}</span>
+				<Unicon
+					name="DateRange"
+					size={16}
+					className="size-4 shrink-0 text-muted-foreground"
+				/>
+				<span aria-hidden="true" className="h-4 w-px shrink-0 bg-border" />
+				<span className="w-full truncate">{label}</span>
 			</button>
 
 			{open ? (
@@ -152,14 +180,14 @@ const RangeDatePickerInner: FC<Omit<RangeDatePickerProps, "config">> = ({
 					id={panelId}
 					role="dialog"
 					aria-label={dp("dateRange")}
-					className="absolute start-0 top-full z-50 mt-1 flex w-72 min-w-96 flex-col items-center rounded-lg border border-border bg-card text-card-foreground shadow-lg lg:w-[540px]"
+					className={`absolute start-0 top-full z-50 mt-1 flex w-72 min-w-96 flex-col rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-md lg:w-[540px] ${CALENDAR_CLASS}`}
 				>
 					{showTabs && (
 						<>
 							<div
 								role="tablist"
 								aria-label={dp("dateRange")}
-								className="flex w-full border-b border-border"
+								className="mb-3 flex w-full rounded-lg bg-muted p-1"
 							>
 								{!config.hideQuickSelectsTab && (
 									<button
@@ -167,10 +195,10 @@ const RangeDatePickerInner: FC<Omit<RangeDatePickerProps, "config">> = ({
 										role="tab"
 										aria-selected={selectedTab === "quick"}
 										onClick={() => setSelectedTab("quick")}
-										className={`flex-1 px-4 py-2 text-sm transition-colors ${
+										className={`${TAB_CLASS} ${
 											selectedTab === "quick"
-												? "border-b-2 border-primary font-medium text-foreground"
-												: "border-b-2 border-transparent text-muted-foreground hover:text-foreground"
+												? "bg-background text-foreground shadow-sm"
+												: "text-muted-foreground hover:text-foreground"
 										}`}
 									>
 										{dp("quickSelect")}
@@ -182,17 +210,17 @@ const RangeDatePickerInner: FC<Omit<RangeDatePickerProps, "config">> = ({
 										role="tab"
 										aria-selected={selectedTab === "range"}
 										onClick={() => setSelectedTab("range")}
-										className={`flex-1 px-4 py-2 text-sm transition-colors ${
+										className={`${TAB_CLASS} ${
 											selectedTab === "range"
-												? "border-b-2 border-primary font-medium text-foreground"
-												: "border-b-2 border-transparent text-muted-foreground hover:text-foreground"
+												? "bg-background text-foreground shadow-sm"
+												: "text-muted-foreground hover:text-foreground"
 										}`}
 									>
 										{dp("dateRange")}
 									</button>
 								)}
 							</div>
-							<div aria-hidden="true" className="h-px w-full bg-border" />
+							<div aria-hidden="true" className="hidden" />
 						</>
 					)}
 
@@ -217,7 +245,7 @@ const RangeDatePickerInner: FC<Omit<RangeDatePickerProps, "config">> = ({
 						)}
 
 						{selectedTab === "range" && (
-							<div className="flex w-full flex-col items-center justify-center py-1">
+							<div className="flex w-full flex-col items-center justify-center">
 								<Calendar
 									value={
 										currentValue instanceof AbsoluteDateValue
@@ -242,11 +270,11 @@ const RangeDatePickerInner: FC<Omit<RangeDatePickerProps, "config">> = ({
 					</div>
 
 					{/* Action buttons */}
-					<div className="flex w-full items-center justify-end gap-2 border-t border-border p-3">
+					<div className="mt-3 flex w-full items-center justify-end gap-2">
 						<button
 							type="button"
 							onClick={handleClose}
-							className="min-w-[100px] rounded-lg border border-border px-4 py-2 text-sm text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20"
+							className={`${BUTTON_CLASS} border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground`}
 						>
 							{dp("cancel")}
 						</button>
@@ -254,7 +282,7 @@ const RangeDatePickerInner: FC<Omit<RangeDatePickerProps, "config">> = ({
 							type="button"
 							onClick={handleSubmit}
 							disabled={draftValue === null}
-							className="min-w-[100px] rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50"
+							className={`${BUTTON_CLASS} bg-primary text-primary-foreground hover:bg-primary/90`}
 						>
 							{t("submit")}
 						</button>

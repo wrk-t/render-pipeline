@@ -17,7 +17,7 @@ import { ICON_EXPORT, Unicon } from "../../components/common/icon/Unicon";
 const ALL_ICON_NAMES = Object.keys(ICON_EXPORT).sort();
 
 const INPUT_CLASS =
-	"w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-60";
+	"flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
 export function IconPickerField({
 	field,
@@ -52,7 +52,11 @@ export function IconPickerField({
 
 	return (
 		<div className="flex flex-col gap-2">
-			<span className="text-sm font-medium text-foreground">
+			<span
+				className={`text-sm font-medium leading-none ${
+					meta.touched && meta.error ? "text-destructive" : "text-foreground"
+				}`}
+			>
 				{field.label}
 				{field.isRequired ? (
 					<span className="text-destructive" aria-hidden="true">
@@ -79,9 +83,9 @@ export function IconPickerField({
 				</div>
 			)}
 
-			<div className="max-h-[220px] overflow-auto rounded-lg border border-border p-2">
+			<div className="max-h-[220px] overflow-auto rounded-md border border-border p-2">
 				{filtered.length === 0 ? (
-					<p className="text-xs text-muted-foreground">
+					<p className="text-sm text-muted-foreground">
 						No icons match “{query}”
 					</p>
 				) : (
@@ -98,10 +102,10 @@ export function IconPickerField({
 									disabled={disabled}
 									onClick={() => selectIcon(name)}
 									className={[
-										"flex items-center justify-center rounded-md p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+										"flex items-center justify-center rounded-md p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
 										isSelected
 											? "bg-primary text-primary-foreground"
-											: "text-foreground hover:bg-muted",
+											: "text-foreground hover:bg-accent hover:text-accent-foreground",
 									].join(" ")}
 								>
 									<Unicon name={name as keyof typeof ICON_EXPORT} size={22} />
@@ -113,7 +117,7 @@ export function IconPickerField({
 			</div>
 
 			{meta.touched && meta.error && (
-				<p className="text-xs text-destructive">{meta.error}</p>
+				<p className="text-sm text-destructive">{meta.error}</p>
 			)}
 		</div>
 	);

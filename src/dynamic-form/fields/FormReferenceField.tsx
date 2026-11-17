@@ -61,10 +61,10 @@ function toSelectOption(item: unknown, entityMeta?: EntityMeta): SelectOption {
 }
 
 const INPUT_CLASS =
-	"w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60";
+	"flex h-9 w-full rounded-md border bg-transparent ps-3 py-1 text-sm text-start shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
 const LISTBOX_CLASS =
-	"absolute start-0 top-full z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-border bg-card p-1 shadow-sm";
+	"absolute start-0 top-full z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md";
 
 // ─────────────────────────────────────────────────────────────
 // Component
@@ -296,8 +296,13 @@ export function FormReferenceField({
 			: `Type at least ${minChars} characters to search`;
 
 	return (
-		<div className="flex flex-col gap-1">
-			<label htmlFor={inputId} className="text-sm font-medium text-foreground">
+		<div className="flex flex-col gap-2">
+			<label
+				htmlFor={inputId}
+				className={`text-sm font-medium leading-none ${
+					isError ? "text-destructive" : "text-foreground"
+				}`}
+			>
 				{field.label}
 				{field.isRequired ? (
 					<span className="text-destructive" aria-hidden="true">
@@ -337,10 +342,10 @@ export function FormReferenceField({
 					onKeyDown={handleKeyDown}
 					className={[
 						INPUT_CLASS,
-						hasValue ? "pe-8" : "",
+						hasValue ? "pe-9" : "pe-3",
 						isError
-							? "border-destructive focus:border-destructive focus:ring-destructive/20"
-							: "border-border focus:border-ring focus:ring-ring/20",
+							? "border-destructive focus-visible:ring-destructive/20"
+							: "border-input",
 					].join(" ")}
 				/>
 				{hasValue && !field.isReadOnly ? (
@@ -349,7 +354,7 @@ export function FormReferenceField({
 						aria-label="Clear selection"
 						onMouseDown={(event) => event.preventDefault()}
 						onClick={clearSelection}
-						className="absolute end-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+						className="absolute end-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-colors hover:text-foreground"
 					>
 						<span aria-hidden="true">×</span>
 					</button>
@@ -394,11 +399,11 @@ export function FormReferenceField({
 										}}
 										onMouseEnter={() => setHighlightedIndex(index)}
 										className={[
-											"cursor-pointer rounded-md px-2 py-1.5 text-start text-sm",
-											index === highlightedIndex ? "bg-muted" : "",
-											isSelected
-												? "font-medium text-primary"
-												: "text-foreground",
+											"cursor-pointer rounded-sm px-2 py-1.5 text-start text-sm",
+											index === highlightedIndex
+												? "bg-accent text-accent-foreground"
+												: "",
+											isSelected ? "font-medium" : "",
 										].join(" ")}
 									>
 										{option.label}
@@ -410,10 +415,10 @@ export function FormReferenceField({
 				) : null}
 			</div>
 			{isError ? (
-				<p className="text-xs text-destructive">{meta.error}</p>
+				<p className="text-sm text-destructive">{meta.error}</p>
 			) : null}
 			{field.fieldOverrides?.description ? (
-				<p className="ps-1 text-xs text-muted-foreground">
+				<p className="text-sm text-muted-foreground">
 					{field.fieldOverrides.description}
 				</p>
 			) : null}

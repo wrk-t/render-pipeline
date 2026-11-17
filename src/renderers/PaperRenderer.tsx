@@ -8,9 +8,10 @@ import { LayoutChildren } from "./layoutChildren";
 // PaperRenderer — the rounded surface (card). Replaces the renderer's
 // hidden BodyCard: authors opt in with a Paper node.
 //
-// Surface: `bg-card` + `border border-border` + `rounded-lg` (the card
-// token). Runtime config (padding / radius / maxWidth) still wins, as an
-// inline style, because authored values are not known at build time.
+// Surface: shadcn's card — `bg-card text-card-foreground border
+// border-border rounded-xl shadow-sm`, `p-6` by default. Runtime config
+// (padding / radius / maxWidth) still wins, as an inline style, because
+// authored values are not known at build time.
 // ──────────────────────────────────────────────────────────────────
 
 /** `sx` spacing units are 8px each. */
@@ -57,13 +58,13 @@ export function PaperRenderer({
 
 	const className = [
 		"bg-card text-card-foreground border border-border h-full",
-		config.square ? "rounded-none" : "rounded-lg",
+		config.square ? "rounded-none" : "rounded-xl",
 		config.variant === "outlined"
 			? undefined
 			: (config.elevation ?? 1) > 0
 				? "shadow-sm"
 				: undefined,
-		config.padding != null ? undefined : "p-5",
+		config.padding != null ? undefined : "p-6",
 		config.maxWidth != null ? "mx-auto" : undefined,
 	]
 		.filter(Boolean)

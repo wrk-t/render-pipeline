@@ -54,7 +54,7 @@ export function ChipsCell({ cell }: ChipsCellProps): ReactElement {
 
 	if (labels.length === 0) {
 		return (
-			<span className="text-gray-400" aria-label="—">
+			<span className="text-muted-foreground" aria-label="—">
 				—
 			</span>
 		);
@@ -69,7 +69,7 @@ export function ChipsCell({ cell }: ChipsCellProps): ReactElement {
 				<span
 					key={label}
 					title={label}
-					className="inline-flex max-w-[140px] items-center rounded-full border border-border px-2 py-0.5 text-xs font-medium text-foreground"
+					className="inline-flex max-w-[140px] items-center rounded-md border border-border px-2 py-0.5 text-xs font-medium text-foreground"
 				>
 					<span className="truncate">{label}</span>
 				</span>
@@ -77,7 +77,7 @@ export function ChipsCell({ cell }: ChipsCellProps): ReactElement {
 			{hidden.length > 0 ? (
 				<span
 					title={hidden.join(", ")}
-					className="inline-flex items-center rounded-full border border-transparent bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+					className="inline-flex items-center rounded-md border border-transparent bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground"
 				>
 					+{hidden.length}
 				</span>

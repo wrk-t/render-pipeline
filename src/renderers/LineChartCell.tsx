@@ -26,7 +26,7 @@ const LINE_COLORS = [
 // The dialog is the fixed, full-viewport overlay (its `::backdrop` is the
 // scrim); the panel inside it is the card. `bg-transparent` / `border-0` /
 // `p-0` strip the UA dialog chrome so only the panel paints. Below `sm` the
-// panel owns the viewport (MUI's `fullScreen`), like every DSL dialog.
+// panel owns the viewport, like every DSL dialog.
 const DIALOG_CLASS =
 	"fixed inset-0 z-50 m-0 h-full max-h-none w-full max-w-none border-0 bg-transparent p-0 text-foreground [&::backdrop]:bg-black/50 open:flex items-center justify-center p-4 max-sm:p-0";
 const PANEL_CLASS =
@@ -249,7 +249,7 @@ export function LineChartCell({ cell }: any): ReactElement {
 					typeof columnDef.header === "string" ? columnDef.header : undefined
 				}
 			>
-				{/* MUI unmounted the content while closed; a closed cell chart
+				{/* Unmount the content while closed; a closed cell chart
 				    must not keep a second query alive. */}
 				{dialogOpen ? (
 					<div className={PANEL_CLASS}>
@@ -262,7 +262,7 @@ export function LineChartCell({ cell }: any): ReactElement {
 								onClick={() => setDialogOpen(false)}
 								aria-label="Close"
 								title="Close"
-								className="-me-2 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+								className="-me-2 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 							>
 								<Unicon name="Close" size={18} />
 							</button>

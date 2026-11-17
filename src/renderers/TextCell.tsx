@@ -41,10 +41,7 @@ export function TextCell({ cell }: Props): ReactElement {
 				: JSON.stringify(value));
 
 	return (
-		<span
-			title={str}
-			className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap"
-		>
+		<span title={str} className="block max-w-full truncate">
 			{str}
 		</span>
 	);

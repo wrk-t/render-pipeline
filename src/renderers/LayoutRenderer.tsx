@@ -15,7 +15,7 @@ import { RecordProvider, type TRecordData } from "./RecordContext";
 // LayoutRenderer — the screen shell: a page header + a card surface.
 //
 //   div.flex.flex-col
-//     ├─ header: title (h5) + description (body2) + actions
+//     ├─ header: title (text-2xl) + description (text-sm) + actions
 //     └─ card (surface) — the content/component tree only
 //
 // The title/description live OUTSIDE the card (they are page-level),
@@ -166,7 +166,7 @@ export function LayoutRenderer({
 					<div className="flex flex-col items-start gap-4 md:flex-row md:items-center md:justify-between">
 						<div className="min-w-0">
 							{title && (
-								<h5 className="text-2xl font-semibold break-words text-foreground">
+								<h5 className="text-2xl font-semibold break-words tracking-tight text-foreground">
 									{title}
 								</h5>
 							)}
@@ -195,7 +195,7 @@ export function LayoutRenderer({
 				)}
 				<div
 					className={[
-						"flex min-h-0 flex-1 flex-col rounded-lg border border-border bg-card p-6 text-card-foreground",
+						"flex min-h-0 flex-1 flex-col rounded-xl border border-border bg-card p-6 text-card-foreground",
 						(config.elevation ?? 1) > 0 ? "shadow-sm" : undefined,
 						config.maxWidth != null ? "mx-auto w-full" : undefined,
 					]

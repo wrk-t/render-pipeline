@@ -30,10 +30,10 @@ export function LinkRenderer({
 	const icon = config.icon ?? component.icon ?? undefined;
 
 	const className = [
-		"content-center inline-flex items-center text-primary underline-offset-4 hover:underline",
-		config.variant === "button"
-			? "text-sm font-medium uppercase leading-[1.75] tracking-[0.02857em]"
-			: "text-base leading-[1.5] tracking-[0.00938em]",
+		"inline-flex items-center gap-2 text-primary underline-offset-4 hover:underline",
+		// `button` links read as shadcn's inline action link; plain links
+		// inherit the surrounding text size like a shadcn prose link.
+		config.variant === "button" ? "text-sm font-medium" : undefined,
 	]
 		.filter(Boolean)
 		.join(" ");
@@ -48,7 +48,7 @@ export function LinkRenderer({
 				router.push(path ?? "/");
 			}}
 		>
-			{icon && <Unicon name={icon as never} size={16} className="me-1" />}
+			{icon && <Unicon name={icon as never} size={16} />}
 			{config.label ?? (component.displayName || component.name)}
 		</a>
 	);

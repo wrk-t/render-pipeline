@@ -196,8 +196,9 @@ function missingRequiredLabels(
  *
  * Validation used to paint the field red somewhere off-screen (dialog bodies
  * scroll); the user saw nothing happen. The lookup is deliberately generic:
- * by input `name`, then by id, then by MUI's label association, so it works
- * for text inputs, selects and pickers without each field component opting in.
+ * by input `name`, then by id, then its `aria-labelledby` association, then the
+ * label's text — shadcn fields are plain wrappers, not Material form controls,
+ * so the control itself is the scroll target.
  */
 function focusInvalidField(
 	root: ParentNode,
@@ -213,19 +214,12 @@ function focusInvalidField(
 	const labelEl = Array.from(root.querySelectorAll("label")).find((element) =>
 		(element.textContent ?? "").trim().startsWith(label),
 	);
-	const control =
-		byName?.closest<HTMLElement>(".MuiFormControl-root") ??
-		byId?.closest<HTMLElement>(".MuiFormControl-root") ??
-		byLabel?.closest<HTMLElement>(".MuiFormControl-root") ??
-		labelEl?.closest<HTMLElement>(".MuiFormControl-root");
+	const control = byName ?? byId ?? byLabel ?? labelEl ?? null;
 	const focusable =
 		control?.querySelector<HTMLElement>(
 			"[role=combobox], input:not([aria-hidden=true]), textarea, select, button",
-		) ??
-		byName ??
-		byId ??
-		byLabel;
-	(control ?? focusable)?.scrollIntoView({
+		) ?? control;
+	control?.scrollIntoView({
 		behavior: "smooth",
 		block: "center",
 	});
@@ -313,7 +307,7 @@ function FormSideEffects({
 // ──────────────────────────────────────────────────────────────────
 // MarkTouchedOnSubmit — reveal field errors after a submit attempt.
 //
-// The Formik MUI fields only render `helperText` when `touched[name]` is
+// The Formik fields only render their error message when `touched[name]` is
 // true. Formik does not mark fields touched on submit, so submitting an
 // untouched empty form validated (and blocked the POST) but showed no
 // message at all. Once the first submit is attempted, mark every field
@@ -417,7 +411,7 @@ function MissingFieldsHint({
 		? t("menuBuilder.missing", { fields: list })
 		: `Still needed: ${list}`;
 
-	return <p className="text-xs text-muted-foreground">{message}</p>;
+	return <p className="text-sm text-muted-foreground">{message}</p>;
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -1187,7 +1181,7 @@ export function FormRenderer({
 		return (
 			<div>
 				{!onFormReady && component.displayName && (
-					<h2 className="mb-4 text-2xl font-bold text-foreground">
+					<h2 className="mb-4 text-2xl font-semibold tracking-tight text-foreground">
 						{component.displayName}
 					</h2>
 				)}
@@ -1260,7 +1254,7 @@ export function FormRenderer({
 							<FocusFirstError fields={allFields} />
 							{!onFormReady && component.displayName && (
 								<div className="mb-6">
-									<h2 className="text-2xl font-bold text-foreground">
+									<h2 className="text-2xl font-semibold tracking-tight text-foreground">
 										{component.displayName}
 									</h2>
 									{component.description && (
@@ -1305,7 +1299,7 @@ export function FormRenderer({
 	                both (CRM-28). */}
 							{!onFormReady &&
 								(actionButtons.length > 0 || showFallbackSubmit) && (
-									<div className="mt-6 flex flex-row flex-wrap items-center gap-4">
+									<div className="mt-6 flex flex-wrap items-center gap-2">
 										{actionButtons.map((el) => (
 											<ComponentRenderer
 												key={el.id}
@@ -1319,13 +1313,13 @@ export function FormRenderer({
 											<button
 												type="submit"
 												disabled={isSubmitting}
-												className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg border border-transparent bg-primary px-4 text-sm font-medium whitespace-nowrap text-primary-foreground transition-colors outline-none select-none hover:bg-primary/80 focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
+												className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-transparent bg-primary px-4 text-sm font-medium whitespace-nowrap text-primary-foreground transition-colors outline-none select-none hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
 											>
 												{isSubmitting ? (
 													<span
 														role="status"
 														aria-label="Loading"
-														className="size-5 animate-spin rounded-full border-2 border-current border-t-transparent"
+														className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent"
 													/>
 												) : (
 													submitLabel
@@ -1358,14 +1352,14 @@ export function FormRenderer({
 									},
 								}}
 							>
-								<div className="text-base leading-7">
+								<div className="text-sm leading-6 text-muted-foreground">
 									<ConfirmPrompt
 										message={pendingSend.message}
 										title={pendingSend.title}
 									/>
 								</div>
 								<label className="mt-4 block">
-									<span className="mb-1 block text-sm font-medium text-foreground">
+									<span className="mb-2 block text-sm leading-none font-medium text-foreground">
 										Type the title to confirm
 									</span>
 									<input
@@ -1376,11 +1370,11 @@ export function FormRenderer({
 												? true
 												: undefined
 										}
-										className={`w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:ring-2 ${
+										className={`h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-sm text-foreground shadow-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-offset-2 ${
 											sendTyped.length > 0 &&
 											sendTyped.trim() !== pendingSend.title
-												? "border-destructive focus:border-destructive focus:ring-destructive/20"
-												: "border-border focus:border-ring focus:ring-ring/20"
+												? "border-destructive focus-visible:ring-destructive/20"
+												: "border-input focus-visible:ring-ring"
 										}`}
 										value={sendTyped}
 										onChange={(event) => setSendTyped(event.target.value)}

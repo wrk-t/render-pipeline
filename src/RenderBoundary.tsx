@@ -22,7 +22,7 @@ export function RenderBoundary({
 				<span
 					role="status"
 					aria-label="Loading"
-					className="size-10 animate-spin rounded-full border-2 border-current border-t-transparent text-primary"
+					className="size-6 animate-spin rounded-full border-2 border-muted border-t-primary"
 				/>
 			</div>
 		);
@@ -30,7 +30,10 @@ export function RenderBoundary({
 	if (error) {
 		return (
 			<div className="flex items-center justify-center py-12">
-				<p className="text-sm text-destructive">
+				<p
+					role="alert"
+					className="rounded-lg border border-destructive/50 bg-background px-4 py-3 text-sm text-destructive"
+				>
 					Failed to load component. Check the console for details.
 				</p>
 			</div>
@@ -46,7 +49,7 @@ export function UnknownRenderer({
 	blueprintName: string;
 }): ReactElement {
 	return (
-		<p className="text-base text-destructive">
+		<p className="text-sm text-destructive">
 			Unknown blueprint: {blueprintName}
 		</p>
 	);

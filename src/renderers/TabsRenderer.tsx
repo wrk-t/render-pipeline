@@ -14,11 +14,15 @@ import { getApiClient } from "../deps";
 import type { RenderedComponent } from "../types";
 import { useVersion, type VersionInfo } from "./VersionContext";
 
-/** Stage pill colours — border/text pairs matching the old chip tones. */
+/**
+ * Stage pill treatments, mapped to shadcn badge variants: a neutral outline
+ * for drafts, the solid primary fill for published versions and the
+ * destructive fill for deprecated ones (the same mapping `BadgeCell` uses).
+ */
 const STAGE_CLASSES: Record<string, string> = {
-	draft: "border-warning-main text-warning-main",
-	published: "border-success-main text-success-main",
-	deprecated: "border-error-main text-error-main",
+	draft: "border-border text-muted-foreground",
+	published: "border-transparent bg-primary text-primary-foreground",
+	deprecated: "border-transparent bg-destructive text-white",
 };
 
 export function TabsRenderer({
@@ -184,7 +188,7 @@ export function TabsRenderer({
 				// (customer detail, …), which the backend already translated.
 				aria-label={component.displayName || component.name}
 				onKeyDown={handleTabKeyDown}
-				className="flex gap-1 overflow-x-auto border-b border-border"
+				className="flex w-fit max-w-full items-center gap-1 overflow-x-auto rounded-lg bg-muted p-1 text-muted-foreground"
 			>
 				{allTabs.map((tab: any, idx: number) => {
 					const selected = activeIndex === idx;
@@ -197,18 +201,15 @@ export function TabsRenderer({
 							role="tab"
 							aria-selected={selected}
 							aria-controls={`${baseId}-panel-${idx}`}
+							data-state={selected ? "active" : "inactive"}
 							tabIndex={selected ? 0 : -1}
 							onClick={() => handleTabChange(idx)}
-							className={`-mb-px inline-flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2 text-start text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-								selected
-									? "border-primary text-primary"
-									: "border-transparent text-muted-foreground hover:text-foreground"
-							}`}
+							className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
 						>
 							<span>{tab.label}</span>
 							{tab.stage && (
 								<span
-									className={`rounded-full border px-2 py-0.5 text-xs ${
+									className={`rounded-md border px-2 py-0.5 text-xs font-medium ${
 										STAGE_CLASSES[tab.stage] ??
 										"border-border text-muted-foreground"
 									}`}
@@ -227,7 +228,7 @@ export function TabsRenderer({
 				id={activePanelId}
 				aria-labelledby={activeTabId}
 				tabIndex={0}
-				className="focus-visible:outline-none"
+				className="flex-1 outline-none"
 			>
 				{activeContentEl?.referencedComponent ? (
 					<ComponentRenderer

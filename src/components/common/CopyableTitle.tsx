@@ -29,26 +29,13 @@ export function CopyableTitle({ value }: { value: string }): ReactElement {
 	};
 
 	return (
-		/* The native `title` carries the hint the old Tooltip showed. Inline
-		   styles, not utilities: the dotted underline is the affordance and has
-		   to render even where the app's utility classes are not generated. */
+		/* The dotted underline distinguishes "copy this value" from a link that
+		   navigates; the native `title` carries the hint the old Tooltip showed. */
 		<button
 			type="button"
 			onClick={copy}
 			title={t("common.copyToClipboard")}
-			style={{
-				display: "inline",
-				padding: 0,
-				border: "none",
-				background: "transparent",
-				cursor: "pointer",
-				font: "inherit",
-				fontWeight: 600,
-				color: "inherit",
-				textDecorationLine: "underline",
-				textDecorationStyle: "dotted",
-				textUnderlineOffset: "4px",
-			}}
+			className="inline cursor-pointer rounded-sm border-0 bg-transparent p-0 font-semibold text-inherit underline decoration-dotted underline-offset-4 transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 		>
 			{value}
 		</button>

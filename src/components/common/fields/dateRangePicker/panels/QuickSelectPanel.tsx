@@ -17,7 +17,7 @@ export const QuickSelectPanel: FC<Props> = ({ value, onChange }) => {
 	const activeId = value instanceof QuickSelectValue ? value.id : null;
 
 	return (
-		<div className="grid grid-cols-2 gap-2 p-4 lg:grid-cols-3">
+		<div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
 			{quickSelects.map((item) => {
 				const isActive = activeId === item.id;
 				return (
@@ -26,10 +26,10 @@ export const QuickSelectPanel: FC<Props> = ({ value, onChange }) => {
 						type="button"
 						aria-pressed={isActive}
 						onClick={() => onChange(item)}
-						className={`w-full rounded-lg px-4 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20 ${
+						className={`h-9 w-full rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
 							isActive
 								? "bg-primary text-primary-foreground shadow-sm"
-								: "text-foreground hover:bg-muted"
+								: "border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground"
 						}`}
 					>
 						{dp(`quickSelects.${item.id}`)}

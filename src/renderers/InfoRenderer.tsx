@@ -267,21 +267,21 @@ export function InfoRenderer({
 				<span
 					role="status"
 					aria-label="Loading"
-					className="h-10 w-10 animate-spin rounded-full border-2 border-muted border-t-primary"
+					className="size-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary"
 				/>
 			</div>
 		);
 	}
 
 	if (error || !recordData) {
-		return <p className="text-sm text-error-main">Failed to load data.</p>;
+		return <p className="text-sm text-destructive">Failed to load data.</p>;
 	}
 
 	return (
-		<div className="rounded-lg border border-border bg-card p-6">
+		<div className="rounded-lg border border-border bg-card p-6 text-card-foreground shadow-sm">
 			{component.displayName && (
-				<div className="mb-5">
-					<h2 className="text-start text-xl font-semibold text-foreground">
+				<div className="mb-4">
+					<h2 className="text-start text-lg font-semibold tracking-tight text-foreground">
 						{component.displayName}
 					</h2>
 				</div>
@@ -331,11 +331,11 @@ export function InfoRenderer({
 								fullWidth ? " col-span-full" : ""
 							}`}
 						>
-							<span className="block text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+							<span className="block text-start text-sm font-medium text-muted-foreground">
 								{displayName}
 							</span>
 							<p
-								className={`text-start text-base text-foreground${
+								className={`text-start text-sm text-foreground${
 									formatted.multiline
 										? " whitespace-pre-wrap break-words"
 										: " break-words"

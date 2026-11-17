@@ -65,7 +65,7 @@ function optionValue(o: string | SelectOption): string {
 const EMPTY_SELECTED_OPTIONS: SelectOption[] = [];
 
 const LISTBOX_CLASS =
-	"absolute start-0 top-full z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-border bg-card p-1 shadow-sm";
+	"absolute start-0 top-full z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md";
 
 // ── Component ────────────────────────────────────────────────
 
@@ -348,24 +348,29 @@ export function FormMultiSelectField({
 	const listboxId = `${inputId}-listbox`;
 
 	return (
-		<div className="flex flex-col gap-1">
-			<label htmlFor={inputId} className="text-sm font-medium text-foreground">
+		<div className="flex flex-col gap-2">
+			<label
+				htmlFor={inputId}
+				className={`text-sm font-medium leading-none ${
+					isError ? "text-destructive" : "text-foreground"
+				}`}
+			>
 				{field.label}
 			</label>
 			<div className="relative">
 				<div
 					className={[
-						"flex min-h-10 w-full flex-wrap items-center gap-1.5 rounded-lg border bg-background px-2 py-1.5 transition-colors focus-within:ring-2",
+						"flex min-h-9 w-full flex-wrap items-center gap-1.5 rounded-md border bg-transparent px-2 py-1 text-sm shadow-sm transition-colors focus-within:ring-2 focus-within:ring-offset-2",
 						isError
 							? "border-destructive focus-within:ring-destructive/20"
-							: "border-border focus-within:ring-ring/20",
-						disabled ? "cursor-not-allowed opacity-60" : "",
+							: "border-input focus-within:ring-ring",
+						disabled ? "cursor-not-allowed opacity-50" : "",
 					].join(" ")}
 				>
 					{selectedOptions.map((opt) => (
 						<span
 							key={String(opt.value)}
-							className="inline-flex max-w-full items-center gap-1 rounded-lg bg-muted px-2 py-0.5 text-xs text-foreground"
+							className="inline-flex max-w-full items-center gap-1 rounded-sm bg-secondary px-1.5 py-0.5 text-xs text-secondary-foreground"
 						>
 							<span className="truncate">{opt.label}</span>
 							{!field.isReadOnly ? (
@@ -374,7 +379,7 @@ export function FormMultiSelectField({
 									aria-label={`Remove ${opt.label}`}
 									onMouseDown={(event) => event.preventDefault()}
 									onClick={() => handleRemove(opt)}
-									className="shrink-0 rounded text-muted-foreground transition-colors hover:text-foreground"
+									className="shrink-0 rounded-sm text-muted-foreground transition-colors hover:text-foreground"
 								>
 									<span aria-hidden="true">×</span>
 								</button>
@@ -458,11 +463,11 @@ export function FormMultiSelectField({
 										}}
 										onMouseEnter={() => setHighlightedIndex(index)}
 										className={[
-											"flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-start text-sm",
-											index === highlightedIndex ? "bg-muted" : "",
-											isSelected
-												? "font-medium text-primary"
-												: "text-foreground",
+											"flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-start text-sm",
+											index === highlightedIndex
+												? "bg-accent text-accent-foreground"
+												: "",
+											isSelected ? "font-medium" : "",
 										].join(" ")}
 									>
 										<input
@@ -471,7 +476,7 @@ export function FormMultiSelectField({
 											readOnly
 											tabIndex={-1}
 											aria-hidden="true"
-											className="size-4 shrink-0 rounded border-border accent-primary"
+											className="size-4 shrink-0 rounded-sm border border-input accent-primary"
 										/>
 										<span className="truncate">{optionLabel(option)}</span>
 									</div>
@@ -482,10 +487,10 @@ export function FormMultiSelectField({
 				) : null}
 			</div>
 			{isError ? (
-				<p className="text-xs text-destructive">{meta.error}</p>
+				<p className="text-sm text-destructive">{meta.error}</p>
 			) : null}
 			{field.description ? (
-				<p className="text-xs text-muted-foreground">{field.description}</p>
+				<p className="text-sm text-muted-foreground">{field.description}</p>
 			) : null}
 		</div>
 	);

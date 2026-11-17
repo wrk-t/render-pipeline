@@ -8,18 +8,21 @@ interface Props {
 }
 
 /**
- * MUI palette name → outlined badge classes. The format's `variantMap`
- * values are MUI colour names (`success`, `error`, …); anything unknown
- * falls back to the neutral outline.
+ * The DSL's `variantMap` carries MUI palette names (`success`, `error`, …)
+ * because that is what the metadata contract stores. They are mapped onto
+ * shadcn badge variants: stock shadcn has no success/warning/info badge, so
+ * positive states take the solid primary fill, neutral ones the secondary or
+ * outline treatment, and destructive ones the destructive fill.
  */
 const VARIANT_CLASSES: Record<string, string> = {
 	default: "border-border text-muted-foreground",
-	primary: "border-primary/40 text-primary",
-	secondary: "border-border text-secondary-foreground",
-	success: "border-success-main/40 text-success-main",
-	warning: "border-warning-main/40 text-warning-main",
-	info: "border-info-main/40 text-info-main",
-	error: "border-destructive/40 text-destructive",
+	primary: "border-transparent bg-primary text-primary-foreground",
+	secondary: "border-transparent bg-secondary text-secondary-foreground",
+	success: "border-transparent bg-primary text-primary-foreground",
+	warning: "border-border text-foreground",
+	info: "border-transparent bg-secondary text-secondary-foreground",
+	error: "border-transparent bg-destructive text-white",
+	danger: "border-transparent bg-destructive text-white",
 };
 
 /**
@@ -36,7 +39,7 @@ export function BadgeCell({ cell }: Props): ReactElement {
 
 	return (
 		<span
-			className={`inline-flex max-w-full items-center rounded-full border px-2 py-0.5 text-xs font-medium ${variantClass}`}
+			className={`inline-flex max-w-full items-center rounded-md border px-2 py-0.5 text-xs font-medium ${variantClass}`}
 		>
 			<span className="truncate">{label}</span>
 		</span>

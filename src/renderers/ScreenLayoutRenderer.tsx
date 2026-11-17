@@ -94,7 +94,7 @@ export function ScreenLayoutRenderer({
 	return (
 		<div className="px-4 py-6">
 			{/* ── Header area ──────────────────────────────────── */}
-			<div className="mb-4 flex flex-col gap-2">
+			<div className="mb-6 flex flex-col gap-1">
 				{activeHeaderEls.length > 0 ? (
 					activeHeaderEls.map((el) => {
 						if (el.elementType === "component_ref" && el.referencedComponent) {
@@ -112,12 +112,12 @@ export function ScreenLayoutRenderer({
 				) : (
 					<>
 						{(headerRow?.name ?? component.displayName) && (
-							<h1 className="text-[2.125rem] leading-tight font-bold text-foreground">
+							<h1 className="text-2xl font-semibold tracking-tight text-foreground">
 								{String(headerRow?.name ?? component.displayName)}
 							</h1>
 						)}
 						{(headerRow?.description ?? component.description) && (
-							<p className="text-sm font-medium text-muted-foreground">
+							<p className="text-sm text-muted-foreground">
 								{String(headerRow?.description ?? component.description)}
 							</p>
 						)}

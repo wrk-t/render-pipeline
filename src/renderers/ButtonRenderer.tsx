@@ -79,10 +79,12 @@ type TConfirmConfig = {
 };
 
 // ── Button skin ───────────────────────────────────────────────────
-// MUI's Button defaults, expressed as utilities: 0.875rem/500/1.75,
-// uppercase, 10px radius (the app's `shape.borderRadius * 2.5`), the
-// contained/outlined/text variants and the palette's per-colour hover.
-// The `disabled:` utilities mirror MUI's disabled palette.
+// shadcn/ui button metrics: `h-9 rounded-md px-4 text-sm font-medium`,
+// with the authored contained/outlined/text variants mapped to shadcn's
+// default / outline / ghost treatments. Semantics stay per-colour; the
+// variants shadcn does not tokenise (warning/info/success) use the stock
+// Tailwind palette instead of the old MUI palette. Disabled styling is
+// handled once in the base (opacity), so no per-colour disabled classes.
 
 type TButtonColor =
 	| "primary"
@@ -94,55 +96,48 @@ type TButtonColor =
 	| "inherit";
 
 const CONTAINED: Record<TButtonColor, string> = {
-	primary:
-		"bg-primary text-primary-foreground hover:bg-primary-dark disabled:bg-muted disabled:text-border-default",
+	primary: "bg-primary text-primary-foreground hover:bg-primary/90",
 	secondary:
-		"bg-secondary-main text-text-primary hover:bg-secondary-dark disabled:bg-muted disabled:text-border-default",
-	error:
-		"bg-destructive text-white hover:bg-error-dark disabled:bg-muted disabled:text-border-default",
-	warning:
-		"bg-warning-main text-white hover:bg-warning-dark disabled:bg-muted disabled:text-border-default",
-	info: "bg-info-main text-white hover:bg-info-dark disabled:bg-muted disabled:text-border-default",
-	success:
-		"bg-success-main text-white hover:bg-success-dark disabled:bg-muted disabled:text-border-default",
+		"bg-secondary text-secondary-foreground hover:bg-secondary/80",
+	error: "bg-destructive text-white hover:bg-destructive/90",
+	warning: "bg-amber-600 text-white hover:bg-amber-600/90",
+	info: "bg-sky-600 text-white hover:bg-sky-600/90",
+	success: "bg-emerald-600 text-white hover:bg-emerald-600/90",
 	inherit:
-		"bg-transparent text-inherit hover:bg-accent disabled:bg-muted disabled:text-border-default",
+		"bg-transparent text-inherit hover:bg-accent hover:text-accent-foreground",
 };
 
 const OUTLINED: Record<TButtonColor, string> = {
 	primary:
-		"border border-primary/50 text-primary hover:border-primary hover:bg-primary/5 disabled:border-border-default disabled:bg-transparent disabled:text-border-default",
+		"border border-input bg-background hover:bg-accent hover:text-accent-foreground",
 	secondary:
-		"border border-border text-secondary-foreground hover:border-border-default hover:bg-accent disabled:border-border-default disabled:bg-transparent disabled:text-border-default",
+		"border border-input bg-background hover:bg-accent hover:text-accent-foreground",
 	error:
-		"border border-destructive/50 text-destructive hover:border-destructive hover:bg-destructive/5 disabled:border-border-default disabled:bg-transparent disabled:text-border-default",
+		"border border-destructive bg-background text-destructive hover:bg-destructive/10",
 	warning:
-		"border border-warning-main/50 text-warning-main hover:border-warning-main hover:bg-warning-main/5 disabled:border-border-default disabled:bg-transparent disabled:text-border-default",
-	info: "border border-info-main/50 text-info-main hover:border-info-main hover:bg-info-main/5 disabled:border-border-default disabled:bg-transparent disabled:text-border-default",
+		"border border-amber-600 bg-background text-amber-600 hover:bg-amber-600/10 dark:border-amber-500 dark:text-amber-500",
+	info: "border border-sky-600 bg-background text-sky-600 hover:bg-sky-600/10 dark:border-sky-400 dark:text-sky-400",
 	success:
-		"border border-success-main/50 text-success-main hover:border-success-main hover:bg-success-main/5 disabled:border-border-default disabled:bg-transparent disabled:text-border-default",
+		"border border-emerald-600 bg-background text-emerald-600 hover:bg-emerald-600/10 dark:border-emerald-500 dark:text-emerald-500",
 	inherit:
-		"border border-border text-foreground hover:bg-accent disabled:border-border-default disabled:bg-transparent disabled:text-border-default",
+		"border border-border bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground",
 };
 
 const TEXT: Record<TButtonColor, string> = {
-	primary:
-		"text-primary hover:bg-primary/5 disabled:bg-transparent disabled:text-border-default",
+	primary: "text-primary hover:bg-accent hover:text-accent-foreground",
 	secondary:
-		"text-secondary-foreground hover:bg-accent disabled:bg-transparent disabled:text-border-default",
-	error:
-		"text-destructive hover:bg-destructive/5 disabled:bg-transparent disabled:text-border-default",
+		"text-secondary-foreground hover:bg-accent hover:text-accent-foreground",
+	error: "text-destructive hover:bg-destructive/10",
 	warning:
-		"text-warning-main hover:bg-warning-main/5 disabled:bg-transparent disabled:text-border-default",
-	info: "text-info-main hover:bg-info-main/5 disabled:bg-transparent disabled:text-border-default",
+		"text-amber-600 hover:bg-amber-600/10 dark:text-amber-500",
+	info: "text-sky-600 hover:bg-sky-600/10 dark:text-sky-400",
 	success:
-		"text-success-main hover:bg-success-main/5 disabled:bg-transparent disabled:text-border-default",
-	inherit:
-		"text-foreground hover:bg-accent disabled:bg-transparent disabled:text-border-default",
+		"text-emerald-600 hover:bg-emerald-600/10 dark:text-emerald-500",
+	inherit: "text-foreground hover:bg-accent hover:text-accent-foreground",
 };
 
 const BUTTON_BASE =
-	"inline-flex min-w-16 items-center justify-center whitespace-nowrap rounded-[10px] text-sm font-medium uppercase leading-[1.75] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed";
+	"inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
 
 function isButtonColor(value: string | undefined): value is TButtonColor {
 	return (
@@ -356,7 +351,6 @@ export function ButtonRenderer({
 				: CONTAINED[color];
 	const buttonClassName = [
 		BUTTON_BASE,
-		variant === "text" ? "px-2 py-1.5" : "px-4 py-1.5",
 		variantClass,
 		config.fullWidth === true ? "w-full" : undefined,
 	]
@@ -386,10 +380,10 @@ export function ButtonRenderer({
 					<span
 						role="status"
 						aria-label="Loading"
-						className="inline-block size-5 animate-spin rounded-full border-2 border-current border-t-transparent"
+						className="inline-block size-4 animate-spin rounded-full border-2 border-current border-t-transparent"
 					/>
 				) : (
-					icon && <Unicon name={icon as never} size={18} className="me-1" />
+					icon && <Unicon name={icon as never} size={16} />
 				)}
 				{config.label ?? (component.displayName || component.name)}
 			</button>
@@ -448,7 +442,7 @@ export function ButtonRenderer({
 								autoFocus
 								aria-invalid={typedTitleInvalid || undefined}
 								className={[
-									"w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:ring-2",
+									"w-full rounded-md border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:ring-2",
 									typedTitleInvalid
 										? "border-destructive focus:border-destructive focus:ring-destructive/20"
 										: "border-border focus:border-ring focus:ring-ring/20",

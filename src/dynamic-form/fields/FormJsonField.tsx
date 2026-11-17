@@ -50,7 +50,7 @@ export function FormJsonField({ field }: FormJsonFieldProps): ReactElement {
 	return (
 		<div className="flex w-full flex-col">
 			{field.label && (
-				<span className="mb-1 text-sm font-medium text-foreground">
+				<span className="mb-2 block text-sm font-medium leading-none text-foreground">
 					{field.label}
 					{field.isRequired && (
 						<span className="ms-0.5 text-destructive" aria-hidden="true">
@@ -60,7 +60,7 @@ export function FormJsonField({ field }: FormJsonFieldProps): ReactElement {
 				</span>
 			)}
 			<div
-				className={`overflow-hidden rounded-lg ${
+				className={`overflow-hidden rounded-md ${
 					field.bordered === false
 						? ""
 						: `border ${isError ? "border-destructive" : "border-border"}`
@@ -84,7 +84,7 @@ export function FormJsonField({ field }: FormJsonFieldProps): ReactElement {
 					}}
 				/>
 			</div>
-			{isError && <p className="text-xs text-destructive">{meta.error}</p>}
+			{isError && <p className="mt-2 text-sm text-destructive">{meta.error}</p>}
 		</div>
 	);
 }

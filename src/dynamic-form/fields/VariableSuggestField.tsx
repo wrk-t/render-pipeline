@@ -51,8 +51,13 @@ function partialToken(
 	return { start: before.length - match[0].length, query: match[1] };
 }
 
+/** Shared shadcn skin: `h-9` single-line input, `min-h-16` multiline textarea. */
 const FIELD_CLASS =
-	"w-full rounded-lg border bg-background px-3 py-2 text-start text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60";
+	"w-full rounded-md border bg-transparent px-3 text-start text-sm shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+
+const INPUT_CLASS = `flex h-9 ${FIELD_CLASS} py-1`;
+
+const TEXTAREA_CLASS = `flex min-h-16 ${FIELD_CLASS} py-2`;
 
 export function VariableSuggestField({
 	field,
@@ -181,16 +186,19 @@ export function VariableSuggestField({
 		required: field.isRequired,
 		disabled: field.isReadOnly,
 		"aria-invalid": isError || undefined,
-		className: `${FIELD_CLASS} ${
+		className: `${multiline ? TEXTAREA_CLASS : INPUT_CLASS} ${
 			isError
-				? "border-destructive focus:border-destructive focus:ring-destructive/20"
-				: "border-border focus:border-ring focus:ring-ring/20"
+				? "border-destructive focus-visible:ring-destructive/20"
+				: "border-input"
 		}`,
 	};
 
 	return (
-		<div className="flex flex-col gap-0.5">
-			<label htmlFor={inputId} className="text-sm font-medium text-foreground">
+		<div className="flex flex-col gap-2">
+			<label
+				htmlFor={inputId}
+				className="text-sm font-medium leading-none text-foreground"
+			>
 				{field.label}
 				{field.isRequired ? (
 					<span className="ms-0.5 text-destructive" aria-hidden="true">
@@ -220,7 +228,7 @@ export function VariableSuggestField({
 					<div
 						// Anchored under the input, like the old popper: the input's
 						// own width, opening downward.
-						className="absolute inset-x-0 top-full z-50 mt-1 max-h-72 overflow-auto rounded-lg border border-border bg-card p-1 shadow-lg"
+						className="absolute inset-x-0 top-full z-50 mt-1 max-h-72 overflow-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md"
 					>
 						{isLoading ? (
 							<div className="flex items-center justify-center p-3">
@@ -231,7 +239,7 @@ export function VariableSuggestField({
 								/>
 							</div>
 						) : matches.length === 0 ? (
-							<p className="block p-3 text-xs text-muted-foreground">
+							<p className="block p-3 text-sm text-muted-foreground">
 								No variables match
 							</p>
 						) : (
@@ -242,14 +250,14 @@ export function VariableSuggestField({
 										type="button"
 										onMouseDown={(event) => event.preventDefault()}
 										onClick={() => handleSelect(variable)}
-										className={`flex w-full flex-col items-start rounded-md px-3 py-1.5 text-start transition-colors ${
+										className={`flex w-full flex-col items-start rounded-md px-2 py-1.5 text-start transition-colors ${
 											index === activeIndex
-												? "bg-muted text-foreground"
-												: "text-foreground hover:bg-muted"
+												? "bg-accent text-accent-foreground"
+												: "text-foreground hover:bg-accent hover:text-accent-foreground"
 										}`}
 									>
 										<span className="font-mono text-xs">{`{{${variable.key}}}`}</span>
-										<span className="text-xs text-muted-foreground">
+										<span className="text-sm text-muted-foreground">
 											{displayLabel(variable)}
 										</span>
 									</button>
@@ -260,9 +268,9 @@ export function VariableSuggestField({
 				)}
 			</div>
 			{isError ? (
-				<p className="text-xs text-destructive">{meta.error}</p>
+				<p className="text-sm text-destructive">{meta.error}</p>
 			) : null}
-			<p className="ps-1 text-xs text-muted-foreground">
+			<p className="text-sm text-muted-foreground">
 				Type {"{{"} to insert a variable
 				{field.fieldOverrides?.description
 					? ` — ${field.fieldOverrides.description}`

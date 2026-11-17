@@ -73,15 +73,15 @@ export function MetricRenderer({
 				const metric = chartData as MetricData | null;
 				if (!metric || metric.value == null) {
 					return (
-						<div className="flex min-h-[120px] items-center justify-center">
+						<div className="flex min-h-32 items-center justify-center">
 							<p className="text-sm text-muted-foreground">No data</p>
 						</div>
 					);
 				}
 
 				return (
-					<div className="flex min-h-[120px] flex-col items-center justify-center">
-						<h3 className="text-5xl font-bold tabular-nums text-foreground">
+					<div className="flex min-h-32 flex-col items-center justify-center">
+						<h3 className="text-4xl font-bold tracking-tight tabular-nums text-foreground">
 							{metric.formatted}
 						</h3>
 					</div>

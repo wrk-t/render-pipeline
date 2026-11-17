@@ -74,7 +74,7 @@ export function AvatarRenderer({
 	const isCircle = shape === "circle";
 	const shapeClasses = isCircle
 		? "h-24 w-24 rounded-full"
-		: "h-24 w-32 rounded-[10px]";
+		: "h-24 w-32 rounded-md";
 
 	// Fetch user data using the datasource from metadata
 	const { data, mutate, isLoading } = useSWR(
@@ -148,7 +148,7 @@ export function AvatarRenderer({
 				<span
 					role="status"
 					aria-label="Loading"
-					className="h-6 w-6 animate-spin rounded-full border-2 border-border border-t-primary"
+					className="size-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary"
 				/>
 			</div>
 		);
@@ -170,7 +170,7 @@ export function AvatarRenderer({
 				<button
 					type="button"
 					aria-label={avatarUrl ? "Change avatar" : "Upload avatar"}
-					className={`${shapeClasses} relative flex cursor-pointer items-center justify-center overflow-hidden border-2 border-border bg-muted transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
+					className={`${shapeClasses} relative flex cursor-pointer items-center justify-center overflow-hidden border border-border bg-muted transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background`}
 					onClick={() => fileInputRef.current?.click()}
 				>
 					{avatarUrl ? (
@@ -198,7 +198,7 @@ export function AvatarRenderer({
 					<button
 						type="button"
 						onClick={handleRemove}
-						className="rounded-md px-2 py-1 text-sm font-medium text-error-main transition-colors hover:bg-error-main/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+						className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
 					>
 						Remove
 					</button>
@@ -206,7 +206,7 @@ export function AvatarRenderer({
 					<button
 						type="button"
 						onClick={() => fileInputRef.current?.click()}
-						className="rounded-md px-2 py-1 text-sm font-medium text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+						className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
 					>
 						Add Photo
 					</button>
@@ -232,7 +232,7 @@ export function AvatarRenderer({
 							rotate={0}
 						/>
 						<label className="w-full px-4">
-							<span className="block text-start text-xs text-muted-foreground">
+							<span className="block text-start text-sm font-medium text-foreground">
 								Zoom
 							</span>
 							<input

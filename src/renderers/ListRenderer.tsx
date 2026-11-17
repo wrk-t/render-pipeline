@@ -91,27 +91,32 @@ function resolvePlaceholders(
 
 // ── Component ──────────────────────────────────────────────────
 
-/** Action `color` names from the metadata contract → Tailwind classes. */
+/**
+ * Action `color` names from the metadata contract → shadcn button skin.
+ * Stock shadcn has no warning/info/success button variant, so those keep
+ * their meaning through the default Tailwind palette's 600 shades.
+ */
 const TOOLBAR_COLOR_CLASSES: Record<string, string> = {
 	primary: "bg-primary text-primary-foreground hover:bg-primary/90",
-	secondary: "bg-secondary-main text-foreground hover:bg-secondary-dark",
+	secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
 	inherit: "bg-primary text-primary-foreground hover:bg-primary/90",
-	error: "bg-error-main text-white hover:bg-error-dark",
-	warning: "bg-warning-main text-white hover:bg-warning-dark",
-	success: "bg-success-main text-white hover:bg-success-dark",
-	info: "bg-info-main text-white hover:bg-info-dark",
+	error: "bg-destructive text-white hover:bg-destructive/90",
+	warning: "bg-amber-600 text-white hover:bg-amber-600/90",
+	success: "bg-emerald-600 text-white hover:bg-emerald-600/90",
+	info: "bg-sky-600 text-white hover:bg-sky-600/90",
 };
 
-/** Row-action icon button tones. */
+/** Row-action icon button tones — shadcn's ghost icon button. */
 const ICON_COLOR_CLASSES: Record<string, string> = {
-	default: "text-muted-foreground hover:bg-muted hover:text-foreground",
-	primary: "text-primary hover:bg-primary/10",
-	secondary: "text-muted-foreground hover:bg-muted",
-	inherit: "text-foreground hover:bg-muted",
-	error: "text-error-main hover:bg-error-main/10",
-	warning: "text-warning-main hover:bg-warning-main/10",
-	success: "text-success-main hover:bg-success-main/10",
-	info: "text-info-main hover:bg-info-main/10",
+	default: "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+	primary: "text-primary hover:bg-accent hover:text-accent-foreground",
+	secondary:
+		"text-secondary-foreground hover:bg-accent hover:text-accent-foreground",
+	inherit: "text-foreground hover:bg-accent hover:text-accent-foreground",
+	error: "text-destructive hover:bg-destructive/10",
+	warning: "text-amber-600 hover:bg-amber-600/10 dark:text-amber-500",
+	success: "text-emerald-600 hover:bg-emerald-600/10 dark:text-emerald-500",
+	info: "text-sky-600 hover:bg-sky-600/10 dark:text-sky-400",
 };
 
 export function ListRenderer({
@@ -409,7 +414,7 @@ export function ListRenderer({
 			{(title || visibleToolbarActions.length > 0) && (
 				<div className="mb-3 flex w-full flex-col items-start gap-4 md:flex-row md:items-center md:justify-between">
 					{title && (
-						<h2 className="min-w-0 break-words text-start text-xl font-bold text-foreground">
+						<h2 className="min-w-0 break-words text-start text-lg font-semibold tracking-tight text-foreground">
 							{title}
 						</h2>
 					)}
@@ -420,7 +425,7 @@ export function ListRenderer({
 									key={action.id}
 									type="button"
 									onClick={() => openActionDialog(action)}
-									className={`inline-flex w-full items-center justify-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:w-auto ${
+									className={`inline-flex h-9 w-full items-center justify-center gap-2 rounded-md px-4 text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 sm:w-auto ${
 										TOOLBAR_COLOR_CLASSES[String(action.color ?? "primary")] ??
 										TOOLBAR_COLOR_CLASSES.primary
 									}`}
@@ -440,7 +445,7 @@ export function ListRenderer({
 					<span
 						role="status"
 						aria-label="Loading"
-						className="h-6 w-6 animate-spin rounded-full border-2 border-muted border-t-primary"
+						className="size-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary"
 					/>
 				</div>
 			) : items.length === 0 ? (
@@ -463,18 +468,20 @@ export function ListRenderer({
 										? () => openActionDialog(cardDialogAction, item)
 										: undefined
 								}
-								className={`w-full rounded-lg border border-border bg-card text-card-foreground ${
-									cardDialogAction ? "cursor-pointer hover:bg-muted/50" : ""
+								className={`w-full rounded-lg border border-border bg-card text-card-foreground shadow-sm ${
+									cardDialogAction
+										? "cursor-pointer transition-colors hover:bg-accent/50"
+										: ""
 								}`}
 							>
-								<div className="flex items-center justify-between gap-4 px-3 py-2">
+								<div className="flex items-center justify-between gap-4 px-4 py-3">
 									<div className="flex min-w-0 flex-1 flex-col gap-1">
 										<div className="flex items-center gap-2">
-											<h3 className="text-start font-mono text-sm font-bold text-foreground">
+											<h3 className="text-start font-mono text-sm font-medium text-foreground">
 												{String(item.key ?? item.name ?? item.id ?? "")}
 											</h3>
 											{showTypeBadge && item.type ? (
-												<span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
+												<span className="rounded-md border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground">
 													{String(item.type)}
 												</span>
 											) : null}
@@ -504,7 +511,7 @@ export function ListRenderer({
 														e.stopPropagation();
 														openActionDialog(action, item);
 													}}
-													className={`inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+													className={`inline-flex size-9 items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${
 														ICON_COLOR_CLASSES[
 															String(action.color ?? "default")
 														] ?? ICON_COLOR_CLASSES.default

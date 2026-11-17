@@ -16,6 +16,7 @@ import { useField } from "formik";
 import type { ReactElement } from "react";
 import useSWR from "swr";
 import { checkComponentPermission } from "../../ability/checkComponentPermission";
+import { Unicon } from "../../components/common/icon/Unicon";
 import { getApiClient, useRenderUser } from "../../deps";
 import { fieldAccessibleName } from "../fieldHelpers";
 import type {
@@ -51,7 +52,7 @@ function toSelectOption(item: unknown, entityMeta?: EntityMeta): SelectOption {
 
 /** Native select skin shared across the metadata-driven fields. */
 const SELECT_CLASS =
-	"w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-60";
+	"flex h-9 w-full appearance-none rounded-md border bg-transparent ps-3 pe-9 py-1 text-sm text-start shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
 // ─────────────────────────────────────────────────────────────
 // Component
@@ -146,8 +147,13 @@ export function FormSelectField({
 	const placeholder = field.uiOverrides?.behavior?.placeholder ?? "Select…";
 
 	return (
-		<div className="flex flex-col gap-1">
-			<label htmlFor={inputId} className="text-sm font-medium text-foreground">
+		<div className="flex flex-col gap-2">
+			<label
+				htmlFor={inputId}
+				className={`text-sm font-medium leading-none ${
+					isError ? "text-destructive" : "text-foreground"
+				}`}
+			>
 				{field.label}
 				{field.isRequired ? (
 					<span className="text-destructive" aria-hidden="true">
@@ -156,44 +162,51 @@ export function FormSelectField({
 					</span>
 				) : null}
 			</label>
-			<select
-				id={inputId}
-				name={field.name}
-				aria-label={accessibleName}
-				aria-invalid={isError || undefined}
-				aria-required={field.isRequired || undefined}
-				value={value ?? ""}
-				disabled={field.isReadOnly}
-				onChange={(event) => {
-					setValue(event.target.value as string);
-					setTouched(true);
-				}}
-				onBlur={() => setTouched(true)}
-				className={[
-					SELECT_CLASS,
-					isError
-						? "border-destructive focus:border-destructive focus:ring-destructive/20"
-						: "focus:border-ring",
-				].join(" ")}
-			>
-				{/* The old MUI select had no empty item, so a chosen value could
+			<div className="relative w-full">
+				<select
+					id={inputId}
+					name={field.name}
+					aria-label={accessibleName}
+					aria-invalid={isError || undefined}
+					aria-required={field.isRequired || undefined}
+					value={value ?? ""}
+					disabled={field.isReadOnly}
+					onChange={(event) => {
+						setValue(event.target.value as string);
+						setTouched(true);
+					}}
+					onBlur={() => setTouched(true)}
+					className={[
+						SELECT_CLASS,
+						isError
+							? "border-destructive focus-visible:ring-destructive/20"
+							: "border-input",
+					].join(" ")}
+				>
+					{/* The old MUI select had no empty item, so a chosen value could
 				    not be cleared; keep the placeholder non-selectable. */}
-				<option value="" disabled className="text-muted-foreground">
-					{placeholder}
-				</option>
-				{visibleOptions.map((opt) => (
-					<option
-						key={String(opt.value)}
-						value={String(opt.value ?? "")}
-						disabled={opt.disabled}
-					>
-						{opt.label}
+					<option value="" disabled className="text-muted-foreground">
+						{placeholder}
 					</option>
-				))}
-			</select>
-			{isError && <p className="text-xs text-destructive">{meta.error}</p>}
+					{visibleOptions.map((opt) => (
+						<option
+							key={String(opt.value)}
+							value={String(opt.value ?? "")}
+							disabled={opt.disabled}
+						>
+							{opt.label}
+						</option>
+					))}
+				</select>
+				<Unicon
+					name="ChevronDown"
+					size={16}
+					className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+				/>
+			</div>
+			{isError && <p className="text-sm text-destructive">{meta.error}</p>}
 			{field.fieldOverrides?.description ? (
-				<p className="ps-1 text-xs text-muted-foreground">
+				<p className="text-sm text-muted-foreground">
 					{field.fieldOverrides.description}
 				</p>
 			) : null}

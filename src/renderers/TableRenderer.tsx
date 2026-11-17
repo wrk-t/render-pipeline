@@ -678,7 +678,7 @@ export function TableRenderer({
 				>
 					<p className="text-sm text-foreground">{confirmPayload.message}</p>
 					{confirmPayload.confirmByTitle && (
-						<div className="mt-3 flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2">
+						<div className="mt-3 flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2">
 							<span className="select-all text-sm font-semibold text-foreground">
 								{confirmPayload.confirmByTitle}
 							</span>
@@ -686,7 +686,7 @@ export function TableRenderer({
 								type="button"
 								title="Copy"
 								aria-label="Copy title"
-								className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+								className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 								onClick={async () => {
 									try {
 										await navigator.clipboard.writeText(
@@ -721,11 +721,11 @@ export function TableRenderer({
 									confirmTyped.trim() !== confirmPayload.confirmByTitle
 								}
 								aria-describedby={`${confirmTitleInputId}-help`}
-								className={`block w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring ${
+								className={`block h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
 									confirmTyped.length > 0 &&
 									confirmTyped.trim() !== confirmPayload.confirmByTitle
 										? "border-destructive"
-										: "border-border"
+										: "border-input"
 								}`}
 							/>
 							<p

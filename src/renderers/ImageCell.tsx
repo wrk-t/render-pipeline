@@ -35,7 +35,7 @@ export function ImageCell({ cell }: Props): ReactElement {
 
 	if (!value) {
 		return (
-			<div aria-hidden className="mx-auto h-10 w-10 rounded-lg bg-muted" />
+			<div aria-hidden className="mx-auto h-10 w-10 rounded-md bg-muted" />
 		);
 	}
 
@@ -44,7 +44,7 @@ export function ImageCell({ cell }: Props): ReactElement {
 			<img
 				src={resolveImageUrl(value)}
 				alt=""
-				className="block h-10 w-10 rounded-lg object-cover"
+				className="block h-10 w-10 rounded-md object-cover"
 			/>
 		</div>
 	);

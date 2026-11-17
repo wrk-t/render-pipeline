@@ -284,30 +284,36 @@ function previewErrorMessage(requestError: unknown): string {
 
 // ── Shared Tailwind primitives ──────────────────────────────────
 
-const INPUT_CLASS =
-	"w-full rounded-lg border border-border bg-background px-3 py-2 text-start text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-60";
+/** Shared skin without a border colour, so callers can pick input/destructive. */
+const INPUT_BASE_CLASS =
+	"flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm text-start shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
-const LABEL_CLASS = "text-xs text-muted-foreground";
+const INPUT_CLASS = `${INPUT_BASE_CLASS} border-input`;
+
+const TEXTAREA_CLASS =
+	"flex min-h-16 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-start shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+
+const LABEL_CLASS = "text-sm font-medium leading-none text-foreground";
 
 const SECTION_TITLE_CLASS = "text-sm font-semibold text-foreground";
 
-const CAPTION_CLASS = "text-xs text-muted-foreground";
+const CAPTION_CLASS = "text-sm text-muted-foreground";
 
 const GHOST_BUTTON_CLASS =
-	"inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium text-primary transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
+	"inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
 
 const OUTLINE_BUTTON_CLASS =
-	"inline-flex items-center justify-center gap-2 self-start rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
+	"inline-flex h-9 items-center justify-center gap-2 self-start whitespace-nowrap rounded-md border border-input bg-background px-4 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
 
 const PRIMARY_BUTTON_CLASS =
-	"inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
+	"inline-flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
 
 const DESTRUCTIVE_BUTTON_CLASS =
-	"inline-flex items-center gap-1.5 self-start rounded-lg px-3 py-2 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 sm:self-end";
+	"inline-flex h-9 items-center justify-center gap-2 self-start whitespace-nowrap rounded-md border border-destructive bg-background px-3 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 sm:self-end";
 
 const BANNER_CLASS: Record<"info" | "warning" | "error", string> = {
-	info: "border-info-main/30 bg-info-main/10 text-foreground",
-	warning: "border-warning-main/30 bg-warning-main/10 text-foreground",
+	info: "border-sky-600/30 bg-sky-600/10 text-foreground",
+	warning: "border-amber-600/30 bg-amber-600/10 text-foreground",
 	error: "border-destructive/30 bg-destructive/10 text-destructive",
 };
 
@@ -333,7 +339,7 @@ function Banner({
 	return (
 		<div
 			role="alert"
-			className={`rounded-lg border px-4 py-3 text-sm ${BANNER_CLASS[severity]}${className ? ` ${className}` : ""}`}
+			className={`rounded-lg border p-4 text-sm ${BANNER_CLASS[severity]}${className ? ` ${className}` : ""}`}
 		>
 			{children}
 		</div>
@@ -342,7 +348,7 @@ function Banner({
 
 function ReadyChip(): ReactElement {
 	return (
-		<span className="inline-flex items-center rounded-full bg-success-main/10 px-2 py-0.5 text-xs font-medium text-success-main">
+		<span className="inline-flex items-center rounded-md border border-emerald-600/30 bg-emerald-600/10 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
 			Rule ready
 		</span>
 	);
@@ -409,8 +415,8 @@ function AudienceMatchPreview({
 			)}
 
 			{showSample && preview && hasSample && (
-				<div className="rounded-lg border border-border p-3">
-					<p className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+				<div className="rounded-lg border border-border bg-card p-4">
+					<p className="block text-sm font-medium text-muted-foreground">
 						Sample — customers matching now
 					</p>
 					<div className="mt-1 flex flex-col gap-1">
@@ -662,7 +668,7 @@ export function AudienceRuleAssistantField({
 						rule and matches customers on it.
 					</p>
 
-					<div className="flex w-full max-w-56 flex-col gap-0.5">
+					<div className="flex w-full max-w-56 flex-col gap-2">
 						<label htmlFor={`${baseId}-match`} className={LABEL_CLASS}>
 							Match
 						</label>
@@ -695,7 +701,7 @@ export function AudienceRuleAssistantField({
 								key={index}
 								className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end"
 							>
-								<div className="flex w-full flex-col gap-0.5 sm:w-64">
+								<div className="flex w-full flex-col gap-2 sm:w-64">
 									<label
 										htmlFor={`${baseId}-field-${index}`}
 										className={LABEL_CLASS}
@@ -729,7 +735,7 @@ export function AudienceRuleAssistantField({
 									</select>
 								</div>
 
-								<div className="flex w-full flex-col gap-0.5 sm:w-28">
+								<div className="flex w-full flex-col gap-2 sm:w-28">
 									<label
 										htmlFor={`${baseId}-op-${index}`}
 										className={LABEL_CLASS}
@@ -762,7 +768,7 @@ export function AudienceRuleAssistantField({
 									</select>
 								</div>
 
-								<div className="flex w-full flex-col gap-0.5 sm:w-28">
+								<div className="flex w-full flex-col gap-2 sm:w-28">
 									<label
 										htmlFor={`${baseId}-value-${index}`}
 										className={LABEL_CLASS}
@@ -791,7 +797,7 @@ export function AudienceRuleAssistantField({
 								</div>
 
 								{qualifiers.menuItem && (
-									<div className="flex w-full flex-col gap-0.5 sm:w-56">
+									<div className="flex w-full flex-col gap-2 sm:w-56">
 										<label
 											htmlFor={`${baseId}-product-${index}`}
 											className={LABEL_CLASS}
@@ -812,8 +818,8 @@ export function AudienceRuleAssistantField({
 													),
 												})
 											}
-											className={`${INPUT_CLASS} ${
-												rule.menuItemId ? "" : "border-destructive"
+											className={`${INPUT_BASE_CLASS} ${
+												rule.menuItemId ? "border-input" : "border-destructive"
 											}`}
 										>
 											<option value="">Select…</option>
@@ -824,13 +830,13 @@ export function AudienceRuleAssistantField({
 											))}
 										</select>
 										{!rule.menuItemId && (
-											<p className="text-xs text-destructive">Pick a product</p>
+											<p className="text-sm text-destructive">Pick a product</p>
 										)}
 									</div>
 								)}
 
 								{qualifiers.menuCategory && (
-									<div className="flex w-full flex-col gap-0.5 sm:w-56">
+									<div className="flex w-full flex-col gap-2 sm:w-56">
 										<label
 											htmlFor={`${baseId}-category-${index}`}
 											className={LABEL_CLASS}
@@ -854,8 +860,10 @@ export function AudienceRuleAssistantField({
 													),
 												})
 											}
-											className={`${INPUT_CLASS} ${
-												rule.menuCategoryId ? "" : "border-destructive"
+											className={`${INPUT_BASE_CLASS} ${
+												rule.menuCategoryId
+													? "border-input"
+													: "border-destructive"
 											}`}
 										>
 											<option value="">Select…</option>
@@ -866,7 +874,7 @@ export function AudienceRuleAssistantField({
 											))}
 										</select>
 										{!rule.menuCategoryId && (
-											<p className="text-xs text-destructive">
+											<p className="text-sm text-destructive">
 												Pick a category
 											</p>
 										)}
@@ -874,7 +882,7 @@ export function AudienceRuleAssistantField({
 								)}
 
 								{qualifiers.withinDays && (
-									<div className="flex w-full flex-col gap-0.5 sm:w-36">
+									<div className="flex w-full flex-col gap-2 sm:w-36">
 										<label
 											htmlFor={`${baseId}-within-${index}`}
 											className={LABEL_CLASS}
@@ -963,8 +971,8 @@ export function AudienceRuleAssistantField({
 			)}
 
 			{draft && (
-				<div className="rounded-lg border border-border bg-muted p-4">
-					<p className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+				<div className="rounded-lg border border-border bg-card p-4">
+					<p className="block text-sm font-medium text-muted-foreground">
 						Rule summary
 					</p>
 					<p className="mt-1 text-base font-medium text-foreground">
@@ -986,10 +994,10 @@ export function AudienceRuleAssistantField({
 					)}
 					{isSuperAdmin && storedJson && (
 						<div className="mt-3">
-							<p className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+							<p className="block text-sm font-medium text-muted-foreground">
 								Rule JSON (super admin)
 							</p>
-							<pre className="mt-1 max-h-64 overflow-auto rounded border border-border bg-background p-3 text-xs text-foreground">
+							<pre className="mt-2 max-h-64 overflow-auto rounded-md border border-border bg-muted p-3 font-mono text-xs text-foreground">
 								{storedJson}
 							</pre>
 						</div>
@@ -1007,11 +1015,11 @@ export function AudienceRuleAssistantField({
 										key={`${turn.role}-${index}`}
 										className={
 											turn.role === "user"
-												? "self-end rounded-lg bg-info-main/10 px-3 py-2"
+												? "self-end rounded-lg bg-primary/10 px-3 py-2"
 												: "self-start rounded-lg bg-muted px-3 py-2"
 										}
 									>
-										<p className="text-xs text-muted-foreground">
+										<p className="text-sm text-muted-foreground">
 											{turn.role === "user" ? "You" : "Assistant"}
 										</p>
 										<p className="whitespace-pre-wrap text-sm text-foreground">
@@ -1035,7 +1043,7 @@ export function AudienceRuleAssistantField({
 								onChange={(event) => setInput(event.target.value)}
 								onKeyDown={onKeyDown}
 								disabled={sending}
-								className={INPUT_CLASS}
+								className={TEXTAREA_CLASS}
 							/>
 						</div>
 						<button

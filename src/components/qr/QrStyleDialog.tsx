@@ -29,9 +29,9 @@ const DEFAULT_STYLE = {
 	margin: 2,
 };
 
-const LABEL_CLASS = "text-sm font-medium text-foreground";
+const LABEL_CLASS = "text-sm font-medium leading-none text-foreground";
 const FIELD_CLASS =
-	"h-9 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground transition-colors outline-none focus:border-primary focus:ring-2 focus:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-60";
+	"h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50";
 
 const Spinner: React.FC<{ className?: string }> = ({ className }) => (
 	<span
@@ -236,11 +236,11 @@ export const QrStyleDialog: React.FC<QrStyleDialogProps> = ({
 					<Spinner />
 				</div>
 			) : (
-				<div className="flex w-full flex-row items-center justify-between gap-8 max-sm:flex-col max-sm:items-stretch">
+				<div className="flex w-full flex-row items-center justify-between gap-6 max-sm:flex-col max-sm:items-stretch">
 					{/* ── Settings ── */}
 					<div className="flex w-64 shrink-0 flex-col gap-4 max-sm:w-full">
 						{tenants.length > 0 && (
-							<div className="flex flex-col gap-1.5">
+							<div className="flex flex-col gap-2">
 								<label htmlFor="qr-style-tenant" className={LABEL_CLASS}>
 									Tenant
 								</label>
@@ -268,7 +268,7 @@ export const QrStyleDialog: React.FC<QrStyleDialogProps> = ({
 							value={bgColor}
 							onChange={setBgColor}
 						/>
-						<div className="flex flex-col gap-1.5">
+						<div className="flex flex-col gap-2">
 							<label htmlFor="qr-style-ec" className={LABEL_CLASS}>
 								Error correction
 							</label>
@@ -286,7 +286,7 @@ export const QrStyleDialog: React.FC<QrStyleDialogProps> = ({
 								<option value="H">H — high</option>
 							</select>
 						</div>
-						<div className="flex flex-col gap-1.5">
+						<div className="flex flex-col gap-2">
 							<label htmlFor="qr-style-margin" className={LABEL_CLASS}>
 								Margin
 							</label>

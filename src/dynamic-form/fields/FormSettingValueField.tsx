@@ -80,12 +80,10 @@ export function FormSettingValueField({
 			);
 		default:
 			return (
-				<div className="flex flex-col gap-0.5">
+				<div className="flex flex-col gap-1">
 					<FormTextField field={base} />
 					{pattern && example ? (
-						<p className="ps-3 text-xs text-muted-foreground">
-							Example: {example}
-						</p>
+						<p className="text-sm text-muted-foreground">Example: {example}</p>
 					) : null}
 				</div>
 			);

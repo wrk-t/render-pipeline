@@ -26,9 +26,9 @@ export function PageRenderer({
 		.sort((a, b) => a.displayOrder - b.displayOrder);
 
 	return (
-		<div className="p-4">
+		<div className="p-6">
 			{component.displayName && (
-				<h1 className="mb-4 text-[2.125rem] leading-tight font-bold text-foreground">
+				<h1 className="mb-6 text-2xl font-semibold tracking-tight text-foreground">
 					{component.displayName}
 				</h1>
 			)}

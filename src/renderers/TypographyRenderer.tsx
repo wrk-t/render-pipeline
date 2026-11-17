@@ -6,9 +6,9 @@ import type { RendererProps } from "../types";
 // ──────────────────────────────────────────────────────────────────
 // TypographyRenderer — headings and text.
 //
-// Each MUI typography variant maps to a semantic element plus the
-// size/weight/line-height/letter-spacing classes that reproduce the same
-// visual result (MUI's default type scale).
+// Each authored typography variant maps to a semantic element plus the
+// Tailwind type-scale utilities that give it the corresponding role in
+// shadcn's visual language (no MUI type scale, no uppercase labels).
 // ──────────────────────────────────────────────────────────────────
 
 type TTypographyTag = "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "p" | "span";
@@ -19,63 +19,59 @@ const VARIANTS: Record<
 > = {
 	h1: {
 		tag: "h1",
-		className:
-			"text-[6rem] font-light leading-[1.167] tracking-[-0.01562em]",
+		className: "text-4xl font-bold tracking-tight",
 	},
 	h2: {
 		tag: "h2",
-		className: "text-6xl font-light leading-[1.2] tracking-[-0.00833em]",
+		className: "text-3xl font-semibold tracking-tight",
 	},
 	h3: {
 		tag: "h3",
-		className: "text-5xl font-normal leading-[1.167]",
+		className: "text-2xl font-semibold tracking-tight",
 	},
 	h4: {
 		tag: "h4",
-		className:
-			"text-[2.125rem] font-normal leading-[1.235] tracking-[0.00735em]",
+		className: "text-xl font-semibold tracking-tight",
 	},
 	h5: {
 		tag: "h5",
-		className: "text-2xl font-normal leading-[1.334]",
+		className: "text-lg font-semibold",
 	},
 	h6: {
 		tag: "h6",
-		className: "text-xl font-medium leading-[1.6] tracking-[0.0075em]",
+		className: "text-base font-semibold",
 	},
 	subtitle1: {
 		tag: "p",
-		className: "text-base font-normal leading-[1.75] tracking-[0.00938em]",
+		className: "text-base font-medium",
 	},
 	subtitle2: {
 		tag: "p",
-		className: "text-sm font-medium leading-[1.57] tracking-[0.00714em]",
+		className: "text-sm font-medium",
 	},
 	body1: {
 		tag: "p",
-		className: "text-base font-normal leading-[1.5] tracking-[0.00938em]",
+		className: "text-base",
 	},
 	body2: {
 		tag: "p",
-		className: "text-sm font-normal leading-[1.43] tracking-[0.01071em]",
+		className: "text-sm",
 	},
 	button: {
 		tag: "span",
-		className:
-			"text-sm font-medium uppercase leading-[1.75] tracking-[0.02857em]",
+		className: "text-sm font-medium",
 	},
 	caption: {
 		tag: "span",
-		className: "text-xs font-normal leading-[1.66] tracking-[0.03333em]",
+		className: "text-xs",
 	},
 	overline: {
 		tag: "span",
-		className:
-			"text-xs font-normal uppercase leading-[2.66] tracking-[1em]",
+		className: "text-xs font-medium tracking-widest",
 	},
 };
 
-/** MUI colour tokens → semantic Tailwind colours. */
+/** Authored colour names → semantic Tailwind colours. */
 const COLOR: Record<string, string> = {
 	"text.primary": "text-foreground",
 	"text.secondary": "text-muted-foreground",
@@ -83,9 +79,11 @@ const COLOR: Record<string, string> = {
 	primary: "text-primary",
 	secondary: "text-secondary-foreground",
 	error: "text-destructive",
-	warning: "text-warning-main",
-	info: "text-info-main",
-	success: "text-success-main",
+	// shadcn has no warning/info/success semantic tokens; use the stock
+	// Tailwind palette so the authored colour still reads distinctly.
+	warning: "text-amber-600 dark:text-amber-500",
+	info: "text-sky-600 dark:text-sky-400",
+	success: "text-emerald-600 dark:text-emerald-500",
 	inherit: "",
 };
 
