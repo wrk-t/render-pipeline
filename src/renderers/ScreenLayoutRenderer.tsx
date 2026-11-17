@@ -1,8 +1,5 @@
 "use client";
 
-import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
 import { type ReactElement, useMemo } from "react";
 import useSWR from "swr";
 import { ComponentRenderer } from "../ComponentRenderer";
@@ -22,7 +19,7 @@ import { useVersion, VersionProvider } from "./VersionContext";
 // author is what renders (drag-and-drop builder friendly).
 // ──────────────────────────────────────────────────────────────────
 
-	export function ScreenLayoutRenderer({
+export function ScreenLayoutRenderer({
 	component,
 	pathParams,
 }: {
@@ -95,9 +92,9 @@ import { useVersion, VersionProvider } from "./VersionContext";
 		.sort((a, b) => a.displayOrder - b.displayOrder);
 
 	return (
-		<Box className="px-4 py-6">
+		<div className="px-4 py-6">
 			{/* ── Header area ──────────────────────────────────── */}
-			<Stack spacing={1} className="mb-4">
+			<div className="mb-4 flex flex-col gap-2">
 				{activeHeaderEls.length > 0 ? (
 					activeHeaderEls.map((el) => {
 						if (el.elementType === "component_ref" && el.referencedComponent) {
@@ -115,18 +112,18 @@ import { useVersion, VersionProvider } from "./VersionContext";
 				) : (
 					<>
 						{(headerRow?.name ?? component.displayName) && (
-							<Typography variant="h4" className="font-bold">
+							<h1 className="text-[2.125rem] leading-tight font-bold text-foreground">
 								{String(headerRow?.name ?? component.displayName)}
-							</Typography>
+							</h1>
 						)}
 						{(headerRow?.description ?? component.description) && (
-							<Typography variant="subtitle2" color="text.secondary">
+							<p className="text-sm font-medium text-muted-foreground">
 								{String(headerRow?.description ?? component.description)}
-							</Typography>
+							</p>
 						)}
 					</>
 				)}
-			</Stack>
+			</div>
 
 			{/* ── Body area — explicit layout (Grid/Stack/Container) ── */}
 			{sortedBody.map((el) => {
@@ -142,6 +139,6 @@ import { useVersion, VersionProvider } from "./VersionContext";
 				}
 				return null;
 			})}
-		</Box>
+		</div>
 	);
 }

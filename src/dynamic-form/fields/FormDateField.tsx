@@ -1,15 +1,17 @@
 // ═══════════════════════════════════════════════════════════════
-// FormDateField – Renders a Material UI date picker field.
+// FormDateField – Renders a calendar date picker field.
+//
+// The panel is react-multi-date-picker's Gregorian calendar (its
+// default calendar/locale), styled with Tailwind; the trigger is a
+// read-only native input so the field keeps a labelled, focusable
+// control and the same Formik bindings as every other field.
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
-import { Stack, Typography } from "@mui/material";
-import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
-import { DatePicker } from "@mui/x-date-pickers/DatePicker";
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
-import type { PickersTextFieldProps } from "@mui/x-date-pickers/PickersTextField";
 import { useField, useFormikContext } from "formik";
-import type { ReactElement } from "react";
+import { type ReactElement, useEffect, useId, useRef, useState } from "react";
+import { Calendar, type DateObject } from "react-multi-date-picker";
+import { Unicon } from "../../components/common/icon/Unicon";
 import type { DateField } from "../types";
 
 // A `date` field is a calendar date, not an instant: the API stores
@@ -42,56 +44,147 @@ const fromStoredDate = (value: unknown): Date | null => {
 	return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
+/**
+ * `behavior.min`/`behavior.max` are day bounds. Parse them exactly like the
+ * previous picker did (`new Date(string)`), so bound handling is unchanged.
+ */
+const toBoundDate = (value?: string): Date | undefined => {
+	if (!value) return undefined;
+	const parsed = new Date(value);
+	return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+};
+
 export function FormDateField({ field }: { field: DateField }): ReactElement {
-	const [, meta, helpers] = useField(field.name);
+	const [formikField, meta, helpers] = useField(field.name);
 	const { setFieldValue } = useFormikContext<Record<string, unknown>>();
+	const [open, setOpen] = useState(false);
+	const containerRef = useRef<HTMLDivElement | null>(null);
+	const inputId = useId();
+	const panelId = `${inputId}-panel`;
+	const errorId = `${inputId}-error`;
+	const descriptionId = `${inputId}-description`;
+
+	const isError = Boolean(meta.touched && meta.error);
+	const description = field.fieldOverrides?.description;
+	const describedBy =
+		[isError ? errorId : undefined, description ? descriptionId : undefined]
+			.filter(Boolean)
+			.join(" ") || undefined;
+
+	const value = fromStoredDate(meta.value);
+	const displayValue = value ? toDateOnly(value) : "";
 
 	const handleChange = (date: Date | null) => {
 		const next = date ? toDateOnly(date) : null;
-		void setFieldValue(field.name, next);
-		void helpers.setValue(next);
+		setFieldValue(field.name, next);
+		helpers.setValue(next);
 	};
 
-	const value = fromStoredDate(meta.value);
+	const handleSelect = (dates: DateObject | DateObject[] | null) => {
+		if (!dates) return;
+		const picked = Array.isArray(dates) ? dates[0] : dates;
+		if (!picked) return;
+		// `toDate()` is the local calendar day the user clicked; storing it with
+		// `toDateOnly` keeps the `YYYY-MM-DD` contract (no UTC conversion).
+		handleChange(picked.toDate());
+		setOpen(false);
+	};
+
+	// Close on outside pointer-down and Escape, like the previous popper.
+	useEffect(() => {
+		if (!open) return;
+		const handlePointerDown = (event: PointerEvent) => {
+			if (!containerRef.current?.contains(event.target as Node)) {
+				setOpen(false);
+			}
+		};
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (event.key === "Escape") setOpen(false);
+		};
+		document.addEventListener("pointerdown", handlePointerDown);
+		document.addEventListener("keydown", handleKeyDown);
+		return () => {
+			document.removeEventListener("pointerdown", handlePointerDown);
+			document.removeEventListener("keydown", handleKeyDown);
+		};
+	}, [open]);
 
 	return (
-		<LocalizationProvider dateAdapter={AdapterDateFns}>
-			<Stack spacing={0.2}>
-				<DatePicker
-					label={field.label}
-					value={value}
-					onChange={handleChange}
-					minDate={
-						field.uiOverrides.behavior?.min
-							? new Date(field.uiOverrides.behavior.min)
-							: undefined
-					}
-					maxDate={
-						field.uiOverrides.behavior?.max
-							? new Date(field.uiOverrides.behavior.max)
-							: undefined
-					}
-					disabled={field.isReadOnly}
-					slotProps={{
-						textField: {
-							required: field.isRequired,
-							fullWidth: true,
-							// The field's validation error (e.g. a required date)
-							// belongs under the input, like every other field.
-							error: Boolean(meta.touched && meta.error),
-							helperText: meta.touched ? meta.error : undefined,
-							// X v9 dropped `placeholder` from the textField slot —
-							// keep it for older majors.
-							placeholder: field.uiOverrides.behavior?.placeholder,
-						} as unknown as PickersTextFieldProps,
-					}}
-				/>
-				{field.fieldOverrides?.description ? (
-					<Typography variant="caption" color="text.secondary" className="pl-3">
-						{field.fieldOverrides.description}
-					</Typography>
+		<div className="flex flex-col gap-0.5">
+			<label htmlFor={inputId} className="text-sm font-medium text-foreground">
+				{field.label}
+				{field.isRequired ? (
+					<span aria-hidden="true" className="ms-0.5 text-destructive">
+						*
+					</span>
 				) : null}
-			</Stack>
-		</LocalizationProvider>
+			</label>
+			<div ref={containerRef} className="relative">
+				<input
+					{...formikField}
+					value={displayValue}
+					id={inputId}
+					type="text"
+					readOnly
+					placeholder={field.uiOverrides.behavior?.placeholder}
+					required={field.isRequired}
+					disabled={field.isReadOnly}
+					aria-invalid={isError || undefined}
+					aria-describedby={describedBy}
+					aria-haspopup="dialog"
+					onClick={() => {
+						if (!field.isReadOnly) setOpen((previous) => !previous);
+					}}
+					onKeyDown={(event) => {
+						if (field.isReadOnly) return;
+						if (
+							event.key === "Enter" ||
+							event.key === " " ||
+							event.key === "ArrowDown"
+						) {
+							event.preventDefault();
+							setOpen(true);
+						}
+					}}
+					className={`w-full cursor-pointer rounded-lg border bg-background px-3 py-2 pe-10 text-start text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+						isError
+							? "border-destructive focus:border-destructive focus:ring-destructive/20"
+							: "border-border focus:border-ring focus:ring-ring/20"
+					}`}
+				/>
+				<Unicon
+					name="DateRange"
+					size={18}
+					className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+				/>
+				{open ? (
+					<div
+						id={panelId}
+						role="dialog"
+						aria-label={field.label}
+						className="absolute start-0 top-full z-50 mt-1 rounded-lg border border-border bg-card p-2 text-card-foreground shadow-lg"
+					>
+						<Calendar
+							value={value}
+							onChange={handleSelect}
+							minDate={toBoundDate(field.uiOverrides.behavior?.min)}
+							maxDate={toBoundDate(field.uiOverrides.behavior?.max)}
+							highlightToday
+							shadow={false}
+						/>
+					</div>
+				) : null}
+			</div>
+			{isError ? (
+				<p id={errorId} className="text-xs text-destructive">
+					{meta.error}
+				</p>
+			) : null}
+			{description ? (
+				<p id={descriptionId} className="ps-3 text-xs text-muted-foreground">
+					{description}
+				</p>
+			) : null}
+		</div>
 	);
 }

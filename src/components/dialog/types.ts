@@ -1,6 +1,10 @@
-import type { LoadingButtonProps } from "@mui/lab/LoadingButton";
-import type { ButtonProps } from "@mui/material";
-import type { DialogHTMLAttributes, PropsWithChildren } from "react";
+import type {
+	CSSProperties,
+	DialogHTMLAttributes,
+	MouseEvent as ReactMouseEvent,
+	PropsWithChildren,
+	ReactNode,
+} from "react";
 
 /**
  * How much room a dialog asks for. `sm` is MUI's default broad enough for a
@@ -11,6 +15,61 @@ import type { DialogHTMLAttributes, PropsWithChildren } from "react";
  */
 export type DialogSize = "sm" | "md" | "lg" | "fullScreen";
 
+/**
+ * The MUI palette names the host app still passes in `slotProps`. The footer
+ * translates them to Tailwind tokens (`error` → `bg-destructive`, …).
+ */
+export type DialogButtonColor =
+	| "primary"
+	| "secondary"
+	| "error"
+	| "warning"
+	| "info"
+	| "success"
+	| "inherit";
+
+export type DialogButtonVariant = "text" | "outlined" | "contained";
+
+export type DialogButtonSize = "small" | "medium" | "large";
+
+/**
+ * The slot-button surface the host keeps using after the Tailwind migration.
+ *
+ * The footer renders semantic `<button>`s now, so it only forwards the native
+ * attributes; the MUI-shaped props (`color`, `variant`, `startIcon`, `loading`,
+ * …) are translated to classes. Declaring them locally (instead of importing
+ * MUI's `ButtonProps`/`LoadingButtonProps`) keeps every existing caller
+ * compiling while dropping the MUI type dependency from this package.
+ */
+export interface IDialogButtonProps {
+	children?: ReactNode;
+	/** MUI palette token → Tailwind variant/colour in `BaseDialogActions`. */
+	color?: DialogButtonColor;
+	/** `contained` (solid) / `outlined` / `text` (ghost). */
+	variant?: DialogButtonVariant;
+	size?: DialogButtonSize;
+	disabled?: boolean;
+	/** LoadingButton's spinner state (renders a spinner and disables). */
+	loading?: boolean;
+	fullWidth?: boolean;
+	startIcon?: ReactNode;
+	endIcon?: ReactNode;
+	onClick?: (event: ReactMouseEvent<HTMLButtonElement>) => void;
+	type?: "button" | "submit" | "reset";
+	tooltip?: string | null;
+	className?: string;
+	title?: string;
+	autoFocus?: boolean;
+	form?: string;
+	id?: string;
+	name?: string;
+	style?: CSSProperties;
+	tabIndex?: number;
+	value?: string | number | readonly string[];
+	"aria-label"?: string;
+	"aria-describedby"?: string;
+}
+
 export interface IBaseDialogActionsProps {
 	disabled?: boolean;
 	onClose?: VoidFunction;
@@ -20,12 +79,12 @@ export interface IBaseDialogActionsProps {
 		closeButton?: {
 			show?: boolean;
 			tooltip?: string | null;
-			props?: Omit<ButtonProps, "onClick">;
+			props?: Omit<IDialogButtonProps, "onClick">;
 		};
 		submitButton?: {
 			show?: boolean;
 			tooltip?: string | null;
-			props?: Omit<LoadingButtonProps, "onClick">;
+			props?: Omit<IDialogButtonProps, "onClick">;
 		};
 		/**
 		 * A secondary action next to Submit — the message builder's
@@ -34,7 +93,7 @@ export interface IBaseDialogActionsProps {
 		submitNowButton?: {
 			show?: boolean;
 			tooltip?: string | null;
-			props?: Omit<ButtonProps, "variant"> & {
+			props?: Omit<IDialogButtonProps, "variant" | "onClick"> & {
 				onClick?: () => void;
 			};
 		};

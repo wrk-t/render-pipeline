@@ -10,23 +10,14 @@
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
-import {
-	CircularProgress,
-	List,
-	ListItemButton,
-	ListItemText,
-	Paper,
-	Popper,
-	Stack,
-	TextField,
-	Typography,
-} from "@mui/material";
 import { useField } from "formik";
 import {
 	type ChangeEvent,
 	type KeyboardEvent,
+	type MouseEvent,
 	type ReactElement,
 	type SyntheticEvent,
+	useId,
 	useMemo,
 	useRef,
 	useState,
@@ -60,6 +51,9 @@ function partialToken(
 	return { start: before.length - match[0].length, query: match[1] };
 }
 
+const FIELD_CLASS =
+	"w-full rounded-lg border bg-background px-3 py-2 text-start text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60";
+
 export function VariableSuggestField({
 	field,
 	multiline = false,
@@ -72,6 +66,7 @@ export function VariableSuggestField({
 		field.name,
 	);
 	const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+	const inputId = useId();
 	const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 	const [token, setToken] = useState<{ start: number; query: string } | null>(
 		null,
@@ -101,6 +96,7 @@ export function VariableSuggestField({
 	}, [token, variables]);
 
 	const open = token !== null && !!anchorEl;
+	const isError = Boolean(meta.touched && meta.error);
 
 	const syncToken = (
 		nextValue: string,
@@ -136,7 +132,9 @@ export function VariableSuggestField({
 		});
 	};
 
-	const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+	const handleKeyDown = (
+		event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+	) => {
 		if (!open || matches.length === 0) return;
 		if (event.key === "ArrowDown") {
 			event.preventDefault();
@@ -159,80 +157,117 @@ export function VariableSuggestField({
 		setTouched(true);
 	};
 
-	const hasValue = value !== undefined && value !== "";
+	const handleClick = (
+		event: MouseEvent<HTMLInputElement | HTMLTextAreaElement>,
+	) => {
+		const target = event.currentTarget;
+		if (
+			typeof target.value === "string" &&
+			typeof target.selectionStart === "number"
+		) {
+			syncToken(target.value, target.selectionStart, target);
+		}
+	};
+
+	const sharedProps = {
+		id: inputId,
+		name: field.name,
+		value: value ?? "",
+		onChange: handleChange,
+		onKeyDown: handleKeyDown,
+		onBlur: handleBlur,
+		onClick: handleClick,
+		placeholder: field.uiOverrides?.behavior?.placeholder,
+		required: field.isRequired,
+		disabled: field.isReadOnly,
+		"aria-invalid": isError || undefined,
+		className: `${FIELD_CLASS} ${
+			isError
+				? "border-destructive focus:border-destructive focus:ring-destructive/20"
+				: "border-border focus:border-ring focus:ring-ring/20"
+		}`,
+	};
 
 	return (
-		<Stack spacing={0.2}>
-			<TextField
-				inputRef={inputRef}
-				name={field.name}
-				label={field.label}
-				value={value ?? ""}
-				onChange={handleChange}
-				onKeyDown={handleKeyDown}
-				onBlur={handleBlur}
-				onClick={(event) => {
-					const target = event.target as HTMLInputElement;
-					if (
-						typeof target.value === "string" &&
-						typeof target.selectionStart === "number"
-					) {
-						syncToken(target.value, target.selectionStart, target);
-					}
-				}}
-				placeholder={field.uiOverrides?.behavior?.placeholder}
-				required={field.isRequired}
-				disabled={field.isReadOnly}
-				error={meta.touched && Boolean(meta.error)}
-				helperText={meta.touched && meta.error ? meta.error : undefined}
-				multiline={multiline}
-				rows={multiline ? (field.uiOverrides?.behavior?.rows ?? 10) : undefined}
-				size="small"
-				fullWidth
-				slotProps={{
-					inputLabel: { shrink: hasValue || undefined },
-				}}
-			/>
-			<Typography variant="caption" color="text.secondary" className="pl-1">
+		<div className="flex flex-col gap-0.5">
+			<label htmlFor={inputId} className="text-sm font-medium text-foreground">
+				{field.label}
+				{field.isRequired ? (
+					<span className="ms-0.5 text-destructive" aria-hidden="true">
+						*
+					</span>
+				) : null}
+			</label>
+			<div className="relative">
+				{multiline ? (
+					<textarea
+						{...sharedProps}
+						ref={(element) => {
+							inputRef.current = element;
+						}}
+						rows={field.uiOverrides?.behavior?.rows ?? 10}
+					/>
+				) : (
+					<input
+						{...sharedProps}
+						ref={(element) => {
+							inputRef.current = element;
+						}}
+						type="text"
+					/>
+				)}
+				{open && (
+					<div
+						// Anchored under the input, like the old popper: the input's
+						// own width, opening downward.
+						className="absolute inset-x-0 top-full z-50 mt-1 max-h-72 overflow-auto rounded-lg border border-border bg-card p-1 shadow-lg"
+					>
+						{isLoading ? (
+							<div className="flex items-center justify-center p-3">
+								<span
+									role="status"
+									aria-label="Loading"
+									className="size-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary"
+								/>
+							</div>
+						) : matches.length === 0 ? (
+							<p className="block p-3 text-xs text-muted-foreground">
+								No variables match
+							</p>
+						) : (
+							<div>
+								{matches.map((variable, index) => (
+									<button
+										key={variable.key}
+										type="button"
+										onMouseDown={(event) => event.preventDefault()}
+										onClick={() => handleSelect(variable)}
+										className={`flex w-full flex-col items-start rounded-md px-3 py-1.5 text-start transition-colors ${
+											index === activeIndex
+												? "bg-muted text-foreground"
+												: "text-foreground hover:bg-muted"
+										}`}
+									>
+										<span className="font-mono text-xs">{`{{${variable.key}}}`}</span>
+										<span className="text-xs text-muted-foreground">
+											{displayLabel(variable)}
+										</span>
+									</button>
+								))}
+							</div>
+						)}
+					</div>
+				)}
+			</div>
+			{isError ? (
+				<p className="text-xs text-destructive">{meta.error}</p>
+			) : null}
+			<p className="ps-1 text-xs text-muted-foreground">
 				Type {"{{"} to insert a variable
 				{field.fieldOverrides?.description
 					? ` — ${field.fieldOverrides.description}`
 					: ""}
-			</Typography>
-			<Popper
-				open={open}
-				anchorEl={anchorEl}
-				placement="bottom-start"
-				style={{ zIndex: 1500, width: anchorEl?.clientWidth }}
-			>
-				<Paper elevation={6} className="max-h-72 overflow-auto">
-					{isLoading ? (
-						<Stack className="items-center p-3">
-							<CircularProgress size={18} />
-						</Stack>
-					) : matches.length === 0 ? (
-						<Typography variant="caption" className="block p-3">
-							No variables match
-						</Typography>
-					) : (
-						<List dense>
-							{matches.map((variable, index) => (
-								<ListItemButton
-									key={variable.key}
-									selected={index === activeIndex}
-									onMouseDown={(event) => event.preventDefault()}
-									onClick={() => handleSelect(variable)}
-								>
-									<ListItemText
-										primary={`{{${variable.key}}}`}
-										secondary={displayLabel(variable)}
-									/>
-								</ListItemButton>
-							))}
-						</List>
-					)}
-				</Paper>
-			</Popper>
-		</Stack>
+			</p>
+		</div>
 	);
 }

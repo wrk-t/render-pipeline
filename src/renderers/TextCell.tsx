@@ -1,6 +1,5 @@
 "use client";
 
-import Tooltip from "@mui/material/Tooltip";
 import type { ReactElement } from "react";
 
 interface Props {
@@ -9,7 +8,7 @@ interface Props {
 }
 
 /**
- * Text cell renderer with a hover popover that reveals the complete
+ * Text cell renderer with a hover title that reveals the complete
  * value — especially useful for fixed-width columns where long values
  * (URLs, request bodies, summaries) are truncated with an ellipsis.
  *
@@ -42,10 +41,11 @@ export function TextCell({ cell }: Props): ReactElement {
 				: JSON.stringify(value));
 
 	return (
-		<Tooltip title={str} arrow placement="top" enterDelay={400}>
-			<span className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap">
-				{str}
-			</span>
-		</Tooltip>
+		<span
+			title={str}
+			className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap"
+		>
+			{str}
+		</span>
 	);
 }

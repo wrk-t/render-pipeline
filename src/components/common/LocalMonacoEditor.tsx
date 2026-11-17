@@ -16,7 +16,6 @@
 
 import Editor from "@monaco-editor/react";
 import { loader } from "@monaco-editor/react";
-import Box from "@mui/material/Box";
 import { useEffect, useState, type ReactElement } from "react";
 
 // Monaco's stylesheet — imported statically so bundlers extract it;
@@ -67,7 +66,7 @@ export function LocalMonacoEditor(
 	if (!ready) {
 		// Reserve the editor's space until monaco is ready — avoids
 		// layout jumps when the real editor appears.
-		return <Box sx={{ height: props.height ?? 300 }} />;
+		return <div style={{ height: props.height ?? 300 }} />;
 	}
 
 	return <Editor {...(props as any)} />;

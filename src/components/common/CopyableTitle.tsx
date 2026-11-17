@@ -1,6 +1,5 @@
 "use client";
 
-import Tooltip from "@mui/material/Tooltip";
 import { useTranslations } from "next-intl";
 import type { ReactElement } from "react";
 import { useSnack } from "../../hooks/useSnack";
@@ -30,31 +29,29 @@ export function CopyableTitle({ value }: { value: string }): ReactElement {
 	};
 
 	return (
-		<Tooltip title={t("common.copyToClipboard")} placement="top">
-			{/* Inline styles, not utilities: this package sits outside the app's
-			    Tailwind source root, so a utility class only exists when the app
-			    happens to use the same one somewhere. The dotted underline is the
-			    affordance — it has to render everywhere. */}
-			<button
-				type="button"
-				onClick={copy}
-				style={{
-					display: "inline",
-					padding: 0,
-					border: "none",
-					background: "transparent",
-					cursor: "pointer",
-					font: "inherit",
-					fontWeight: 600,
-					color: "inherit",
-					textDecorationLine: "underline",
-					textDecorationStyle: "dotted",
-					textUnderlineOffset: "4px",
-				}}
-			>
-				{value}
-			</button>
-		</Tooltip>
+		/* The native `title` carries the hint the old Tooltip showed. Inline
+		   styles, not utilities: the dotted underline is the affordance and has
+		   to render even where the app's utility classes are not generated. */
+		<button
+			type="button"
+			onClick={copy}
+			title={t("common.copyToClipboard")}
+			style={{
+				display: "inline",
+				padding: 0,
+				border: "none",
+				background: "transparent",
+				cursor: "pointer",
+				font: "inherit",
+				fontWeight: 600,
+				color: "inherit",
+				textDecorationLine: "underline",
+				textDecorationStyle: "dotted",
+				textUnderlineOffset: "4px",
+			}}
+		>
+			{value}
+		</button>
 	);
 }
 

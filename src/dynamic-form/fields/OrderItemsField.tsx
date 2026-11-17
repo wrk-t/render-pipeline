@@ -1,16 +1,8 @@
 "use client";
 
-import Autocomplete from "@mui/material/Autocomplete";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import FormHelperText from "@mui/material/FormHelperText";
-import IconButton from "@mui/material/IconButton";
-import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
 import { useField, useFormikContext } from "formik";
 import { useTranslations } from "next-intl";
-import { type ReactElement, useEffect, useMemo } from "react";
+import { type ReactElement, useEffect, useId, useMemo } from "react";
 import useSWR from "swr";
 import { Unicon } from "../../components/common/icon/Unicon";
 import { getApiClient } from "../../deps";
@@ -52,6 +44,17 @@ const MENU_ITEMS_ENDPOINT = "/api/v1/menu-items?limit=200";
 
 const MIN_QUANTITY = 1;
 const MAX_QUANTITY = 99;
+
+const INPUT_CLASS =
+	"w-full rounded-lg border border-border bg-background px-3 py-2 text-start text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-60";
+
+const LABEL_CLASS = "text-xs text-muted-foreground";
+
+const GHOST_BUTTON_CLASS =
+	"inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium text-primary transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
+
+const REMOVE_BUTTON_CLASS =
+	"inline-flex size-8 shrink-0 items-center justify-center rounded-md text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
 
 // ─────────────────────────────────────────────────────────────
 // Helpers
@@ -166,6 +169,7 @@ export function OrderItemsField({
 	const { isSubmitting, submitCount } = useFormikContext();
 	const labels = useOrderItemsLabels();
 	const currency = useTenantCurrency();
+	const baseId = useId();
 
 	const baseUrl = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
 	const { data, error, isLoading } = useSWR(
@@ -226,31 +230,22 @@ export function OrderItemsField({
 	);
 
 	return (
-		<Stack spacing={1}>
-			<Typography variant="body2">
+		<div className="flex flex-col gap-2">
+			<span className="text-sm font-medium text-foreground">
 				{field.label}
 				{field.isRequired && (
-					<Typography component="span" color="error">
-						{" "}
+					<span className="ms-0.5 text-destructive" aria-hidden="true">
 						*
-					</Typography>
+					</span>
 				)}
-			</Typography>
+			</span>
 
 			{isLoading && (
-				<Typography variant="caption" color="text.secondary">
-					{labels.loading}
-				</Typography>
+				<p className="text-xs text-muted-foreground">{labels.loading}</p>
 			)}
-			{error && (
-				<Typography variant="caption" color="error">
-					{labels.error}
-				</Typography>
-			)}
+			{error && <p className="text-xs text-destructive">{labels.error}</p>}
 			{!(isLoading || error) && options.length === 0 && (
-				<Typography variant="caption" color="text.secondary">
-					{labels.empty}
-				</Typography>
+				<p className="text-xs text-muted-foreground">{labels.empty}</p>
 			)}
 
 			{rows.map((row, index) => {
@@ -266,130 +261,141 @@ export function OrderItemsField({
 					isOrderable: true,
 				};
 				const lineTotal = item ? item.price * row.quantity : 0;
+				// The selected id may not be in `options` (still loading, or the
+				// item became unavailable). Keep it selectable so the value the
+				// form already holds is never silently dropped.
+				const selectedNotListed =
+					!!row.menuItemId &&
+					!options.some((option) => option.id === row.menuItemId);
 
 				return (
-					<Stack
+					<div
 						// Rows are positional — the submitted payload carries no row
 						// id, so an index key keeps React state aligned with the order.
 						// biome-ignore lint/suspicious/noArrayIndexKey: positional order rows
 						key={index}
-						direction="row"
-						spacing={1}
-						className="items-start"
+						className="flex flex-wrap items-end gap-2"
 					>
-						<Stack spacing={0.2} className="flex-1">
-							<Autocomplete<MenuItemOption, false, false, false>
-								size="small"
-								value={row.menuItemId ? selectedItem : null}
-								onChange={(_event, option) =>
-									updateRow(index, { menuItemId: option?.id ?? "" })
+						<div className="flex min-w-48 flex-1 flex-col gap-0.5">
+							<label
+								htmlFor={`${baseId}-item-${index}`}
+								className={LABEL_CLASS}
+							>
+								{labels.menuItem}
+							</label>
+							<select
+								id={`${baseId}-item-${index}`}
+								value={row.menuItemId}
+								onChange={(event) =>
+									updateRow(index, { menuItemId: event.target.value })
 								}
 								onBlur={() => setTouched(true)}
-								options={options}
-								getOptionLabel={(option) => option.name}
-								isOptionEqualToValue={(option, selected) =>
-									option.id === selected.id
-								}
-								loading={isLoading}
-								loadingText={labels.loading}
-								noOptionsText={labels.empty}
 								disabled={disabled}
-								renderOption={(props, option) => (
-									<li {...props}>
-										<div className="flex w-full justify-between gap-2">
-											<span>{option.name}</span>
-											<span className="text-sm opacity-60">
-												{moneyLabel(option.price, currency, option.priceUnavailable)}
-											</span>
-										</div>
-									</li>
+								className={INPUT_CLASS}
+							>
+								<option value="">{labels.menuItem}</option>
+								{selectedNotListed && (
+									<option value={row.menuItemId}>{selectedItem.name}</option>
 								)}
-								renderInput={(params) => (
-									<TextField {...params} size="small" label={labels.menuItem} />
-								)}
-							/>
+								{options.map((option) => (
+									<option key={option.id} value={option.id}>
+										{option.name} —{" "}
+										{moneyLabel(
+											option.price,
+											currency,
+											option.priceUnavailable,
+										)}
+									</option>
+								))}
+							</select>
 							{item && (
-								<Typography variant="caption" color="text.secondary">
+								<p className="text-xs text-muted-foreground">
 									{moneyLabel(item.price, currency, item.priceUnavailable)} ×{" "}
 									{row.quantity} ={" "}
 									{moneyLabel(lineTotal, currency, item.priceUnavailable)}
-								</Typography>
+								</p>
 							)}
-						</Stack>
+						</div>
 
-						<TextField
-							size="small"
-							type="number"
-							label={labels.quantity}
-							value={row.quantity}
-							disabled={disabled}
-							onChange={(event) =>
-								updateRow(index, {
-									quantity: clampQuantity(event.target.value),
-								})
-							}
-							onBlur={() => setTouched(true)}
-							slotProps={{
-								htmlInput: {
-									min: MIN_QUANTITY,
-									max: MAX_QUANTITY,
-									step: 1,
-								},
-							}}
-							className="w-24"
-						/>
+						<div className="flex w-24 flex-col gap-0.5">
+							<label
+								htmlFor={`${baseId}-quantity-${index}`}
+								className={LABEL_CLASS}
+							>
+								{labels.quantity}
+							</label>
+							<input
+								id={`${baseId}-quantity-${index}`}
+								type="number"
+								value={row.quantity}
+								min={MIN_QUANTITY}
+								max={MAX_QUANTITY}
+								step={1}
+								disabled={disabled}
+								onChange={(event) =>
+									updateRow(index, {
+										quantity: clampQuantity(event.target.value),
+									})
+								}
+								onBlur={() => setTouched(true)}
+								className={INPUT_CLASS}
+							/>
+						</div>
 
-						<TextField
-							size="small"
-							label={labels.notes}
-							value={row.notes ?? ""}
-							disabled={disabled}
-							onChange={(event) =>
-								updateRow(index, { notes: event.target.value || undefined })
-							}
-							onBlur={() => setTouched(true)}
-							className="flex-1"
-						/>
+						<div className="flex min-w-40 flex-1 flex-col gap-0.5">
+							<label
+								htmlFor={`${baseId}-notes-${index}`}
+								className={LABEL_CLASS}
+							>
+								{labels.notes}
+							</label>
+							<input
+								id={`${baseId}-notes-${index}`}
+								type="text"
+								value={row.notes ?? ""}
+								disabled={disabled}
+								onChange={(event) =>
+									updateRow(index, { notes: event.target.value || undefined })
+								}
+								onBlur={() => setTouched(true)}
+								className={INPUT_CLASS}
+							/>
+						</div>
 
-						<IconButton
-							size="small"
-							color="error"
+						<button
+							type="button"
 							disabled={disabled}
 							onClick={() => removeRow(index)}
 							aria-label={labels.removeItem}
+							className={REMOVE_BUTTON_CLASS}
 						>
 							<Unicon name="Close" size={18} />
-						</IconButton>
-					</Stack>
+						</button>
+					</div>
 				);
 			})}
 
-			<Stack
-				direction="row"
-				spacing={2}
-				className="items-center justify-between"
-			>
-				<Box>
-					<Button
-						startIcon={<Unicon name="Add" size={18} />}
-						onClick={addRow}
-						disabled={disabled || !available}
-						size="small"
-					>
-						{labels.addItem}
-					</Button>
-				</Box>
+			<div className="flex flex-wrap items-center justify-between gap-4">
+				<button
+					type="button"
+					onClick={addRow}
+					disabled={disabled || !available}
+					className={GHOST_BUTTON_CLASS}
+				>
+					<Unicon name="Add" size={18} />
+					{labels.addItem}
+				</button>
 				{rows.length > 0 && (
-					<Typography variant="body2" className="font-medium">
+					<p className="text-sm font-medium text-foreground">
 						{labels.quantity}: {totalQuantity} · {labels.total}:{" "}
 						{orderPriceUnavailable ? "—" : moneyLabel(orderTotal, currency)}
-					</Typography>
+					</p>
 				)}
-			</Stack>
+			</div>
 
 			{meta.error && (meta.touched || submitCount > 0) && (
-				<FormHelperText error>{meta.error}</FormHelperText>
+				<p className="text-xs text-destructive">{meta.error}</p>
 			)}
-		</Stack>
+		</div>
 	);
 }

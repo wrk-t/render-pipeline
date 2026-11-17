@@ -13,23 +13,13 @@
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
-import {
-	Alert,
-	Box,
-	Button,
-	Chip,
-	CircularProgress,
-	Divider,
-	MenuItem,
-	Stack,
-	TextField,
-	Typography,
-} from "@mui/material";
 import { useField } from "formik";
 import {
 	type KeyboardEvent,
 	type ReactElement,
+	type ReactNode,
 	useEffect,
+	useId,
 	useState,
 } from "react";
 import { getApiClient, useRenderUser } from "../../deps";
@@ -292,6 +282,72 @@ function previewErrorMessage(requestError: unknown): string {
 		: "The match count is unavailable right now. Your rule is unchanged.";
 }
 
+// ── Shared Tailwind primitives ──────────────────────────────────
+
+const INPUT_CLASS =
+	"w-full rounded-lg border border-border bg-background px-3 py-2 text-start text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-60";
+
+const LABEL_CLASS = "text-xs text-muted-foreground";
+
+const SECTION_TITLE_CLASS = "text-sm font-semibold text-foreground";
+
+const CAPTION_CLASS = "text-xs text-muted-foreground";
+
+const GHOST_BUTTON_CLASS =
+	"inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium text-primary transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
+
+const OUTLINE_BUTTON_CLASS =
+	"inline-flex items-center justify-center gap-2 self-start rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
+
+const PRIMARY_BUTTON_CLASS =
+	"inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
+
+const DESTRUCTIVE_BUTTON_CLASS =
+	"inline-flex items-center gap-1.5 self-start rounded-lg px-3 py-2 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 sm:self-end";
+
+const BANNER_CLASS: Record<"info" | "warning" | "error", string> = {
+	info: "border-info-main/30 bg-info-main/10 text-foreground",
+	warning: "border-warning-main/30 bg-warning-main/10 text-foreground",
+	error: "border-destructive/30 bg-destructive/10 text-destructive",
+};
+
+function Spinner({ className }: { className?: string }): ReactElement {
+	return (
+		<span
+			role="status"
+			aria-label="Loading"
+			className={`inline-block animate-spin rounded-full border-2 border-current border-t-transparent ${className ?? "size-4"}`}
+		/>
+	);
+}
+
+function Banner({
+	severity,
+	className,
+	children,
+}: {
+	severity: "info" | "warning" | "error";
+	className?: string;
+	children: ReactNode;
+}): ReactElement {
+	return (
+		<div
+			role="alert"
+			className={`rounded-lg border px-4 py-3 text-sm ${BANNER_CLASS[severity]}${className ? ` ${className}` : ""}`}
+		>
+			{children}
+		</div>
+	);
+}
+
+function ReadyChip(): ReactElement {
+	return (
+		<span className="inline-flex items-center rounded-full bg-success-main/10 px-2 py-0.5 text-xs font-medium text-success-main">
+			Rule ready
+		</span>
+	);
+}
+
 /**
  * The live match count under the builder (UX-21): "Matches N customers" and,
  * on request, the first ten of them.
@@ -313,86 +369,81 @@ function AudienceMatchPreview({
 	const idle = !(loading || preview || error);
 
 	return (
-		<Stack spacing={1}>
+		<div className="flex flex-col gap-2">
 			{loading && (
-				<Stack direction="row" spacing={1} className="items-center">
-					<CircularProgress size={16} />
-					<Typography variant="body2" color="text.secondary">
-						Counting matches…
-					</Typography>
-				</Stack>
+				<div className="flex items-center gap-2">
+					<Spinner className="size-4 text-primary" />
+					<p className="text-sm text-muted-foreground">Counting matches…</p>
+				</div>
 			)}
 
 			{!loading && preview && (
-				<Stack direction="row" spacing={1} className="flex-wrap items-center">
-					<Chip size="small" color="success" label="Rule ready" />
-					<Typography variant="body2" className="font-semibold">
+				<div className="flex flex-wrap items-center gap-2">
+					<ReadyChip />
+					<p className="text-sm font-semibold text-foreground">
 						{preview.matchedCount === 1
 							? "Matches 1 customer"
 							: `Matches ${preview.matchedCount} customers`}
-					</Typography>
+					</p>
 					{hasSample && (
-						<Button size="small" onClick={() => setShowSample((open) => !open)}>
+						<button
+							type="button"
+							onClick={() => setShowSample((open) => !open)}
+							className={GHOST_BUTTON_CLASS}
+						>
 							{showSample
 								? "Hide sample"
 								: `View ${preview.sample.length}-customer sample`}
-						</Button>
+						</button>
 					)}
-				</Stack>
+				</div>
 			)}
 
 			{idle && (
-				<Stack direction="row" spacing={1} className="items-center">
-					<Chip size="small" color="success" label="Rule ready" />
-					<Typography variant="caption" color="text.secondary">
+				<div className="flex flex-wrap items-center gap-2">
+					<ReadyChip />
+					<p className={CAPTION_CLASS}>
 						Saving the group stores the rule above.
-					</Typography>
-				</Stack>
+					</p>
+				</div>
 			)}
 
 			{showSample && preview && hasSample && (
-				<Box className="rounded-lg border border-solid border-gray-200 p-3">
-					<Typography
-						variant="caption"
-						className="block font-semibold uppercase tracking-wide text-gray-500"
-					>
+				<div className="rounded-lg border border-border p-3">
+					<p className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
 						Sample — customers matching now
-					</Typography>
-					<Stack spacing={0.5} className="mt-1">
+					</p>
+					<div className="mt-1 flex flex-col gap-1">
 						{preview.sample.map((member) => (
-							<Stack
+							<div
 								key={member.customerId}
-								direction="row"
-								spacing={1}
-								className="flex-wrap items-baseline"
+								className="flex flex-wrap items-baseline gap-2"
 							>
-								<Typography variant="body2" className="font-medium">
+								<p className="text-sm font-medium text-foreground">
 									{member.name}
-								</Typography>
-								<Typography variant="caption" color="text.secondary">
-									{member.phone}
-								</Typography>
-								<Typography variant="caption" color="text.secondary">
+								</p>
+								<p className={CAPTION_CLASS}>{member.phone}</p>
+								<p className={CAPTION_CLASS}>
 									·{" "}
 									{member.orderCount === 1
 										? "1 order"
 										: `${member.orderCount} orders`}
-								</Typography>
-							</Stack>
+								</p>
+							</div>
 						))}
-					</Stack>
-				</Box>
+					</div>
+				</div>
 			)}
 
-			{error && <Alert severity="warning">{error}</Alert>}
+			{error && <Banner severity="warning">{error}</Banner>}
 
 			{preview && (
-				<Typography variant="caption" color="text.secondary">
+				<p className={CAPTION_CLASS}>
 					This is a live preview; saving stores the rule above and keeps the
 					same members.
-				</Typography>
+				</p>
 			)}
-		</Stack>
+		</div>
 	);
 }
 
@@ -403,6 +454,7 @@ export function AudienceRuleAssistantField({
 	field: any;
 }): ReactElement {
 	const [{ value }, , { setValue, setTouched }] = useField<string>(field.name);
+	const baseId = useId();
 	const { data: user } = useRenderUser();
 	const permissions = (user as any)?.permissions?.data ?? [];
 	const isSuperAdmin = permissions.some(
@@ -584,7 +636,7 @@ export function AudienceRuleAssistantField({
 		}
 	};
 
-	const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+	const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
 		if (event.key === "Enter" && !event.shiftKey) {
 			event.preventDefault();
 			void send();
@@ -592,212 +644,268 @@ export function AudienceRuleAssistantField({
 	};
 
 	return (
-		<Stack spacing={2}>
+		<div className="flex flex-col gap-4">
 			{aiEnabled === false && (
-				<Alert severity="info">
+				<Banner severity="info">
 					The AI assistant is not configured on this platform. Build the rule
 					manually below — it is validated and saved exactly like an
 					assistant-drafted one.
-				</Alert>
+				</Banner>
 			)}
 
 			{showManual ? (
-				<Stack spacing={2}>
-					<Typography variant="subtitle2" className="font-semibold">
-						Build the rule
-					</Typography>
-					<Typography variant="body2" color="text.secondary">
+				<div className="flex flex-col gap-4">
+					<h3 className={SECTION_TITLE_CLASS}>Build the rule</h3>
+					<p className="text-sm text-muted-foreground">
 						Combine the order-history conditions below. Only confirmed orders
 						count; pending and cancelled orders are ignored. The group keeps the
 						rule and matches customers on it.
-					</Typography>
+					</p>
 
-					<TextField
-						select
-						size="small"
-						label="Match"
-						value={manualRule.match}
-						onChange={(event) =>
-							commitManual({
-								...manualRule,
-								match: event.target.value as IManualRule["match"],
-							})
-						}
-						className="max-w-56"
-					>
-						<MenuItem value="all">All conditions</MenuItem>
-						<MenuItem value="any">Any condition</MenuItem>
-					</TextField>
+					<div className="flex w-full max-w-56 flex-col gap-0.5">
+						<label htmlFor={`${baseId}-match`} className={LABEL_CLASS}>
+							Match
+						</label>
+						<select
+							id={`${baseId}-match`}
+							value={manualRule.match}
+							onChange={(event) =>
+								commitManual({
+									...manualRule,
+									match: event.target.value as IManualRule["match"],
+								})
+							}
+							className={INPUT_CLASS}
+						>
+							<option value="all">All conditions</option>
+							<option value="any">Any condition</option>
+						</select>
+					</div>
 
 					{manualRule.rules.length === 0 && (
-						<Alert severity="warning">
+						<Banner severity="warning">
 							Add at least one condition to define this audience.
-						</Alert>
+						</Banner>
 					)}
 
 					{manualRule.rules.map((rule, index) => {
 						const qualifiers = MANUAL_QUALIFIERS[rule.field];
 						return (
-							<Stack
+							<div
 								key={index}
-								direction={{ xs: "column", sm: "row" }}
-								spacing={1}
-								className="flex-wrap items-stretch sm:items-center"
+								className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end"
 							>
-								<TextField
-									select
-									size="small"
-									label="Field"
-									value={rule.field}
-									onChange={(event) => {
-										const field = event.target.value as TManualField;
-										// Switching field drops the qualifiers the new field does
-										// not take — a stale product id would be rejected by the
-										// engine, and a silent one would change the meaning.
-										commitManual({
-											...manualRule,
-											rules: manualRule.rules.map((entry, entryIndex) =>
-												entryIndex === index
-													? switchField(entry, field)
-													: entry,
-											),
-										});
-									}}
-									className="min-w-56"
-								>
-									{MANUAL_FIELDS.map((entry) => (
-										<MenuItem key={entry.value} value={entry.value}>
-											{entry.label}
-										</MenuItem>
-									))}
-								</TextField>
+								<div className="flex w-full flex-col gap-0.5 sm:w-64">
+									<label
+										htmlFor={`${baseId}-field-${index}`}
+										className={LABEL_CLASS}
+									>
+										Field
+									</label>
+									<select
+										id={`${baseId}-field-${index}`}
+										value={rule.field}
+										onChange={(event) => {
+											const field = event.target.value as TManualField;
+											// Switching field drops the qualifiers the new field does
+											// not take — a stale product id would be rejected by the
+											// engine, and a silent one would change the meaning.
+											commitManual({
+												...manualRule,
+												rules: manualRule.rules.map((entry, entryIndex) =>
+													entryIndex === index
+														? switchField(entry, field)
+														: entry,
+												),
+											});
+										}}
+										className={INPUT_CLASS}
+									>
+										{MANUAL_FIELDS.map((entry) => (
+											<option key={entry.value} value={entry.value}>
+												{entry.label}
+											</option>
+										))}
+									</select>
+								</div>
 
-								<TextField
-									select
-									size="small"
-									label="Operator"
-									value={rule.op}
-									onChange={(event) =>
-										commitManual({
-											...manualRule,
-											rules: manualRule.rules.map((entry, entryIndex) =>
-												entryIndex === index
-													? { ...entry, op: event.target.value as TManualOp }
-													: entry,
-											),
-										})
-									}
-									className="min-w-28"
-								>
-									{MANUAL_OPS.map((entry) => (
-										<MenuItem key={entry.value} value={entry.value}>
-											{entry.label}
-										</MenuItem>
-									))}
-								</TextField>
-
-								<TextField
-									size="small"
-									type="number"
-									label="Value"
-									value={rule.value}
-									onChange={(event) =>
-										commitManual({
-											...manualRule,
-											rules: manualRule.rules.map((entry, entryIndex) =>
-												entryIndex === index
-													? { ...entry, value: Number(event.target.value) }
-													: entry,
-											),
-										})
-									}
-									className="max-w-28"
-								/>
-
-								{qualifiers.menuItem && (
-									<TextField
-										select
-										size="small"
-										label="Product"
-										value={rule.menuItemId ?? ""}
-										error={!rule.menuItemId}
-										helperText={rule.menuItemId ? undefined : "Pick a product"}
+								<div className="flex w-full flex-col gap-0.5 sm:w-28">
+									<label
+										htmlFor={`${baseId}-op-${index}`}
+										className={LABEL_CLASS}
+									>
+										Operator
+									</label>
+									<select
+										id={`${baseId}-op-${index}`}
+										value={rule.op}
 										onChange={(event) =>
 											commitManual({
 												...manualRule,
 												rules: manualRule.rules.map((entry, entryIndex) =>
 													entryIndex === index
-														? { ...entry, menuItemId: event.target.value }
+														? {
+																...entry,
+																op: event.target.value as TManualOp,
+															}
 														: entry,
 												),
 											})
 										}
-										className="min-w-56"
+										className={INPUT_CLASS}
 									>
-										{(catalog?.items ?? []).map((item) => (
-											<MenuItem key={item.id} value={item.id}>
-												{item.name}
-											</MenuItem>
+										{MANUAL_OPS.map((entry) => (
+											<option key={entry.value} value={entry.value}>
+												{entry.label}
+											</option>
 										))}
-									</TextField>
+									</select>
+								</div>
+
+								<div className="flex w-full flex-col gap-0.5 sm:w-28">
+									<label
+										htmlFor={`${baseId}-value-${index}`}
+										className={LABEL_CLASS}
+									>
+										Value
+									</label>
+									<input
+										id={`${baseId}-value-${index}`}
+										type="number"
+										value={rule.value}
+										onChange={(event) =>
+											commitManual({
+												...manualRule,
+												rules: manualRule.rules.map((entry, entryIndex) =>
+													entryIndex === index
+														? {
+																...entry,
+																value: Number(event.target.value),
+															}
+														: entry,
+												),
+											})
+										}
+										className={INPUT_CLASS}
+									/>
+								</div>
+
+								{qualifiers.menuItem && (
+									<div className="flex w-full flex-col gap-0.5 sm:w-56">
+										<label
+											htmlFor={`${baseId}-product-${index}`}
+											className={LABEL_CLASS}
+										>
+											Product
+										</label>
+										<select
+											id={`${baseId}-product-${index}`}
+											value={rule.menuItemId ?? ""}
+											aria-invalid={!rule.menuItemId || undefined}
+											onChange={(event) =>
+												commitManual({
+													...manualRule,
+													rules: manualRule.rules.map((entry, entryIndex) =>
+														entryIndex === index
+															? { ...entry, menuItemId: event.target.value }
+															: entry,
+													),
+												})
+											}
+											className={`${INPUT_CLASS} ${
+												rule.menuItemId ? "" : "border-destructive"
+											}`}
+										>
+											<option value="">Select…</option>
+											{(catalog?.items ?? []).map((item) => (
+												<option key={item.id} value={item.id}>
+													{item.name}
+												</option>
+											))}
+										</select>
+										{!rule.menuItemId && (
+											<p className="text-xs text-destructive">Pick a product</p>
+										)}
+									</div>
 								)}
 
 								{qualifiers.menuCategory && (
-									<TextField
-										select
-										size="small"
-										label="Category"
-										value={rule.menuCategoryId ?? ""}
-										error={!rule.menuCategoryId}
-										helperText={
-											rule.menuCategoryId ? undefined : "Pick a category"
-										}
-										onChange={(event) =>
-											commitManual({
-												...manualRule,
-												rules: manualRule.rules.map((entry, entryIndex) =>
-													entryIndex === index
-														? { ...entry, menuCategoryId: event.target.value }
-														: entry,
-												),
-											})
-										}
-										className="min-w-56"
-									>
-										{(catalog?.categories ?? []).map((category) => (
-											<MenuItem key={category.id} value={category.id}>
-												{category.name}
-											</MenuItem>
-										))}
-									</TextField>
+									<div className="flex w-full flex-col gap-0.5 sm:w-56">
+										<label
+											htmlFor={`${baseId}-category-${index}`}
+											className={LABEL_CLASS}
+										>
+											Category
+										</label>
+										<select
+											id={`${baseId}-category-${index}`}
+											value={rule.menuCategoryId ?? ""}
+											aria-invalid={!rule.menuCategoryId || undefined}
+											onChange={(event) =>
+												commitManual({
+													...manualRule,
+													rules: manualRule.rules.map((entry, entryIndex) =>
+														entryIndex === index
+															? {
+																	...entry,
+																	menuCategoryId: event.target.value,
+																}
+															: entry,
+													),
+												})
+											}
+											className={`${INPUT_CLASS} ${
+												rule.menuCategoryId ? "" : "border-destructive"
+											}`}
+										>
+											<option value="">Select…</option>
+											{(catalog?.categories ?? []).map((category) => (
+												<option key={category.id} value={category.id}>
+													{category.name}
+												</option>
+											))}
+										</select>
+										{!rule.menuCategoryId && (
+											<p className="text-xs text-destructive">
+												Pick a category
+											</p>
+										)}
+									</div>
 								)}
 
 								{qualifiers.withinDays && (
-									<TextField
-										size="small"
-										type="number"
-										label="Within days"
-										placeholder="all time"
-										value={rule.withinDays ?? ""}
-										onChange={(event) => {
-											const raw = event.target.value;
-											commitManual({
-												...manualRule,
-												rules: manualRule.rules.map((entry, entryIndex) => {
-													if (entryIndex !== index) return entry;
-													const { withinDays: _old, ...rest } = entry;
-													return raw === ""
-														? rest
-														: { ...rest, withinDays: Number(raw) };
-												}),
-											});
-										}}
-										className="max-w-36"
-									/>
+									<div className="flex w-full flex-col gap-0.5 sm:w-36">
+										<label
+											htmlFor={`${baseId}-within-${index}`}
+											className={LABEL_CLASS}
+										>
+											Within days
+										</label>
+										<input
+											id={`${baseId}-within-${index}`}
+											type="number"
+											placeholder="all time"
+											value={rule.withinDays ?? ""}
+											onChange={(event) => {
+												const raw = event.target.value;
+												commitManual({
+													...manualRule,
+													rules: manualRule.rules.map((entry, entryIndex) => {
+														if (entryIndex !== index) return entry;
+														const { withinDays: _old, ...rest } = entry;
+														return raw === ""
+															? rest
+															: { ...rest, withinDays: Number(raw) };
+													}),
+												});
+											}}
+											className={INPUT_CLASS}
+										/>
+									</div>
 								)}
 
-								<Button
-									color="error"
+								<button
+									type="button"
 									onClick={() =>
 										commitManual({
 											...manualRule,
@@ -806,16 +914,16 @@ export function AudienceRuleAssistantField({
 											),
 										})
 									}
+									className={DESTRUCTIVE_BUTTON_CLASS}
 								>
 									Remove
-								</Button>
-							</Stack>
+								</button>
+							</div>
 						);
 					})}
 
-					<Button
-						variant="outlined"
-						size="small"
+					<button
+						type="button"
 						onClick={() =>
 							commitManual({
 								...manualRule,
@@ -825,130 +933,130 @@ export function AudienceRuleAssistantField({
 								],
 							})
 						}
+						className={OUTLINE_BUTTON_CLASS}
 					>
 						Add condition
-					</Button>
-				</Stack>
+					</button>
+				</div>
 			) : (
-				<>
-					<Typography variant="subtitle2" className="font-semibold">
-						Describe the audience
-					</Typography>
-					<Typography variant="body2" color="text.secondary">
-						Tell the assistant who should be in this group (e.g. “customers
-						who ordered at least three times and spent more than 100 in the last
-						60 days”). It drafts the rule and explains it; saving the group
-						stores it.
-					</Typography>
-				</>
+				<div className="flex flex-col gap-1">
+					<h3 className={SECTION_TITLE_CLASS}>Describe the audience</h3>
+					<p className="text-sm text-muted-foreground">
+						Tell the assistant who should be in this group (e.g. “customers who
+						ordered at least three times and spent more than 100 in the last 60
+						days”). It drafts the rule and explains it; saving the group stores
+						it.
+					</p>
+				</div>
 			)}
 
 			{aiEnabled !== false && (
-				<Box>
-					<Button size="small" onClick={() => setManual((value) => !value)}>
+				<div>
+					<button
+						type="button"
+						onClick={() => setManual((value) => !value)}
+						className={GHOST_BUTTON_CLASS}
+					>
 						{manual ? "Use the AI assistant" : "Build the rule manually"}
-					</Button>
-				</Box>
+					</button>
+				</div>
 			)}
 
 			{draft && (
-				<Box className="rounded-lg border border-solid border-gray-200 bg-gray-50 p-4">
-					<Typography
-						variant="caption"
-						className="block font-semibold uppercase tracking-wide text-gray-500"
-					>
+				<div className="rounded-lg border border-border bg-muted p-4">
+					<p className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
 						Rule summary
-					</Typography>
-					<Typography variant="body1" className="mt-1 font-medium">
+					</p>
+					<p className="mt-1 text-base font-medium text-foreground">
 						{draft.summary || "No rule yet"}
-					</Typography>
+					</p>
 					{draft.lines.length > 0 && (
-						<Stack spacing={0.5} className="mt-2">
+						<div className="mt-2 flex flex-col gap-1">
 							{draft.lines.map((line) => (
-								<Typography key={line} variant="body2" color="text.secondary">
+								<p key={line} className="text-sm text-muted-foreground">
 									• {line}
-								</Typography>
+								</p>
 							))}
-						</Stack>
+						</div>
 					)}
 					{draft.errors.length > 0 && (
-						<Alert severity="error" className="mt-3">
+						<Banner severity="error" className="mt-3">
 							{draft.errors.map((entry) => entry.message).join(" · ")}
-						</Alert>
+						</Banner>
 					)}
 					{isSuperAdmin && storedJson && (
-						<Box className="mt-3">
-							<Typography
-								variant="caption"
-								className="block font-semibold uppercase tracking-wide text-gray-500"
-							>
+						<div className="mt-3">
+							<p className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
 								Rule JSON (super admin)
-							</Typography>
-							<Box
-								component="pre"
-								className="mt-1 max-h-64 overflow-auto rounded border border-solid border-gray-200 bg-white p-3 text-xs"
-							>
+							</p>
+							<pre className="mt-1 max-h-64 overflow-auto rounded border border-border bg-background p-3 text-xs text-foreground">
 								{storedJson}
-							</Box>
-						</Box>
+							</pre>
+						</div>
 					)}
-				</Box>
+				</div>
 			)}
 
 			{!showManual && (
 				<>
 					{turns.length > 0 && (
-						<Box className="max-h-80 overflow-auto rounded-lg border border-solid border-gray-200 p-3">
-							<Stack spacing={1.5}>
+						<div className="max-h-80 overflow-auto rounded-lg border border-border p-3">
+							<div className="flex flex-col gap-3">
 								{turns.map((turn, index) => (
-									<Box
+									<div
 										key={`${turn.role}-${index}`}
 										className={
 											turn.role === "user"
-												? "self-end rounded-lg bg-blue-50 px-3 py-2"
-												: "self-start rounded-lg bg-gray-50 px-3 py-2"
+												? "self-end rounded-lg bg-info-main/10 px-3 py-2"
+												: "self-start rounded-lg bg-muted px-3 py-2"
 										}
 									>
-										<Typography variant="caption" color="text.secondary">
+										<p className="text-xs text-muted-foreground">
 											{turn.role === "user" ? "You" : "Assistant"}
-										</Typography>
-										<Typography variant="body2" className="whitespace-pre-wrap">
+										</p>
+										<p className="whitespace-pre-wrap text-sm text-foreground">
 											{turn.content}
-										</Typography>
-									</Box>
+										</p>
+									</div>
 								))}
-							</Stack>
-						</Box>
+							</div>
+						</div>
 					)}
 
-					{error && <Alert severity="error">{error}</Alert>}
+					{error && <Banner severity="error">{error}</Banner>}
 
-					<Stack direction="row" spacing={1} className="items-end">
-						<TextField
-							fullWidth
-							size="small"
-							multiline
-							minRows={2}
-							placeholder="Who should be in this audience?"
-							value={input}
-							onChange={(event) => setInput(event.target.value)}
-							onKeyDown={onKeyDown}
-							disabled={sending}
-						/>
-						<Button
-							variant="contained"
+					<div className="flex items-end gap-2">
+						<div className="flex-1">
+							<textarea
+								aria-label="Who should be in this audience?"
+								rows={2}
+								placeholder="Who should be in this audience?"
+								value={input}
+								onChange={(event) => setInput(event.target.value)}
+								onKeyDown={onKeyDown}
+								disabled={sending}
+								className={INPUT_CLASS}
+							/>
+						</div>
+						<button
+							type="button"
 							onClick={() => void send()}
 							disabled={sending || input.trim().length === 0}
+							className={PRIMARY_BUTTON_CLASS}
 						>
-							{sending ? <CircularProgress size={18} color="inherit" /> : "Ask"}
-						</Button>
-					</Stack>
+							{sending ? (
+								<Spinner className="size-[18px] text-primary-foreground" />
+							) : (
+								"Ask"
+							)}
+						</button>
+					</div>
 				</>
 			)}
 
 			{stored && (
 				<>
-					<Divider />
+					<div className="border-t border-border" />
 					<AudienceMatchPreview
 						loading={previewLoading}
 						preview={matchPreview}
@@ -956,6 +1064,6 @@ export function AudienceRuleAssistantField({
 					/>
 				</>
 			)}
-		</Stack>
+		</div>
 	);
 }

@@ -3,7 +3,6 @@
 "use client";
 
 // -- component
-import { IconButton, InputAdornment } from "@mui/material";
 import type { TFormikField } from "@smartpath/typed-formik-mui";
 import type { TextField } from "formik-mui";
 
@@ -20,7 +19,9 @@ export const PassowrdField: TPasswordField = (Component) => {
 	const PasswordTextField: TFormikTextField = ({ slotProps, ...rest }) => {
 		const [show, setShow] = useState(false);
 
-		const handleVisibilityChange: MouseEventHandler = (event) => {
+		const handleVisibilityChange: MouseEventHandler<HTMLButtonElement> = (
+			event,
+		) => {
 			event.preventDefault();
 			event.stopPropagation();
 
@@ -35,10 +36,13 @@ export const PassowrdField: TPasswordField = (Component) => {
 					...slotProps,
 					input: {
 						endAdornment: (
-							<InputAdornment position="end">
-								<IconButton
-									color="primary"
-									className="border-none!"
+							<span className="flex items-center">
+								{/* A native button inside the input's adornment: the wrapper
+								    (MUI TextField here) still owns the field chrome. */}
+								<button
+									type="button"
+									aria-label={show ? "Hide password" : "Show password"}
+									className="flex size-9 items-center justify-center rounded-md border-none bg-transparent text-primary transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 									onClick={handleVisibilityChange}
 									onMouseDown={handleVisibilityChange}
 								>
@@ -47,8 +51,8 @@ export const PassowrdField: TPasswordField = (Component) => {
 									) : (
 										<Unicon name="VisibilityOff" />
 									)}
-								</IconButton>
-							</InputAdornment>
+								</button>
+							</span>
 						),
 					},
 				}}

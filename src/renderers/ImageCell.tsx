@@ -1,6 +1,5 @@
 "use client";
 
-import Box from "@mui/material/Box";
 import type { ReactElement } from "react";
 
 interface Props {
@@ -36,32 +35,17 @@ export function ImageCell({ cell }: Props): ReactElement {
 
 	if (!value) {
 		return (
-			<Box
-				sx={{
-					width: 40,
-					height: 40,
-					borderRadius: 1,
-					bgcolor: "action.hover",
-					mx: "auto",
-				}}
-			/>
+			<div aria-hidden className="mx-auto h-10 w-10 rounded-lg bg-muted" />
 		);
 	}
 
 	return (
-		<Box sx={{ display: "flex", justifyContent: "center" }}>
-			<Box
-				component="img"
+		<div className="flex justify-center">
+			<img
 				src={resolveImageUrl(value)}
 				alt=""
-				sx={{
-					width: 40,
-					height: 40,
-					objectFit: "cover",
-					borderRadius: 1,
-					display: "block",
-				}}
+				className="block h-10 w-10 rounded-lg object-cover"
 			/>
-		</Box>
+		</div>
 	);
 }

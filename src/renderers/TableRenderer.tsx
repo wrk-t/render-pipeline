@@ -1,14 +1,10 @@
 "use client";
 
-import Box from "@mui/material/Box";
-import IconButton from "@mui/material/IconButton";
-import TextField from "@mui/material/TextField";
-import Tooltip from "@mui/material/Tooltip";
-import Typography from "@mui/material/Typography";
 import { useTranslations } from "next-intl";
 import {
 	type ReactElement,
 	useCallback,
+	useId,
 	useMemo,
 	useRef,
 	useState,
@@ -186,6 +182,8 @@ export function TableRenderer({
 	 * and shows every toolbar action, as before.
 	 */
 	const record = useRecordData();
+	/** Ties the retype-the-title label to its input. */
+	const confirmTitleInputId = useId();
 
 	// ── Confirm dialog state ──
 	const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -678,46 +676,70 @@ export function TableRenderer({
 						},
 					}}
 				>
-					<Typography>{confirmPayload.message}</Typography>
+					<p className="text-sm text-foreground">{confirmPayload.message}</p>
 					{confirmPayload.confirmByTitle && (
-						<Box className="mt-3 flex items-center gap-2 rounded border border-solid border-gray-300 bg-gray-50 px-3 py-2">
-							<Typography variant="body2" className="select-all font-semibold">
+						<div className="mt-3 flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2">
+							<span className="select-all text-sm font-semibold text-foreground">
 								{confirmPayload.confirmByTitle}
-							</Typography>
-							<Tooltip title="Copy">
-								<IconButton
-									size="small"
-									aria-label="Copy title"
-									onClick={async () => {
-										try {
-											await navigator.clipboard.writeText(
-												confirmPayload.confirmByTitle ?? "",
-											);
-											await snack.success("Copied");
-										} catch {
-											/* the text is still selectable */
-										}
-									}}
-								>
-									<Unicon name="Copy" size={16} />
-								</IconButton>
-							</Tooltip>
-						</Box>
+							</span>
+							<button
+								type="button"
+								title="Copy"
+								aria-label="Copy title"
+								className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+								onClick={async () => {
+									try {
+										await navigator.clipboard.writeText(
+											confirmPayload.confirmByTitle ?? "",
+										);
+										await snack.success("Copied");
+									} catch {
+										/* the text is still selectable */
+									}
+								}}
+							>
+								<Unicon name="Copy" size={16} />
+							</button>
+						</div>
 					)}
 					{confirmPayload.confirmByTitle && (
-						<TextField
-							fullWidth
-							autoFocus
-							className="mt-4"
-							label="Type the title to confirm"
-							value={confirmTyped}
-							onChange={(event) => setConfirmTyped(event.target.value)}
-							error={
-								confirmTyped.length > 0 &&
-								confirmTyped.trim() !== confirmPayload.confirmByTitle
-							}
-							helperText={confirmPayload.confirmByTitle}
-						/>
+						<div className="mt-4 w-full">
+							<label
+								htmlFor={confirmTitleInputId}
+								className="mb-1 block text-sm font-medium text-foreground"
+							>
+								Type the title to confirm
+							</label>
+							<input
+								id={confirmTitleInputId}
+								type="text"
+								autoFocus
+								value={confirmTyped}
+								onChange={(event) => setConfirmTyped(event.target.value)}
+								aria-invalid={
+									confirmTyped.length > 0 &&
+									confirmTyped.trim() !== confirmPayload.confirmByTitle
+								}
+								aria-describedby={`${confirmTitleInputId}-help`}
+								className={`block w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring ${
+									confirmTyped.length > 0 &&
+									confirmTyped.trim() !== confirmPayload.confirmByTitle
+										? "border-destructive"
+										: "border-border"
+								}`}
+							/>
+							<p
+								id={`${confirmTitleInputId}-help`}
+								className={`mt-1 text-xs ${
+									confirmTyped.length > 0 &&
+									confirmTyped.trim() !== confirmPayload.confirmByTitle
+										? "text-destructive"
+										: "text-muted-foreground"
+								}`}
+							>
+								{confirmPayload.confirmByTitle}
+							</p>
+						</div>
 					)}
 				</BaseDialog>
 			)}
@@ -795,7 +817,7 @@ export function TableRenderer({
 									},
 								}}
 							>
-								<Typography>{confirmMessage}</Typography>
+								<p className="text-sm text-foreground">{confirmMessage}</p>
 							</BaseDialog>
 						);
 					})()}
@@ -934,7 +956,7 @@ export function TableRenderer({
 						closeButton: { show: true, props: { children: "Close" } },
 					}}
 				>
-					<Box>
+					<div>
 						{stateCtxComp.slotsFilled["content"]
 							?.filter((el) => el.isActive && el.referencedComponent)
 							.sort((a, b) => a.displayOrder - b.displayOrder)
@@ -948,7 +970,7 @@ export function TableRenderer({
 									/>
 								) : null,
 							)}
-					</Box>
+					</div>
 				</BaseDialog>
 			)}
 		</>

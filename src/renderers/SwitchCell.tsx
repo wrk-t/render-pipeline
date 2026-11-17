@@ -28,8 +28,6 @@
 // silently lies about what was saved.
 // ──────────────────────────────────────────────────────────────────
 
-import Switch from "@mui/material/Switch";
-import Tooltip from "@mui/material/Tooltip";
 import { type ChangeEvent, type ReactElement, useState } from "react";
 import { useSWRConfig } from "swr";
 import { getApiClient } from "../deps";
@@ -151,19 +149,39 @@ export function SwitchCell({ cell }: SwitchCellProps): ReactElement {
 	};
 
 	return (
-		<Tooltip title={label ?? ""}>
-			<span
-				className="flex w-full items-center justify-center"
-				onClick={(event) => event.stopPropagation()}
+		<span
+			title={label ?? ""}
+			className="flex w-full items-center justify-center"
+			onClick={(event) => event.stopPropagation()}
+		>
+			<label
+				className={`relative inline-flex h-5 w-9 shrink-0 items-center ${
+					busy ? "cursor-not-allowed" : "cursor-pointer"
+				}`}
 			>
-				<Switch
-					size="small"
+				<input
+					type="checkbox"
+					role="switch"
+					className="peer sr-only"
 					checked={checked}
+					aria-checked={checked}
 					disabled={busy}
-					onChange={onChange}
-					slotProps={{ input: { "aria-label": label ?? accessor } }}
+					onChange={(event) => {
+						onChange(event, event.target.checked);
+					}}
+					aria-label={label ?? accessor}
 				/>
-			</span>
-		</Tooltip>
+				{/* Track — the native input stays accessible but invisible. */}
+				<span
+					aria-hidden
+					className="absolute inset-0 rounded-full bg-input transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-disabled:opacity-50"
+				/>
+				{/* Thumb — `ms` flips with the writing direction. */}
+				<span
+					aria-hidden
+					className="relative z-10 ms-0.5 h-4 w-4 rounded-full bg-background shadow-sm transition-all duration-200 peer-checked:ms-[18px] peer-disabled:opacity-50"
+				/>
+			</label>
+		</span>
 	);
 }

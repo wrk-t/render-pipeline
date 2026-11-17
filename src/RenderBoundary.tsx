@@ -5,9 +5,6 @@
 
 "use client";
 
-import Box from "@mui/material/Box";
-import CircularProgress from "@mui/material/CircularProgress";
-import Typography from "@mui/material/Typography";
 import type { ReactElement, ReactNode } from "react";
 
 export function RenderBoundary({
@@ -21,18 +18,22 @@ export function RenderBoundary({
 }): ReactElement {
 	if (isLoading) {
 		return (
-			<Box className="flex items-center justify-center py-12">
-				<CircularProgress />
-			</Box>
+			<div className="flex items-center justify-center py-12">
+				<span
+					role="status"
+					aria-label="Loading"
+					className="size-10 animate-spin rounded-full border-2 border-current border-t-transparent text-primary"
+				/>
+			</div>
 		);
 	}
 	if (error) {
 		return (
-			<Box className="flex items-center justify-center py-12">
-				<Typography color="error" variant="body2">
+			<div className="flex items-center justify-center py-12">
+				<p className="text-sm text-destructive">
 					Failed to load component. Check the console for details.
-				</Typography>
-			</Box>
+				</p>
+			</div>
 		);
 	}
 	return <>{children}</>;
@@ -45,6 +46,8 @@ export function UnknownRenderer({
 	blueprintName: string;
 }): ReactElement {
 	return (
-		<Typography color="error">Unknown blueprint: {blueprintName}</Typography>
+		<p className="text-base text-destructive">
+			Unknown blueprint: {blueprintName}
+		</p>
 	);
 }

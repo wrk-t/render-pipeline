@@ -1,18 +1,7 @@
 "use client";
 
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import FormControl from "@mui/material/FormControl";
-import FormHelperText from "@mui/material/FormHelperText";
-import IconButton from "@mui/material/IconButton";
-import InputLabel from "@mui/material/InputLabel";
-import MenuItem from "@mui/material/MenuItem";
-import Select from "@mui/material/Select";
-import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
 import { useField, useFormikContext } from "formik";
-import type { ReactElement } from "react";
+import { type ReactElement, useId } from "react";
 import { Unicon } from "../../components/common/icon/Unicon";
 
 // ════════════════════════════════════════════════════════════════
@@ -42,6 +31,17 @@ const DAY_OPTIONS = [
 	{ value: 6, label: "Friday" },
 ];
 
+const INPUT_CLASS =
+	"w-full rounded-lg border border-border bg-background px-3 py-2 text-start text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-60";
+
+const LABEL_CLASS = "text-xs text-muted-foreground";
+
+const GHOST_BUTTON_CLASS =
+	"inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium text-primary transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
+
+const REMOVE_BUTTON_CLASS =
+	"inline-flex size-8 shrink-0 items-center justify-center rounded-md text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
+
 export function FormAvailabilityWindowsField({
 	field,
 }: {
@@ -56,6 +56,7 @@ export function FormAvailabilityWindowsField({
 		field.name,
 	);
 	const { isSubmitting } = useFormikContext();
+	const baseId = useId();
 
 	const rows: AvailabilityWindowRow[] = Array.isArray(value) ? value : [];
 
@@ -75,93 +76,96 @@ export function FormAvailabilityWindowsField({
 	const disabled = isSubmitting || field.isReadOnly;
 
 	return (
-		<Stack spacing={1}>
-			<Typography variant="body2">
+		<div className="flex flex-col gap-2">
+			<span className="text-sm font-medium text-foreground">
 				{field.label}
 				{field.isRequired && (
-					<Typography component="span" color="error">
-						{" "}
+					<span className="ms-0.5 text-destructive" aria-hidden="true">
 						*
-					</Typography>
+					</span>
 				)}
-			</Typography>
+			</span>
 
 			{rows.length === 0 && (
-				<Typography variant="caption" color="textSecondary">
+				<p className="text-xs text-muted-foreground">
 					No windows — the item is always available.
-				</Typography>
+				</p>
 			)}
 
 			{rows.map((row, i) => (
-				<Stack
-					key={i}
-					direction="row"
-					spacing={1}
-					className="items-center"
-					sx={{ flexWrap: "wrap" }}
-				>
-					<FormControl size="small" sx={{ minWidth: 130 }}>
-						<InputLabel>Day</InputLabel>
-						<Select
-							label="Day"
+				<div key={i} className="flex flex-wrap items-end gap-2">
+					<div className="flex w-32 flex-col gap-0.5">
+						<label htmlFor={`${baseId}-day-${i}`} className={LABEL_CLASS}>
+							Day
+						</label>
+						<select
+							id={`${baseId}-day-${i}`}
 							value={row.dayOfWeek}
 							disabled={disabled}
 							onChange={(e) =>
 								updateRow(i, { dayOfWeek: Number(e.target.value) })
 							}
+							className={INPUT_CLASS}
 						>
 							{DAY_OPTIONS.map((d) => (
-								<MenuItem key={d.value} value={d.value}>
+								<option key={d.value} value={d.value}>
 									{d.label}
-								</MenuItem>
+								</option>
 							))}
-						</Select>
-					</FormControl>
-					<TextField
-						size="small"
-						label="Open"
-						type="time"
-						value={row.openTime ?? ""}
-						disabled={disabled}
-						onChange={(e) => updateRow(i, { openTime: e.target.value })}
-						slotProps={{ inputLabel: { shrink: true } }}
-						className="w-28"
-					/>
-					<TextField
-						size="small"
-						label="Close"
-						type="time"
-						value={row.closeTime ?? ""}
-						disabled={disabled}
-						onChange={(e) => updateRow(i, { closeTime: e.target.value })}
-						slotProps={{ inputLabel: { shrink: true } }}
-						className="w-28"
-					/>
-					<IconButton
-						size="small"
-						color="error"
+						</select>
+					</div>
+					<div className="flex w-28 flex-col gap-0.5">
+						<label htmlFor={`${baseId}-open-${i}`} className={LABEL_CLASS}>
+							Open
+						</label>
+						<input
+							id={`${baseId}-open-${i}`}
+							type="time"
+							value={row.openTime ?? ""}
+							disabled={disabled}
+							onChange={(e) => updateRow(i, { openTime: e.target.value })}
+							className={INPUT_CLASS}
+						/>
+					</div>
+					<div className="flex w-28 flex-col gap-0.5">
+						<label htmlFor={`${baseId}-close-${i}`} className={LABEL_CLASS}>
+							Close
+						</label>
+						<input
+							id={`${baseId}-close-${i}`}
+							type="time"
+							value={row.closeTime ?? ""}
+							disabled={disabled}
+							onChange={(e) => updateRow(i, { closeTime: e.target.value })}
+							className={INPUT_CLASS}
+						/>
+					</div>
+					<button
+						type="button"
 						disabled={disabled}
 						onClick={() => removeRow(i)}
 						aria-label="Remove window"
+						className={REMOVE_BUTTON_CLASS}
 					>
 						<Unicon name="Close" size={18} />
-					</IconButton>
-				</Stack>
+					</button>
+				</div>
 			))}
 
-			<Box>
-				<Button
-					startIcon={<Unicon name="Add" size={18} />}
+			<div>
+				<button
+					type="button"
 					onClick={addRow}
 					disabled={disabled}
-					size="small"
+					className={GHOST_BUTTON_CLASS}
 				>
+					<Unicon name="Add" size={18} />
 					Add window
-				</Button>
-			</Box>
+				</button>
+			</div>
 			{meta.touched && meta.error && (
-				<FormHelperText error>{meta.error}</FormHelperText>
+				<p className="text-xs text-destructive">{meta.error}</p>
 			)}
-		</Stack>
+		</div>
 	);
 }

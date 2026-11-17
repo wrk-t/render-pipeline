@@ -17,9 +17,6 @@
 // An empty list renders the em dash every empty cell uses.
 // ──────────────────────────────────────────────────────────────────
 
-import Chip from "@mui/material/Chip";
-import Stack from "@mui/material/Stack";
-import Tooltip from "@mui/material/Tooltip";
 import type { ReactElement } from "react";
 
 interface ChipsCellProps {
@@ -67,26 +64,24 @@ export function ChipsCell({ cell }: ChipsCellProps): ReactElement {
 	const hidden = labels.slice(max);
 
 	return (
-		<Stack
-			direction="row"
-			spacing={0.5}
-			useFlexGap
-			sx={{ flexWrap: "wrap", alignItems: "center", py: 0.25 }}
-		>
+		<div className="flex flex-wrap items-center gap-1 py-0.5">
 			{shown.map((label) => (
-				<Chip
+				<span
 					key={label}
-					label={label}
-					size="small"
-					variant="outlined"
-					sx={{ maxWidth: 140 }}
-				/>
+					title={label}
+					className="inline-flex max-w-[140px] items-center rounded-full border border-border px-2 py-0.5 text-xs font-medium text-foreground"
+				>
+					<span className="truncate">{label}</span>
+				</span>
 			))}
 			{hidden.length > 0 ? (
-				<Tooltip title={hidden.join(", ")}>
-					<Chip label={`+${hidden.length}`} size="small" />
-				</Tooltip>
+				<span
+					title={hidden.join(", ")}
+					className="inline-flex items-center rounded-full border border-transparent bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+				>
+					+{hidden.length}
+				</span>
 			) : null}
-		</Stack>
+		</div>
 	);
 }

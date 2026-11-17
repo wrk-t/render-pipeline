@@ -1,7 +1,5 @@
 "use client";
 
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
 import type { ReactElement } from "react";
 import { ComponentRenderer } from "../ComponentRenderer";
 import type { RenderedComponent } from "../types";
@@ -28,26 +26,26 @@ export function PageRenderer({
 		.sort((a, b) => a.displayOrder - b.displayOrder);
 
 	return (
-		<Box className="p-4">
+		<div className="p-4">
 			{component.displayName && (
-				<Typography variant="h4" className="mb-4 font-bold">
+				<h1 className="mb-4 text-[2.125rem] leading-tight font-bold text-foreground">
 					{component.displayName}
-				</Typography>
+				</h1>
 			)}
 			{sorted.map((el) => {
 				if (el.elementType === "component_ref" && el.referencedComponent) {
 					return (
-						<Box key={el.id}>
+						<div key={el.id}>
 							<ComponentRenderer
 								component={el.referencedComponent}
 								pathParams={pathParams}
 								paramBindings={el.paramBindings}
 							/>
-						</Box>
+						</div>
 					);
 				}
 				return null;
 			})}
-		</Box>
+		</div>
 	);
 }

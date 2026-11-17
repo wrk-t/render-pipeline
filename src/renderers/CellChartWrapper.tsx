@@ -1,6 +1,5 @@
 "use client";
 
-import { Box, CircularProgress, Typography } from "@mui/material";
 import { type ReactElement, type ReactNode, useEffect, useState } from "react";
 import { getApiClient } from "../deps";
 
@@ -68,16 +67,13 @@ export function CellChartWrapper({
 	// ── Loading ──
 	if (loading) {
 		return (
-			<Box
-				sx={{
-					display: "flex",
-					alignItems: "center",
-					justifyContent: "center",
-					minHeight: 48,
-				}}
-			>
-				<CircularProgress size={14} />
-			</Box>
+			<div className="flex min-h-12 items-center justify-center">
+				<span
+					role="status"
+					aria-label="Loading"
+					className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted border-t-primary"
+				/>
+			</div>
 		);
 	}
 
@@ -88,13 +84,9 @@ export function CellChartWrapper({
 		(Array.isArray(chartData) && chartData.length === 0)
 	) {
 		return (
-			<Typography
-				variant="caption"
-				color="textSecondary"
-				className="text-center w-full"
-			>
+			<p className="w-full text-center text-xs text-muted-foreground">
 				no data
-			</Typography>
+			</p>
 		);
 	}
 
