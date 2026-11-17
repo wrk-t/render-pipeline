@@ -1,9 +1,5 @@
 "use client";
 
-import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
 import { FormikContext, type FormikContextType } from "formik";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -81,6 +77,85 @@ type TConfirmConfig = {
 		template: string;
 	};
 };
+
+// ── Button skin ───────────────────────────────────────────────────
+// MUI's Button defaults, expressed as utilities: 0.875rem/500/1.75,
+// uppercase, 10px radius (the app's `shape.borderRadius * 2.5`), the
+// contained/outlined/text variants and the palette's per-colour hover.
+// The `disabled:` utilities mirror MUI's disabled palette.
+
+type TButtonColor =
+	| "primary"
+	| "secondary"
+	| "error"
+	| "warning"
+	| "info"
+	| "success"
+	| "inherit";
+
+const CONTAINED: Record<TButtonColor, string> = {
+	primary:
+		"bg-primary text-primary-foreground hover:bg-primary-dark disabled:bg-muted disabled:text-border-default",
+	secondary:
+		"bg-secondary-main text-text-primary hover:bg-secondary-dark disabled:bg-muted disabled:text-border-default",
+	error:
+		"bg-destructive text-white hover:bg-error-dark disabled:bg-muted disabled:text-border-default",
+	warning:
+		"bg-warning-main text-white hover:bg-warning-dark disabled:bg-muted disabled:text-border-default",
+	info: "bg-info-main text-white hover:bg-info-dark disabled:bg-muted disabled:text-border-default",
+	success:
+		"bg-success-main text-white hover:bg-success-dark disabled:bg-muted disabled:text-border-default",
+	inherit:
+		"bg-transparent text-inherit hover:bg-accent disabled:bg-muted disabled:text-border-default",
+};
+
+const OUTLINED: Record<TButtonColor, string> = {
+	primary:
+		"border border-primary/50 text-primary hover:border-primary hover:bg-primary/5 disabled:border-border-default disabled:bg-transparent disabled:text-border-default",
+	secondary:
+		"border border-border text-secondary-foreground hover:border-border-default hover:bg-accent disabled:border-border-default disabled:bg-transparent disabled:text-border-default",
+	error:
+		"border border-destructive/50 text-destructive hover:border-destructive hover:bg-destructive/5 disabled:border-border-default disabled:bg-transparent disabled:text-border-default",
+	warning:
+		"border border-warning-main/50 text-warning-main hover:border-warning-main hover:bg-warning-main/5 disabled:border-border-default disabled:bg-transparent disabled:text-border-default",
+	info: "border border-info-main/50 text-info-main hover:border-info-main hover:bg-info-main/5 disabled:border-border-default disabled:bg-transparent disabled:text-border-default",
+	success:
+		"border border-success-main/50 text-success-main hover:border-success-main hover:bg-success-main/5 disabled:border-border-default disabled:bg-transparent disabled:text-border-default",
+	inherit:
+		"border border-border text-foreground hover:bg-accent disabled:border-border-default disabled:bg-transparent disabled:text-border-default",
+};
+
+const TEXT: Record<TButtonColor, string> = {
+	primary:
+		"text-primary hover:bg-primary/5 disabled:bg-transparent disabled:text-border-default",
+	secondary:
+		"text-secondary-foreground hover:bg-accent disabled:bg-transparent disabled:text-border-default",
+	error:
+		"text-destructive hover:bg-destructive/5 disabled:bg-transparent disabled:text-border-default",
+	warning:
+		"text-warning-main hover:bg-warning-main/5 disabled:bg-transparent disabled:text-border-default",
+	info: "text-info-main hover:bg-info-main/5 disabled:bg-transparent disabled:text-border-default",
+	success:
+		"text-success-main hover:bg-success-main/5 disabled:bg-transparent disabled:text-border-default",
+	inherit:
+		"text-foreground hover:bg-accent disabled:bg-transparent disabled:text-border-default",
+};
+
+const BUTTON_BASE =
+	"inline-flex min-w-16 items-center justify-center whitespace-nowrap rounded-[10px] text-sm font-medium uppercase leading-[1.75] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed";
+
+function isButtonColor(value: string | undefined): value is TButtonColor {
+	return (
+		value === "primary" ||
+		value === "secondary" ||
+		value === "error" ||
+		value === "warning" ||
+		value === "info" ||
+		value === "success" ||
+		value === "inherit"
+	);
+}
+
 
 export function ButtonRenderer({
 	component,
@@ -266,6 +341,28 @@ export function ButtonRenderer({
 				? confirmTyped.trim().length === 0
 				: confirmTyped.trim() !== expectedTitle));
 
+	const typedTitleInvalid =
+		expectedTitle !== null &&
+		confirmTyped.length > 0 &&
+		confirmTyped.trim() !== expectedTitle;
+
+	const variant = config.variant ?? "contained";
+	const color = isButtonColor(config.color) ? config.color : "primary";
+	const variantClass =
+		variant === "outlined"
+			? OUTLINED[color]
+			: variant === "text"
+				? TEXT[color]
+				: CONTAINED[color];
+	const buttonClassName = [
+		BUTTON_BASE,
+		variant === "text" ? "px-2 py-1.5" : "px-4 py-1.5",
+		variantClass,
+		config.fullWidth === true ? "w-full" : undefined,
+	]
+		.filter(Boolean)
+		.join(" ");
+
 	/** The destructive confirmation names the record; make the name copyable. */
 
 	// A lifecycle action that does not apply to this record is not rendered:
@@ -279,21 +376,23 @@ export function ButtonRenderer({
 
 	return (
 		<>
-			<Button
+			<button
 				type={isSubmit ? "submit" : "button"}
-				variant={config.variant ?? "contained"}
-				color={config.color as never}
+				className={buttonClassName}
 				disabled={submitting || pending}
 				onClick={onClick}
-				fullWidth={config.fullWidth === true}
 			>
 				{submitting || pending ? (
-					<CircularProgress size={20} color="inherit" />
+					<span
+						role="status"
+						aria-label="Loading"
+						className="inline-block size-5 animate-spin rounded-full border-2 border-current border-t-transparent"
+					/>
 				) : (
-					icon && <Unicon name={icon as never} size={18} className="mr-1" />
+					icon && <Unicon name={icon as never} size={18} className="me-1" />
 				)}
 				{config.label ?? (component.displayName || component.name)}
-			</Button>
+			</button>
 
 			{confirmOpen && config.confirm && (
 				<BaseDialog
@@ -324,7 +423,7 @@ export function ButtonRenderer({
 						},
 					}}
 				>
-					<Typography component="div" className="leading-7">
+					<div className="text-base leading-7">
 						{/* The typed title sits inside the sentence (and copies on click);
 						    a separate title box plus helper text made the user read the
 						    instruction in one place and copy the value in another. */}
@@ -339,21 +438,25 @@ export function ButtonRenderer({
 							}
 							title={expectedTitle}
 						/>
-					</Typography>
+					</div>
 					{needsTypedTitle && (
-						<TextField
-							fullWidth
-							autoFocus
-							className="mt-4"
-							label="Type the title to confirm"
-							value={confirmTyped}
-							onChange={(event) => setConfirmTyped(event.target.value)}
-							error={
-								expectedTitle !== null &&
-								confirmTyped.length > 0 &&
-								confirmTyped.trim() !== expectedTitle
-							}
-						/>
+						<label className="mt-4 block">
+							<span className="mb-1 block text-sm font-medium text-foreground">
+								Type the title to confirm
+							</span>
+							<input
+								autoFocus
+								aria-invalid={typedTitleInvalid || undefined}
+								className={[
+									"w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:ring-2",
+									typedTitleInvalid
+										? "border-destructive focus:border-destructive focus:ring-destructive/20"
+										: "border-border focus:border-ring focus:ring-ring/20",
+								].join(" ")}
+								value={confirmTyped}
+								onChange={(event) => setConfirmTyped(event.target.value)}
+							/>
+						</label>
 					)}
 				</BaseDialog>
 			)}

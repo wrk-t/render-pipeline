@@ -1,14 +1,8 @@
 "use client";
 
-import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
-import Stack from "@mui/material/Stack";
-import Tab from "@mui/material/Tab";
-import Tabs from "@mui/material/Tabs";
-import Typography from "@mui/material/Typography";
 import {
+	type KeyboardEvent,
 	type ReactElement,
-	type SyntheticEvent,
 	useCallback,
 	useEffect,
 	useMemo,
@@ -20,13 +14,11 @@ import { getApiClient } from "../deps";
 import type { RenderedComponent } from "../types";
 import { useVersion, type VersionInfo } from "./VersionContext";
 
-const STAGE_COLORS: Record<
-	string,
-	"default" | "warning" | "success" | "error"
-> = {
-	draft: "warning",
-	published: "success",
-	deprecated: "error",
+/** Stage pill colours — border/text pairs matching the old chip tones. */
+const STAGE_CLASSES: Record<string, string> = {
+	draft: "border-warning-main text-warning-main",
+	published: "border-success-main text-success-main",
+	deprecated: "border-error-main text-error-main",
 };
 
 export function TabsRenderer({
@@ -107,7 +99,7 @@ export function TabsRenderer({
 	const [activeIndex, setActiveIndex] = useState(0);
 
 	const handleTabChange = useCallback(
-		(_event: SyntheticEvent, newIndex: number) => {
+		(newIndex: number) => {
 			setActiveIndex(newIndex);
 			// Update version context when switching dynamic tabs
 			if (dynamicTabs[newIndex]) {
@@ -123,6 +115,46 @@ export function TabsRenderer({
 		[dynamicTabs, setSelected],
 	);
 
+	// ── Keyboard navigation (the roving-tabindex ARIA tablist pattern) ──
+	// MUI's Tabs handled arrow keys/Home/End before; keep that behaviour and
+	// swap the horizontal arrows in RTL.
+	const handleTabKeyDown = useCallback(
+		(event: KeyboardEvent<HTMLDivElement>) => {
+			const count = allTabs.length;
+			if (!count) return;
+			const rtl =
+				typeof window !== "undefined" &&
+				window.getComputedStyle(event.currentTarget).direction === "rtl";
+			let next: number | null = null;
+			switch (event.key) {
+				case "ArrowRight":
+					next = rtl
+						? (activeIndex - 1 + count) % count
+						: (activeIndex + 1) % count;
+					break;
+				case "ArrowLeft":
+					next = rtl
+						? (activeIndex + 1) % count
+						: (activeIndex - 1 + count) % count;
+					break;
+				case "Home":
+					next = 0;
+					break;
+				case "End":
+					next = count - 1;
+					break;
+				default:
+					return;
+			}
+			event.preventDefault();
+			handleTabChange(next);
+			const tabs =
+				event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+			tabs[next]?.focus();
+		},
+		[allTabs.length, activeIndex, handleTabChange],
+	);
+
 	// Get content elements, sorted by displayOrder
 	const contentElements = useMemo(
 		() =>
@@ -135,49 +167,68 @@ export function TabsRenderer({
 	const activeContentEl = contentElements[activeIndex] ?? null;
 
 	if (!allTabs.length) {
-		return (
-			<Typography variant="body2" color="text.secondary">
-				No tabs configured.
-			</Typography>
-		);
+		return <p className="text-sm text-muted-foreground">No tabs configured.</p>;
 	}
 
+	// Stable ids tie each tab to its panel (`aria-controls`/`aria-labelledby`).
+	const baseId = `tabs-${component.id}`;
+	const activeTabId = `${baseId}-tab-${activeIndex}`;
+	const activePanelId = `${baseId}-panel-${activeIndex}`;
+
 	return (
-		<Stack spacing={2}>
-			<Tabs
-				value={activeIndex}
-				onChange={handleTabChange}
-				variant="scrollable"
-				scrollButtons="auto"
+		<div className="flex flex-col gap-4">
+			<div
+				role="tablist"
 				// UX-9 — a tablist with no accessible name is announced as just
 				// "tab list": name it after the component the tabs belong to
 				// (customer detail, …), which the backend already translated.
 				aria-label={component.displayName || component.name}
-				sx={{ borderBottom: 1, borderColor: "divider" }}
+				onKeyDown={handleTabKeyDown}
+				className="flex gap-1 overflow-x-auto border-b border-border"
 			>
-				{allTabs.map((tab: any, idx: number) => (
-					<Tab
-						key={idx}
-						label={
-							<Stack direction="row" spacing={1} className="items-center">
-								<span>{tab.label}</span>
-								{tab.stage && (
-									<Chip
-										label={tab.stage}
-										size="small"
-										color={STAGE_COLORS[tab.stage] ?? "default"}
-										variant="outlined"
-										sx={{ height: 20, fontSize: "0.65rem" }}
-									/>
-								)}
-							</Stack>
-						}
-					/>
-				))}
-			</Tabs>
+				{allTabs.map((tab: any, idx: number) => {
+					const selected = activeIndex === idx;
+					const tabId = `${baseId}-tab-${idx}`;
+					return (
+						<button
+							key={idx}
+							id={tabId}
+							type="button"
+							role="tab"
+							aria-selected={selected}
+							aria-controls={`${baseId}-panel-${idx}`}
+							tabIndex={selected ? 0 : -1}
+							onClick={() => handleTabChange(idx)}
+							className={`-mb-px inline-flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2 text-start text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+								selected
+									? "border-primary text-primary"
+									: "border-transparent text-muted-foreground hover:text-foreground"
+							}`}
+						>
+							<span>{tab.label}</span>
+							{tab.stage && (
+								<span
+									className={`rounded-full border px-2 py-0.5 text-xs ${
+										STAGE_CLASSES[tab.stage] ??
+										"border-border text-muted-foreground"
+									}`}
+								>
+									{tab.stage}
+								</span>
+							)}
+						</button>
+					);
+				})}
+			</div>
 
 			{/* Active tab content */}
-			<Box>
+			<div
+				role="tabpanel"
+				id={activePanelId}
+				aria-labelledby={activeTabId}
+				tabIndex={0}
+				className="focus-visible:outline-none"
+			>
 				{activeContentEl?.referencedComponent ? (
 					<ComponentRenderer
 						component={activeContentEl.referencedComponent}
@@ -186,11 +237,9 @@ export function TabsRenderer({
 						context={context}
 					/>
 				) : (
-					<Typography variant="body2" color="text.secondary">
-						Coming soon
-					</Typography>
+					<p className="text-sm text-muted-foreground">Coming soon</p>
 				)}
-			</Box>
-		</Stack>
+			</div>
+		</div>
 	);
 }

@@ -1,7 +1,5 @@
 "use client";
 
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
 import type { ReactElement } from "react";
 import type { RenderedComponent } from "../types";
 import { ChartWrapper } from "./ChartWrapper";
@@ -75,20 +73,18 @@ export function MetricRenderer({
 				const metric = chartData as MetricData | null;
 				if (!metric || metric.value == null) {
 					return (
-						<Box className="flex items-center justify-center min-h-[120px]">
-							<Typography variant="body2" color="text.secondary">
-								No data
-							</Typography>
-						</Box>
+						<div className="flex min-h-[120px] items-center justify-center">
+							<p className="text-sm text-muted-foreground">No data</p>
+						</div>
 					);
 				}
 
 				return (
-					<Box className="flex flex-col items-center justify-center min-h-[120px]">
-						<Typography variant="h3" className="font-bold">
+					<div className="flex min-h-[120px] flex-col items-center justify-center">
+						<h3 className="text-5xl font-bold tabular-nums text-foreground">
 							{metric.formatted}
-						</Typography>
-					</Box>
+						</h3>
+					</div>
 				);
 			}}
 		</ChartWrapper>

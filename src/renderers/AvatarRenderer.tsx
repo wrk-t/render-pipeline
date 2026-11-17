@@ -1,11 +1,5 @@
 "use client";
 
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
-import Slider from "@mui/material/Slider";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
 import { useCallback, useMemo, useRef, useState } from "react";
 import AvatarEditor from "react-avatar-editor";
 import useSWR from "swr";
@@ -78,6 +72,9 @@ export function AvatarRenderer({
 	const removable: boolean = config?.removable ?? true;
 
 	const isCircle = shape === "circle";
+	const shapeClasses = isCircle
+		? "h-24 w-24 rounded-full"
+		: "h-24 w-32 rounded-[10px]";
 
 	// Fetch user data using the datasource from metadata
 	const { data, mutate, isLoading } = useSWR(
@@ -145,41 +142,49 @@ export function AvatarRenderer({
 
 	if (isLoading) {
 		return (
-			<Box
-				className={`${isCircle ? "w-24 h-24 rounded-full" : "w-32 h-24 rounded-[10px]"} bg-gray-200 flex items-center justify-center`}
+			<div
+				className={`${shapeClasses} flex items-center justify-center bg-muted`}
 			>
-				<CircularProgress size={24} />
-			</Box>
+				<span
+					role="status"
+					aria-label="Loading"
+					className="h-6 w-6 animate-spin rounded-full border-2 border-border border-t-primary"
+				/>
+			</div>
 		);
 	}
 
 	if (!data) {
 		return (
-			<Box
-				className={`${isCircle ? "w-24 h-24 rounded-full" : "w-32 h-24 rounded-[10px]"} bg-gray-200 flex items-center justify-center`}
+			<div
+				className={`${shapeClasses} flex items-center justify-center bg-muted`}
 			>
 				<Unicon name={isCircle ? "User" : "Upload"} size={40} />
-			</Box>
+			</div>
 		);
 	}
 
 	return (
-		<Stack spacing={1} className="items-center">
-			<Box className="relative">
-				<Box
-					className={`${isCircle ? "w-24 h-24 rounded-full" : "w-32 h-24 rounded-[10px]"} bg-gray-200 flex items-center justify-center overflow-hidden border-2 border-gray-300 cursor-pointer hover:border-primary-main transition-colors`}
+		<div className="flex flex-col items-center gap-2">
+			<div className="relative">
+				<button
+					type="button"
+					aria-label={avatarUrl ? "Change avatar" : "Upload avatar"}
+					className={`${shapeClasses} relative flex cursor-pointer items-center justify-center overflow-hidden border-2 border-border bg-muted transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
 					onClick={() => fileInputRef.current?.click()}
 				>
 					{avatarUrl ? (
 						<img
 							src={avatarUrl}
 							alt="Avatar"
-							className={`${isCircle ? "w-24 h-24 object-cover" : "w-32 h-24 object-contain"}`}
+							className={
+								isCircle ? "h-24 w-24 object-cover" : "h-24 w-32 object-contain"
+							}
 						/>
 					) : (
 						<Unicon name={isCircle ? "User" : "Upload"} size={40} />
 					)}
-				</Box>
+				</button>
 				<input
 					ref={fileInputRef}
 					type="file"
@@ -187,25 +192,24 @@ export function AvatarRenderer({
 					className="hidden"
 					onChange={handleFileChange}
 				/>
-			</Box>
+			</div>
 			{removable &&
 				(rawAvatarUrl ? (
-					<Button
-						size="small"
-						variant="text"
-						color="error"
+					<button
+						type="button"
 						onClick={handleRemove}
+						className="rounded-md px-2 py-1 text-sm font-medium text-error-main transition-colors hover:bg-error-main/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 					>
 						Remove
-					</Button>
+					</button>
 				) : (
-					<Button
-						size="small"
-						variant="text"
+					<button
+						type="button"
 						onClick={() => fileInputRef.current?.click()}
+						className="rounded-md px-2 py-1 text-sm font-medium text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 					>
 						Add Photo
-					</Button>
+					</button>
 				))}
 
 			{editorOpen && image && (
@@ -216,7 +220,7 @@ export function AvatarRenderer({
 					onSubmit={handleSave}
 					slotProps={{ submitButton: { props: { children: "Save" } } }}
 				>
-					<Stack spacing={2} className="items-center">
+					<div className="flex flex-col items-center gap-4">
 						<AvatarEditor
 							ref={editorRef}
 							image={image}
@@ -227,21 +231,23 @@ export function AvatarRenderer({
 							scale={scale}
 							rotate={0}
 						/>
-						<Box className="w-full px-4">
-							<Typography variant="caption" color="text.secondary">
+						<label className="w-full px-4">
+							<span className="block text-start text-xs text-muted-foreground">
 								Zoom
-							</Typography>
-							<Slider
-								value={scale}
+							</span>
+							<input
+								type="range"
 								min={1}
 								max={3}
 								step={0.1}
-								onChange={(_, v) => setScale(v as number)}
+								value={scale}
+								onChange={(e) => setScale(Number(e.target.value))}
+								className="mt-1 w-full accent-primary"
 							/>
-						</Box>
-					</Stack>
+						</label>
+					</div>
 				</BaseDialog>
 			)}
-		</Stack>
+		</div>
 	);
 }

@@ -1,18 +1,80 @@
 // ═══════════════════════════════════════════════════════════════
-// Unicon – Renders an icon from @tooni/iconscout-unicons-react/line
-// by name. All icons used by the app are eagerly imported so
-// there's no flash or async loading.
+// Unicon – Renders an icon by semantic name.
+//
+// Keys the app actually uses are rendered with lucide-react
+// (see LUCIDE_ICONS). Every other key keeps its Unicons
+// implementation from @tooni/iconscout-unicons-react/line, so
+// the public API (name/size/className/color/style) is unchanged.
+// All icons are eagerly imported so there's no flash or async
+// loading.
 //
 // Usage:
 //   <Unicon name="UsersAlt" />
 //   <Unicon name="Edit" size={20} className="text-blue-500" />
 //
 // To add a new icon:
-//   1. Import it from "@tooni/iconscout-unicons-react/line"
-//   2. Add it to EAGER_ICONS and ICON_EXPORT
+//   1. Import it from "lucide-react" and add it to LUCIDE_ICONS
+//      (preferred), or add it to EAGER_ICONS and ICON_EXPORT to
+//      keep using the Unicons fallback.
 // ═══════════════════════════════════════════════════════════════
 "use client";
 
+import {
+	type LucideIcon,
+	ArrowLeft,
+	Bell,
+	Building,
+	Calculator,
+	CalendarRange,
+	Check,
+	ChevronDown,
+	ChevronLeft,
+	ChevronRight,
+	ChevronUp,
+	Circle,
+	CircleAlert,
+	CircleCheck,
+	CircleX,
+	CloudUpload,
+	Copy,
+	ExternalLink,
+	Eye,
+	EyeOff,
+	FileDown,
+	FileUp,
+	FlaskConical,
+	Globe,
+	History,
+	Info,
+	Landmark,
+	Layers,
+	LayoutDashboard,
+	LayoutGrid,
+	LogOut,
+	Mail,
+	Menu,
+	Palette,
+	Pencil,
+	Play,
+	Plus,
+	Power,
+	PowerOff,
+	Printer,
+	RefreshCw,
+	RotateCcw,
+	Save,
+	Search,
+	Send,
+	Settings,
+	Star,
+	Tag,
+	TriangleAlert,
+	Trash2,
+	User,
+	Users,
+	UtensilsCrossed,
+	X,
+} from "lucide-react";
 import type { FC, SVGProps } from "react";
 
 // ── Icon name → unicon export name mapping ───────────────────
@@ -245,6 +307,83 @@ export const ICON_EXPORT = {
 	GppMaybe: "UilShieldExclamation",
 	GppGood: "UilShieldCheck",
 } as const;
+
+// ── Lucide map ───────────────────────────────────────────────
+// Keys that are actually used in the app, rendered with
+// lucide-react. Each entry is the closest lucide equivalent of
+// the Unicons glyph listed in ICON_EXPORT above (that mapping is
+// kept so keys absent here still render through Unicons).
+//
+// The public `name` prop type is still keyof ICON_EXPORT — this
+// map only chooses the renderer, it never adds or removes keys.
+const LUCIDE_ICONS: Partial<Record<keyof typeof ICON_EXPORT, LucideIcon>> = {
+	AccountBalance: Landmark, // UilBuilding
+	Add: Plus, // UilPlus
+	ArrowBack: ArrowLeft, // UilArrowLeft
+	ArrowBackRounded: ArrowLeft, // UilArrowLeft
+	ArrowDropDown: ChevronDown, // UilAngleDown
+	ArrowDropUp: ChevronUp, // UilAngleUp
+	Business: Building, // UilBuilding
+	Calculate: Calculator, // UilCalculatorAlt
+	Cancel: CircleX, // UilTimesCircle
+	Category: Layers, // UilLayerGroup
+	CheckCircle: CircleCheck, // UilCheckCircle
+	ChevronRight: ChevronRight, // UilAngleRight
+	Circle: Circle, // UilCircle
+	Close: X, // UilTimes
+	CloseOutlined: X, // UilTimes
+	CloseRounded: X, // UilTimes
+	CloudUploadOutlined: CloudUpload, // UilCloudUpload
+	ContentCopy: Copy, // UilCopy
+	Copy: Copy, // UilCopy
+	Dashboard: LayoutDashboard, // UilDashboard
+	DateRange: CalendarRange, // UilCalendarAlt
+	Delete: Trash2, // UilTrashAlt
+	Done: Check, // UilCheck
+	Download: FileDown, // UilFileDownload
+	Edit: Pencil, // UilEdit
+	Error: CircleAlert, // UilExclamationCircle
+	ErrorOutline: CircleAlert, // UilExclamationCircle
+	ExpandLess: ChevronUp, // UilAngleUp
+	ExpandMore: ChevronDown, // UilAngleDown
+	GridView: LayoutGrid, // UilApps
+	Info: Info, // UilInfoCircle
+	KeyboardArrowDown: ChevronDown, // UilAngleDown
+	KeyboardArrowLeft: ArrowLeft, // UilArrowLeft
+	Language: Globe, // UilGlobe
+	Logout: LogOut, // UilSignOutAlt
+	Menu: Menu, // UilBars
+	Message: Mail, // UilMessage (an envelope, not a chat bubble)
+	NavigateBefore: ChevronLeft, // UilAngleLeft
+	NavigateNext: ChevronRight, // UilAngleRight
+	Notifications: Bell, // UilBell
+	OpenInNew: ExternalLink, // UilExternalLinkAlt
+	Palette: Palette, // UilPalette
+	Person: User, // UilUser
+	Play: Play, // UilPlay
+	PowerOff: PowerOff, // UilPower
+	PowerSettingsNew: Power, // UilPower
+	Print: Printer, // UilPrint
+	Public: Globe, // UilGlobe
+	Refresh: RefreshCw, // UilRefresh
+	RestartAlt: RotateCcw, // UilRefresh — reset/undo action
+	RestaurantMenu: UtensilsCrossed, // UilRestaurant
+	Restore: History, // UilHistory
+	Save: Save, // UilSave
+	Science: FlaskConical, // UilFlask
+	Search: Search, // UilSearch
+	Send: Send, // UilEnvelopeSend
+	Setting: Settings, // UilSetting
+	Settings: Settings, // UilSetting
+	Star: Star, // UilStar
+	Tag: Tag, // UilTag
+	Upload: FileUp, // UilFileUpload
+	User: User, // UilUser
+	UsersAlt: Users, // UilUsersAlt
+	Visibility: Eye, // UilEye
+	VisibilityOff: EyeOff, // UilEyeSlash
+	Warning: TriangleAlert, // UilExclamationTriangle
+};
 
 // ── All icon components ──────────────────────────────────────
 // Import every icon used anywhere in the app. This avoids async
@@ -575,6 +714,18 @@ export const Unicon: FC<UniconProps> = ({
 		);
 	}
 
+	const spanStyle = color === "currentColor" ? undefined : { color };
+
+	// Preferred path: render the lucide equivalent when we have one.
+	const LucideIconComponent = LUCIDE_ICONS[name];
+	if (LucideIconComponent) {
+		return (
+			<span style={spanStyle} className={className}>
+				<LucideIconComponent size={pxSize} color={color} style={style} />
+			</span>
+		);
+	}
+
 	const exportName = ICON_EXPORT[name];
 	if (!exportName) {
 		if (process.env.NODE_ENV === "development") {
@@ -612,8 +763,6 @@ export const Unicon: FC<UniconProps> = ({
 			/>
 		);
 	}
-
-	const spanStyle = color === "currentColor" ? undefined : { color };
 
 	return (
 		<span style={spanStyle} className={className}>
