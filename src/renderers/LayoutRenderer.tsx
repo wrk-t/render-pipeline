@@ -90,8 +90,7 @@ export function LayoutRenderer({
 	// Vertical gap between content children (e.g. stacked cards). A detail page
 	// stacks its summary/info/form blocks; without a default they touched each
 	// other, so the page read as one dense wall of fields.
-	const contentSpacing =
-		config.spacing ?? (config.fullBleed === true ? 0 : 3);
+	const contentSpacing = config.spacing ?? (config.fullBleed === true ? 0 : 3);
 	const contentEl = (
 		<LayoutChildren
 			elements={content}
@@ -118,25 +117,58 @@ export function LayoutRenderer({
 		<RecordProvider value={record ?? null}>
 			<Stack spacing={1.5} className="h-full">
 				{hasHeader && (
+					/* One row from 768px; a wrapped column on phones. `sx` (not
+					   Tailwind): the front's Tailwind build does not scan this
+					   package, so package-only utilities do not compile. */
 					<Stack
-						direction="row"
-						className="items-center justify-between"
-						spacing={2}
+						sx={{
+							gap: 2,
+							flexDirection: "column",
+							alignItems: "flex-start",
+							"@media (min-width:768px)": {
+								flexDirection: "row",
+								alignItems: "center",
+								justifyContent: "space-between",
+							},
+						}}
 					>
-						<Box>
+						<Box sx={{ minWidth: 0 }}>
 							{title && (
-								<Typography variant="h5" className="font-semibold">
+								<Typography
+									variant="h5"
+									sx={{ fontWeight: 600, wordBreak: "break-word" }}
+								>
 									{title}
 								</Typography>
 							)}
 							{description && (
-								<Typography variant="body2" color="text.secondary">
+								<Typography
+									variant="body2"
+									color="text.secondary"
+									sx={{ wordBreak: "break-word" }}
+								>
 									{description}
 								</Typography>
 							)}
 						</Box>
 						{actions.length > 0 && (
-							<Stack direction="row" spacing={1}>
+							/* Phones: the primary action is a full-width tap target,
+							   not a squeezed pill next to the title. */
+							<Stack
+								sx={{
+									gap: 2,
+									width: "100%",
+									flexDirection: "column",
+									alignItems: "stretch",
+									"& .MuiButton-root": { width: "100%" },
+									"@media (min-width:600px)": {
+										width: "auto",
+										flexDirection: "row",
+										alignItems: "center",
+										"& .MuiButton-root": { width: "auto" },
+									},
+								}}
+							>
 								{actions.map((el) => (
 									<ComponentRenderer
 										key={el.id}

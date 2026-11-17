@@ -4,10 +4,10 @@ import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { useFormikContext } from "formik";
+import { FormikContext, type FormikContextType } from "formik";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { type ReactElement, useState } from "react";
+import { type ReactElement, useContext, useState } from "react";
 import { useSWRConfig } from "swr";
 import { ConfirmPrompt } from "../components/common/CopyableTitle";
 import { Unicon } from "../components/common/icon/Unicon";
@@ -37,12 +37,21 @@ import { useRecordData } from "./RecordContext";
 // error is shown as the API's translated message instead of a no-op.
 // ──────────────────────────────────────────────────────────────────
 
-function useOptionalFormikContext() {
-	try {
-		return useFormikContext<Record<string, unknown>>();
-	} catch {
-		return undefined;
-	}
+/**
+ * Read Formik's context without `useFormikContext()`.
+ *
+ * A toolbar button is often rendered outside a `<Formik>` (detail-page
+ * lifecycle actions, dialog footers), and Formik's hook merely *warns* in that
+ * case — it does not throw, so a `try/catch` never silenced the message.
+ * Direct `useContext` gives `undefined` quietly; every caller below already
+ * handles that as "not inside a form".
+ */
+function useOptionalFormikContext():
+	| FormikContextType<Record<string, unknown>>
+	| undefined {
+	return useContext(FormikContext) as
+		| FormikContextType<Record<string, unknown>>
+		| undefined;
 }
 
 /**
@@ -298,6 +307,11 @@ export function ButtonRenderer({
 							props: {
 								children: "Confirm",
 								disabled: confirmDisabled,
+								// A destructive action's confirmation is coloured with the
+								// error palette (UX-7); other actions keep the primary.
+								...(config.color === "error"
+									? { color: "error" as const }
+									: {}),
 							},
 							// A disabled primary says why: the typed title is the
 							// only thing missing.

@@ -1,6 +1,8 @@
 "use client";
 
 import { Box, Dialog, DialogContent, DialogTitle } from "@mui/material";
+import useMediaQuery from "@mui/material/useMediaQuery";
+import { useTheme } from "@mui/material/styles";
 import { ResponsiveLine } from "@nivo/line";
 import { type ReactElement, useState } from "react";
 import { CellChartWrapper } from "./CellChartWrapper";
@@ -61,12 +63,17 @@ export function LineChartCell({ cell }: any): ReactElement {
 	const [fullData, setFullData] = useState<LineSeries[]>([]);
 
 	const { range } = useDateRange();
+	// A chart with axes needs the whole phone screen; the cell preview is
+	// unusable at 375px.
+	const theme = useTheme();
+	const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
 
 	const rowData = cell?.row?.original ?? {};
 	// Query params are version-scoped: prefer the row's current version
 	// (e.g. packages list rows carry `versions[0]`), fall back to the row id
 	// for rows that ARE versions (e.g. the package versions table).
-	const versionId = rowData.versions?.[0]?.id ?? rowData.id ?? rowData.packageId ?? "";
+	const versionId =
+		rowData.versions?.[0]?.id ?? rowData.id ?? rowData.packageId ?? "";
 	const columnDef = cell?.column?.columnDef ?? {};
 	const fmt = (columnDef as any).columnFormat ?? {};
 	const cellHeight = fmt.height ?? 48;
@@ -186,6 +193,7 @@ export function LineChartCell({ cell }: any): ReactElement {
 				onClose={() => setDialogOpen(false)}
 				maxWidth="lg"
 				fullWidth
+				fullScreen={fullScreen}
 			>
 				<DialogTitle>{columnDef.header}</DialogTitle>
 				<DialogContent>

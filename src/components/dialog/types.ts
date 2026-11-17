@@ -2,6 +2,15 @@ import type { LoadingButtonProps } from "@mui/lab/LoadingButton";
 import type { ButtonProps } from "@mui/material";
 import type { DialogHTMLAttributes, PropsWithChildren } from "react";
 
+/**
+ * How much room a dialog asks for. `sm` is MUI's default broad enough for a
+ * handful of fields; a line editor (repeatable item rows) needs `lg`.
+ *
+ * Declared by an action's `dialog.size` in the metadata, or suggested by the
+ * form itself (line editors report `lg`) when the action gives no hint.
+ */
+export type DialogSize = "sm" | "md" | "lg" | "fullScreen";
+
 export interface IBaseDialogActionsProps {
 	disabled?: boolean;
 	onClose?: VoidFunction;
@@ -42,5 +51,7 @@ export interface IBaseDialogProps extends PropsWithChildren {
 	onClose?: VoidFunction;
 	isOpen?: boolean;
 	disabled?: boolean;
+	/** Width hint (default `sm`); phones are always full-screen. */
+	size?: DialogSize;
 	onSuccess?: VoidFunction;
 }

@@ -19,6 +19,8 @@ import {
 	TextField,
 	Typography,
 } from "@mui/material";
+import useMediaQuery from "@mui/material/useMediaQuery";
+import { useTheme } from "@mui/material/styles";
 import {
 	type ReactElement,
 	useCallback,
@@ -103,8 +105,19 @@ export function AssetPickerDialog({
 		[onSelect, onClose],
 	);
 
+	// The library is a grid of tiles: give it the whole phone screen, like
+	// every other DSL dialog.
+	const theme = useTheme();
+	const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
+
 	return (
-		<Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+		<Dialog
+			open={open}
+			onClose={onClose}
+			maxWidth="md"
+			fullWidth
+			fullScreen={fullScreen}
+		>
 			<DialogTitle>Choose a file</DialogTitle>
 			<DialogContent dividers>
 				<TextField

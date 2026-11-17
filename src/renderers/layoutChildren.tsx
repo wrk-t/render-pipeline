@@ -3,8 +3,8 @@
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { useFormikContext } from "formik";
-import type { ReactElement } from "react";
+import { FormikContext, type FormikContextType } from "formik";
+import { type ReactElement, useContext } from "react";
 import { ComponentRenderer } from "../ComponentRenderer";
 import { useFeatures } from "../hooks/useFeatures";
 import type { RenderedElement } from "../types";
@@ -21,12 +21,21 @@ import { FormFieldRenderer, isFieldFeatureVisible } from "./FormFieldRenderer";
 //                   rendered by the pipeline — skipped.
 // ──────────────────────────────────────────────────────────────────
 
-function useOptionalFormikContext() {
-	try {
-		return useFormikContext<Record<string, unknown>>();
-	} catch {
-		return undefined;
-	}
+/**
+ * Read Formik's context without `useFormikContext()`.
+ *
+ * Formik's hook warns (`tiny-warning`) when there is no provider — it does not
+ * throw, so the old `try/catch` never silenced it and every layout rendered
+ * outside a form logged "Formik context is undefined". Reading the context
+ * directly returns `undefined` quietly, which is what this slot means: no
+ * form context → render the read-only label/value fallback below.
+ */
+function useOptionalFormikContext():
+	| FormikContextType<Record<string, unknown>>
+	| undefined {
+	return useContext(FormikContext) as
+		| FormikContextType<Record<string, unknown>>
+		| undefined;
 }
 
 export function LayoutChildren({

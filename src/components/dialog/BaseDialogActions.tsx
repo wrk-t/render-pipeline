@@ -14,11 +14,24 @@ export const BaseDialogActions: FC<IBaseDialogActionsProps> = ({
 	disabled = false,
 }) => {
 	const t = useTranslations();
+	// The footer's secondary action is always a Cancel (UX-7), even when the
+	// form's metadata only declares a generic `close` button. A host that ships
+	// `common.cancel` gets its translation; otherwise the English fallback still
+	// reads as one convention.
+	const cancelLabel = t.has("common.cancel") ? t("common.cancel") : "Cancel";
 	const submitButtonRef = useRef<HTMLButtonElement>(null);
+	const actionsRef = useRef<HTMLDivElement>(null);
 
 	const submit = useCallback(
 		(e: KeyboardEvent) => {
 			if (disabled) return;
+
+			// Only the dialog this footer belongs to. A global listener used to
+			// fire the outermost form's submit while a nested confirmation (the
+			// discard guard, "Send now") had focus, POSTing behind the prompt.
+			const paper = actionsRef.current?.closest('[role="dialog"]');
+			if (!(paper && e.target instanceof Node && paper.contains(e.target)))
+				return;
 
 			const target = e.target as HTMLElement;
 			const isTyping =
@@ -46,7 +59,28 @@ export const BaseDialogActions: FC<IBaseDialogActionsProps> = ({
 	}, [submit]);
 
 	return (
-		<DialogActions sx={{ px: 3, py: 2 }}>
+		<DialogActions
+			ref={actionsRef}
+			sx={{
+				px: 3,
+				py: 2,
+				// One footer everywhere (UX-7): secondary Cancel to the LEFT of
+				// the primary action, the pair right-aligned. Phones stack the
+				// footer and give every action a full-width tap target; sm+
+				// keeps the conventional right-aligned row. These are sx (not
+				// Tailwind): the front's Tailwind build does not scan this
+				// package, so package-only utilities are dead.
+				justifyContent: "flex-end",
+				flexWrap: "wrap",
+				gap: 2,
+				"& > span": { width: "100%" },
+				"& .MuiButton-root": { width: "100%" },
+				"@media (min-width:600px)": {
+					"& > span": { width: "auto" },
+					"& .MuiButton-root": { width: "auto" },
+				},
+			}}
+		>
 			{slotProps?.closeButton?.show === false ? null : (
 				<Tooltip title={slotProps?.closeButton?.tooltip}>
 					<span>
@@ -59,7 +93,7 @@ export const BaseDialogActions: FC<IBaseDialogActionsProps> = ({
 						>
 							{slotProps?.closeButton?.props?.children
 								? slotProps?.closeButton?.props?.children
-								: t("common.close")}
+								: cancelLabel}
 						</Button>
 					</span>
 				</Tooltip>

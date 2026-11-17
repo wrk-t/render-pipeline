@@ -5,6 +5,8 @@
 // Source of truth: drizzle schemas in src/config/database/main/schemas/
 // ═══════════════════════════════════════════════════════════════
 
+import type { DialogSize } from "../components/dialog/types";
+
 // ── 1. PAGINATION & QUERY HELPERS ──
 
 export interface PaginatedResponse<T> {
@@ -834,12 +836,12 @@ export interface AvailabilityWindowsField extends FieldBase {
  * names are only a display projection (the server owns pricing).
  */
 export interface OrderItemsField extends FieldBase {
-  type: "order-items";
-  fieldOverrides?: FieldOverrides | null;
-  uiOverrides: {
-    layout?: FieldLayout;
-    behavior?: { placeholder?: string };
-  };
+	type: "order-items";
+	fieldOverrides?: FieldOverrides | null;
+	uiOverrides: {
+		layout?: FieldLayout;
+		behavior?: { placeholder?: string };
+	};
 }
 
 export interface IconField extends FieldBase {
@@ -1120,6 +1122,14 @@ interface TableActionOpenDialog extends TableActionBase {
 		/** Optional dialog title ($trl_ key or literal). Overrides the derived one. */
 		title?: string;
 		/**
+		 * Width hint for the dialog. `sm` is the default; a line editor (a
+		 * repeatable item-lines field) sets `lg` so its columns stay readable.
+		 * A form that knows it is a line editor reports the same hint at render
+		 * time, so a seed only needs this when the form cannot speak for itself
+		 * (app-owned dialog renderers).
+		 */
+		size?: DialogSize;
+		/**
 		 * Row fields copied into the form's pathParams when opening in
 		 * "create" context (e.g. the clicked plan's id as planId).
 		 * Prefilled fields are matched by form field name.
@@ -1188,6 +1198,49 @@ export type TableAction =
 	| TableActionLinkSelected
 	| TableActionLegacy;
 
+/**
+ * UX-25 — an action a table offers for the current row selection.
+ *
+ * A bulk action runs the SAME endpoint once per selected row (`{id}` and any
+ * other row field resolve like a row action). The seed declares the list in
+ * the table config's `bulkActions`; the selection column appears only when
+ * the list is non-empty.
+ */
+export interface TableBulkAction {
+	id: string;
+	label: string;
+	icon?: string;
+	color?: string;
+	/**
+	 * Toggle mode: send the INVERSE of this row field as the request body.
+	 * The same action is therefore the undo (deactivate → activate), and the
+	 * `labelOff`/`iconOff`/`colorOff` presentation is used while every
+	 * selected row is already off.
+	 */
+	toggleField?: string;
+	/** Presentation while every selected row is already off (undo direction). */
+	labelOff?: string;
+	iconOff?: string;
+	colorOff?: string;
+	/** Per-row endpoint template (supports `{id}` and other row fields). */
+	endpoint: string;
+	method?: "PATCH" | "POST" | "PUT" | "DELETE";
+	/** Static body sent with every per-row request (ignored in toggle mode). */
+	body?: Record<string, unknown>;
+	/** Confirmation shown before a destructive bulk action runs. */
+	confirm?: TableActionConfirm;
+	/** Plain ability checks, like a toolbar action's `permissions`. */
+	permissions?: string[];
+	/** Scope-aware visibility, like a toolbar action's `visibleToPermissions`. */
+	visibleToPermissions?: Array<{
+		resource: string;
+		action: string;
+		scope?: "own" | "tenant" | "all";
+	}>;
+	requiredTier?: "solo" | "team" | "enterprise";
+	requiresFeature?: string;
+}
+
 export interface TableRowCondition {
 	/** Row data field to test. */
 	field: string;
@@ -1207,7 +1260,10 @@ export interface TableSettings {
 	bordered: boolean;
 	stickyHeader: boolean;
 	resizableColumns: boolean;
+	/** Show the CSV export button in the toolbar (server-side tables). */
 	exportable: boolean;
+	/** Localised export button label (falls back to "Export CSV"). */
+	exportLabel?: string;
 	importable: boolean;
 	refreshable: boolean;
 	searchable: boolean;
@@ -1215,12 +1271,89 @@ export interface TableSettings {
 	columnToggle: boolean;
 	/** Conditional row styling (e.g. red background for failed entries). */
 	rowConditions?: TableRowCondition[];
+	/**
+	 * A row of filter chips above the table (e.g. menu categories). Chips are
+	 * an explicit choice, not a taxonomy: the table forwards the chosen value
+	 * as a query param, so a server-side table filters across pages instead of
+	 * only the page the browser happens to hold.
+	 */
+	filterChips?: TableFilterChips | null;
+	/**
+	 * Optional small-screen presentation. When set, a phone renders a list of
+	 * compact cards (title + subtitle + status + the row actions) instead of a
+	 * wide table; `sm` and up keeps the normal table. Each key is a column
+	 * accessor (the field name on the row).
+	 */
+	mobileCard?: TableMobileCard | null;
 }
 
-export interface TableEmptyState {
+/** Filter chips above a table — one selectable chip per option. */
+export interface TableFilterChips {
+	/** Query param the datasource is filtered on (e.g. "categoryId"). */
+	field: string;
+	/** Options endpoint (e.g. the current menu's categories). */
+	endpoint: string;
+	/** Extra query params; `{param}` placeholders resolve from the route. */
+	params?: Record<string, string>;
+	/** Option label field (default "name"). */
+	labelField?: string;
+	/** Option value field (default "id"). */
+	valueField?: string;
+	/** Max options fetched (default 100). */
+	limit?: number;
+}
+
+/** The column subset a phone card shows — all accessors, not labels. */
+export interface TableMobileCard {
+	/** Big line: the row's identity (e.g. `customerName`, `name`). */
 	title: string;
+	/** Optional second line (e.g. `customerPhone`, `description`). */
+	subtitle?: string;
+	/** Optional accessor rendered as a chip (e.g. `status`). */
+	status?: string;
+	/**
+	 * Render the table's row actions on the card. Defaults to `true`; set
+	 * `false` for a read-only list.
+	 */
+	actions?: boolean;
+}
+
+/**
+ * UX-24 — a contextual empty state for a table.
+ *
+ * Instead of the generic "No records to display", a table can say what
+ * belongs here and offer the first action. Every string is a `$trl_` key on
+ * the server (`TableMetadata` arrives already translated) and every action id
+ * refers to an action in this same table's toolbar, so the empty state can
+ * never drift from the toolbar it sits above.
+ */
+export interface TableEmptyState {
+	/** Unicon name shown above the title (e.g. "ShoppingCart"). */
+	icon?: string;
+	/** Headline (e.g. "No orders yet"). */
+	title: string;
+	/** One-line explanation of what belongs here. */
 	description?: string;
+	/**
+	 * The primary call to action: the id of an action in this table's
+	 * toolbar. It renders only while that action is visible (permission, tier
+	 * and feature gated like the toolbar itself), so the empty state never
+	 * offers something the toolbar would hide.
+	 */
 	action?: string;
+	/** A link to the setup step this screen depends on. */
+	prerequisite?: { label: string; href: string };
+	/**
+	 * The state shown when a search or filter is active and matched nothing.
+	 * Clearing restores the truly-empty state; `clearLabel` is the button.
+	 * Without it the table keeps the renderer's default "no results" copy.
+	 */
+	filtered?: {
+		icon?: string;
+		title: string;
+		description?: string;
+		clearLabel: string;
+	};
 }
 
 /**
@@ -1287,8 +1420,16 @@ export interface TableColumnConfig {
 			| "rating"
 			| "boolean"
 			| "date"
-			| "number";
+			| "datetime"
+			| "relative"
+			| "number"
+			| "money"
+			| "reference"
+			| "image"
+			| "line-chart";
 		props?: Record<string, unknown>;
+		/** Legacy: reference label field at the format level. */
+		displayField?: string;
 		transform?: string;
 		pattern?: string;
 		prefix?: string;
@@ -1336,6 +1477,11 @@ export interface TableMetadata extends ActiveEntity {
 	} | null;
 	rowActions: TableAction[];
 	toolbarActions: TableAction[];
+	/**
+	 * UX-25 — bulk actions over the current selection. Declaring any turns on
+	 * the selection checkbox column and the bulk bar.
+	 */
+	bulkActions?: TableBulkAction[] | null;
 	settings: TableSettings;
 	subTable?: TableSubTable | null;
 	onRowClick?: ITableOnRowClick;

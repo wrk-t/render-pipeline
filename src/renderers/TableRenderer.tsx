@@ -5,6 +5,7 @@ import IconButton from "@mui/material/IconButton";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
+import { useTranslations } from "next-intl";
 import {
 	type ReactElement,
 	useCallback,
@@ -16,8 +17,10 @@ import useSWR, { useSWRConfig } from "swr";
 import { checkComponentPermission } from "../ability/checkComponentPermission";
 import { checkTier, resolveTier } from "../ability/checkTier";
 import { AutoComponent } from "../ComponentRenderer";
-import { BaseDialog } from "../components/dialog/BaseDialog";
 import { Unicon } from "../components/common/icon/Unicon";
+import { BaseDialog } from "../components/dialog/BaseDialog";
+import { deriveDialogTitle } from "../components/dialog/dialogTitle";
+import type { DialogSize } from "../components/dialog/types";
 import { QrPreviewDialog } from "../components/qr/QrPreviewDialog";
 import { QrStyleDialog } from "../components/qr/QrStyleDialog";
 import { getApiClient, useRenderUser } from "../deps";
@@ -31,8 +34,8 @@ import { DynamicTable } from "../dynamic-table";
 import { useSnack } from "../hooks/useSnack";
 import { resolveUrlTemplate } from "../query-builder";
 import type { RenderedComponent } from "../types";
-import { useRecordData } from "./RecordContext";
 import { matchesCondition } from "./condition";
+import { useRecordData } from "./RecordContext";
 
 // State-context + table IDs for the link-operations dialog.
 // These match the seeded package link-ops components (see
@@ -61,6 +64,12 @@ function actionFromComponent(ref: RenderedComponent): TableAction {
 		dialog?: {
 			componentId?: number;
 			context?: "create" | "edit" | "view";
+			/** Per-action dialog title ($trl_ key or literal). */
+			title?: string;
+			/** Per-action width hint; a line editor sets `lg`. */
+			size?: DialogSize;
+			/** Row fields copied into the dialog's path params. */
+			rowFields?: string[] | Record<string, string>;
 			/** Static/row-templated form prefill (CRM-27/29). */
 			extra?: Record<string, unknown>;
 		};
@@ -99,6 +108,9 @@ function actionFromComponent(ref: RenderedComponent): TableAction {
 				dialog: {
 					componentId: String(cfg.dialog?.componentId ?? ""),
 					context: cfg.dialog?.context ?? "edit",
+					...(cfg.dialog?.title ? { title: cfg.dialog.title } : {}),
+					...(cfg.dialog?.size ? { size: cfg.dialog.size } : {}),
+					...(cfg.dialog?.rowFields ? { rowFields: cfg.dialog.rowFields } : {}),
 					...(cfg.dialog?.extra
 						? {
 								extra: cfg.dialog.extra as Record<
@@ -166,6 +178,7 @@ export function TableRenderer({
 	const columnEls = component.slotsFilled["columns"] ?? [];
 	const { mutate } = useSWRConfig();
 	const snack = useSnack();
+	const tc = useTranslations("common");
 	/**
 	 * The detail page's record, when this table is mounted inside a layout that
 	 * declares a datasource. A toolbar action may then carry a `condition`
@@ -222,6 +235,14 @@ export function TableRenderer({
 		undefined,
 	);
 	const [formDialogTitle, setFormDialogTitle] = useState("");
+	/** Width hint: the action's `dialog.size`, else the form's suggestion. */
+	const [formDialogSize, setFormDialogSize] = useState<DialogSize>("sm");
+	/** Set when the ACTION declared a size — it outranks the form's suggestion. */
+	const formSizeHintRef = useRef<DialogSize | undefined>(undefined);
+	/** What each form asked for last time, so a reopen does not resize. */
+	const formSizeMemoryRef = useRef<Record<number, DialogSize>>({});
+	/** The footer's primary spins for the whole submit promise. */
+	const [formSubmitting, setFormSubmitting] = useState(false);
 	const [formExtra, setFormExtra] = useState("");
 
 	const formApiRef = useRef<{
@@ -242,7 +263,12 @@ export function TableRenderer({
 	 * validated and showed no errors.
 	 */
 	const submitCurrentForm = useCallback(() => {
-		void formApiRef.current?.submitForm();
+		// The footer must show a spinner for the whole request, not just the
+		// click: Formik's submitForm resolves when the API call settles.
+		setFormSubmitting(true);
+		void Promise.resolve(formApiRef.current?.submitForm()).finally(() =>
+			setFormSubmitting(false),
+		);
 	}, []);
 
 	/**
@@ -266,6 +292,9 @@ export function TableRenderer({
 			setFormContext("create");
 			setFormRecordId(undefined);
 			setFormDialogTitle("");
+			setFormDialogSize("sm");
+			formSizeHintRef.current = undefined;
+			setFormSubmitting(false);
 			setFormExtra("");
 		}, FORM_DIALOG_EXIT_MS);
 		formApiRef.current = null;
@@ -512,10 +541,22 @@ export function TableRenderer({
 				}
 				const componentId = (action as any)?.dialog?.componentId || formId;
 				if (componentId) {
-					const t =
-						typeof tableMetadata.title === "string"
-							? tableMetadata.title.replace(/^\$trl_/, "")
-							: "Record";
+					const dialog = (action as any)?.dialog as
+						| { title?: string; size?: DialogSize }
+						| undefined;
+					// The title names the ACTION — never the table's plural entity
+					// name. `dialog.title` wins, then the action's own label, so the
+					// Receive action reads "Receive", not "Create Purchase orders".
+					const actionTitle = deriveDialogTitle({
+						title: dialog?.title,
+						label: (action as any)?.label,
+						params: { ...tenantParam, ...pathParams, ...parsed },
+					});
+					const contextFallback = isView
+						? "View"
+						: isCreate
+							? tc("create")
+							: "Edit";
 					// A quick close→open must cancel the previous exit timer, or it
 					// clears the freshly opened dialog's payload mid-animation.
 					if (formCloseTimer.current) {
@@ -528,9 +569,15 @@ export function TableRenderer({
 					// find edit actions (GET endpoints) to fetch record data.
 					setFormContext(isView ? "edit" : isCreate ? "create" : "edit");
 					setFormRecordId(isCreate ? undefined : id);
-					setFormDialogTitle(
-						isCreate ? `Create ${t}` : isView ? `View ${t}` : `Edit ${t}`,
+					setFormDialogTitle(actionTitle ?? contextFallback);
+					// The action's size hint outranks the form's own recommendation.
+					formSizeHintRef.current = dialog?.size;
+					setFormDialogSize(
+						dialog?.size ??
+							formSizeMemoryRef.current[Number(componentId)] ??
+							"sm",
 					);
+					setFormSubmitting(false);
 					setFormExtra(extra);
 					setShowFormDialog(true);
 				}
@@ -540,6 +587,9 @@ export function TableRenderer({
 		[
 			tableMetadata,
 			component.displayName,
+			tc,
+			tenantParam,
+			pathParams,
 			handleConfirmClose,
 			handleDeleteClose,
 			handleFormClose,
@@ -688,11 +738,16 @@ export function TableRenderer({
 							...pathParams,
 							...extras,
 						};
-						const t =
-							typeof tableMetadata.title === "string"
-								? tableMetadata.title.replace(/^\$trl_/, "")
-								: "Record";
-						const dialogTitle = isDelete ? `Delete ${t}` : `Recover ${t}`;
+						// One-record actions name the action, not the plural table
+						// ("Delete" / "Restore", or the action's own `$trl_` title).
+						const dialogTitle =
+							deriveDialogTitle({
+								title:
+									(delAction as any).confirm?.title ??
+									(delAction as any).dialog?.title,
+								label: (delAction as any).label,
+								params: { ...mergedPathParams, id: delId },
+							}) ?? (isDelete ? "Delete" : "Restore");
 						const confirmMessage =
 							(delAction as any).confirm?.message ?? "Are you sure?";
 						const confirmTitle = (delAction as any).confirm?.title ?? "Confirm";
@@ -769,7 +824,8 @@ export function TableRenderer({
 								isOpen={showFormDialog}
 								title={formDialogTitle}
 								onClose={handleFormClose}
-								isPending={false}
+								isPending={formSubmitting}
+								size={formDialogSize}
 								onSubmit={submitCurrentForm}
 								slotProps={{
 									submitButton: {
@@ -812,6 +868,20 @@ export function TableRenderer({
 										// Ignore a form that reports ready while its dialog is
 										// already closing; it is about to unmount.
 										if (!formDialogOpenRef.current) return;
+										// A form that knows it is a line editor recommends a
+										// wider dialog; an explicit action `dialog.size`
+										// already won and is never overridden.
+										if (api.size) {
+											formSizeMemoryRef.current[Number(formComponentId)] =
+												api.size;
+										}
+										if (!formSizeHintRef.current && api.size) {
+											setFormDialogSize((previous) =>
+												previous === api.size
+													? previous
+													: (api.size as DialogSize),
+											);
+										}
 										const cur = formApiRef.current;
 										// Always point at the LATEST form. Only re-render when
 										// the footer labels actually change, so this cannot loop

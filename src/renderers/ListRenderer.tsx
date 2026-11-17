@@ -23,6 +23,7 @@ import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
 	type ReactElement,
 	useCallback,
@@ -31,10 +32,12 @@ import {
 	useState,
 } from "react";
 import useSWR, { useSWRConfig } from "swr";
-import { checkComponentPermission } from "../ability/checkComponentPermission";
 import { useCan } from "../ability";
+import { checkComponentPermission } from "../ability/checkComponentPermission";
 import { AutoComponent } from "../ComponentRenderer";
 import { BaseDialog } from "../components/dialog/BaseDialog";
+import { deriveDialogTitle } from "../components/dialog/dialogTitle";
+import type { DialogSize } from "../components/dialog/types";
 import { getApiClient, useRenderUser } from "../deps";
 import type { TableAction } from "../dynamic-form/types";
 import { TableIcon } from "../dynamic-table";
@@ -108,6 +111,7 @@ export function ListRenderer({
 	const snack = useSnack();
 	const { mutate } = useSWRConfig();
 	const can = useCan();
+	const tc = useTranslations("common");
 
 	const config = (component.config ?? {}) as Record<string, any>;
 	const datasource = config.datasource ?? {};
@@ -209,9 +213,17 @@ export function ListRenderer({
 		undefined,
 	);
 	const [formDialogTitle, setFormDialogTitle] = useState("");
-	const [formPathParams, setFormPathParams] = useState<
-		Record<string, string>
-	>({});
+	/** Width hint: the action's `dialog.size`, else the form's suggestion. */
+	const [formDialogSize, setFormDialogSize] = useState<DialogSize>("sm");
+	/** Set when the ACTION declared a size — it outranks the form's suggestion. */
+	const formSizeHintRef = useRef<DialogSize | undefined>(undefined);
+	/** What each form asked for last time, so a reopen does not resize. */
+	const formSizeMemoryRef = useRef<Record<string, DialogSize>>({});
+	/** The footer's primary spins for the whole submit promise. */
+	const [formSubmitting, setFormSubmitting] = useState(false);
+	const [formPathParams, setFormPathParams] = useState<Record<string, string>>(
+		{},
+	);
 
 	const formApiRef = useRef<{
 		submitForm: () => Promise<void>;
@@ -226,6 +238,9 @@ export function ListRenderer({
 		setFormContext("create");
 		setFormRecordId(undefined);
 		setFormDialogTitle("");
+		setFormDialogSize("sm");
+		formSizeHintRef.current = undefined;
+		setFormSubmitting(false);
 		setFormPathParams({});
 		formApiRef.current = null;
 		mutate(() => true);
@@ -236,37 +251,54 @@ export function ListRenderer({
 		handleFormClose();
 	}, [mutate, handleFormClose]);
 
+	/** Keep the footer's primary spinning for the whole submit promise. */
+	const submitCurrentForm = useCallback(() => {
+		setFormSubmitting(true);
+		void Promise.resolve(formApiRef.current?.submitForm()).finally(() =>
+			setFormSubmitting(false),
+		);
+	}, []);
+
 	// ── Action dispatch ───────────────────────────────────────
 	const openActionDialog = useCallback(
 		(action: TableAction, row?: Record<string, unknown>) => {
 			if (action.action === "openDialog") {
 				const dialog = action.dialog as any;
 				const context = dialog?.context ?? "edit";
-				const componentTitle =
-					typeof component.displayName === "string"
-						? component.displayName.replace(/^\$trl_/, "")
-						: "Record";
-				const customTitle =
-					typeof dialog?.title === "string"
-						? dialog.title.replace(/^\$trl_/, "")
-						: null;
+				// The title names the ACTION: its own `dialog.title` ($trl_ key or
+				// literal, `{rowField}`-resolved), then its label. Never the
+				// pluralised list title (UX-7).
+				const actionTitle = deriveDialogTitle({
+					title: dialog?.title,
+					label: action.label,
+					params: { ...resolvedPathParams, ...(row ?? {}) },
+				});
 				setFormComponentId(
-					(dialog?.componentId as string | undefined) ??
-						dialog?.formId ??
-						"",
+					(dialog?.componentId as string | undefined) ?? dialog?.formId ?? "",
 				);
 				setFormContext(context === "view" ? "edit" : context);
 				setFormRecordId(
 					context === "create" ? undefined : String(row?.id ?? ""),
 				);
 				setFormDialogTitle(
-					customTitle ??
+					actionTitle ??
 						(context === "create"
-							? `Create ${componentTitle}`
+							? tc("create")
 							: context === "view"
-								? `View ${componentTitle}`
-								: `Edit ${componentTitle}`),
+								? "View"
+								: "Edit"),
 				);
+				// The action's size hint outranks the form's own recommendation.
+				formSizeHintRef.current = dialog?.size as DialogSize | undefined;
+				const nextComponentId = String(
+					(dialog?.componentId as string | undefined) ?? dialog?.formId ?? "",
+				);
+				setFormDialogSize(
+					(dialog?.size as DialogSize | undefined) ??
+						formSizeMemoryRef.current[nextComponentId] ??
+						"sm",
+				);
+				setFormSubmitting(false);
 				// In create context, copy selected row fields into the form's
 				// pathParams so prefilled/hidden fields (e.g. the clicked
 				// plan's id as planId) reach the form's initial values.
@@ -344,7 +376,7 @@ export function ListRenderer({
 				router.push(resolved);
 			}
 		},
-		[component.displayName, resolvedPathParams, mutate, snack, router],
+		[tc, resolvedPathParams, mutate, snack, router],
 	);
 
 	const title =
@@ -362,16 +394,43 @@ export function ListRenderer({
 			{/* ── Header + toolbar actions ── */}
 			{(title || visibleToolbarActions.length > 0) && (
 				<Stack
-					direction="row"
-					className="mb-3 w-full items-center justify-between"
+					sx={{
+						mb: 1.5,
+						width: "100%",
+						gap: 2,
+						flexDirection: "column",
+						alignItems: "flex-start",
+						"@media (min-width:768px)": {
+							flexDirection: "row",
+							alignItems: "center",
+							justifyContent: "space-between",
+						},
+					}}
 				>
 					{title && (
-						<Typography variant="h6" className="font-bold">
+						<Typography
+							variant="h6"
+							sx={{ minWidth: 0, fontWeight: 700, wordBreak: "break-word" }}
+						>
 							{title}
 						</Typography>
 					)}
 					{visibleToolbarActions.length > 0 && (
-						<Stack direction="row" spacing={1}>
+						<Stack
+							sx={{
+								gap: 2,
+								width: "100%",
+								flexDirection: "column",
+								alignItems: "stretch",
+								"& .MuiButton-root": { width: "100%" },
+								"@media (min-width:600px)": {
+									width: "auto",
+									flexDirection: "row",
+									alignItems: "center",
+									"& .MuiButton-root": { width: "auto" },
+								},
+							}}
+						>
 							{visibleToolbarActions.map((action) => (
 								<Button
 									key={action.id}
@@ -455,7 +514,8 @@ export function ListRenderer({
 												{String(item.description)}
 											</Typography>
 										) : null}
-										{item[valueField] !== undefined && item[valueField] !== null ? (
+										{item[valueField] !== undefined &&
+										item[valueField] !== null ? (
 											<Typography variant="body2" className="break-all">
 												{String(item[valueField])}
 											</Typography>
@@ -529,8 +589,9 @@ export function ListRenderer({
 					isOpen
 					title={formDialogTitle}
 					onClose={handleFormClose}
-					isPending={false}
-					onSubmit={formApiRef.current?.submitForm}
+					isPending={formSubmitting}
+					size={formDialogSize}
+					onSubmit={submitCurrentForm}
 					slotProps={{
 						submitButton: {
 							show: !!formApiRef.current,
@@ -554,6 +615,16 @@ export function ListRenderer({
 						onClose={handleFormClose}
 						pathParams={formPathParams}
 						onFormReady={(api) => {
+							// A form that knows it is a line editor recommends a wider
+							// dialog; an explicit action `dialog.size` already won.
+							if (api.size) {
+								formSizeMemoryRef.current[String(formComponentId)] = api.size;
+							}
+							if (!formSizeHintRef.current && api.size) {
+								setFormDialogSize((previous) =>
+									previous === api.size ? previous : (api.size as DialogSize),
+								);
+							}
 							const cur = formApiRef.current;
 							if (
 								!cur ||

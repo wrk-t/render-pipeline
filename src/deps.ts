@@ -20,6 +20,8 @@ export interface RenderUser {
 	id?: string;
 	tenant?: {
 		id?: string;
+		/** The workspace's display currency; falls back to the payment account. */
+		currency?: string;
 		/** Workspace tier (solo/team/enterprise) — drives tier-gated UI. */
 		tier?: "solo" | "team" | "enterprise";
 	} | null;

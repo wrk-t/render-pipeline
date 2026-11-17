@@ -14,6 +14,8 @@ import { type ReactElement, useEffect, useMemo } from "react";
 import useSWR from "swr";
 import { Unicon } from "../../components/common/icon/Unicon";
 import { getApiClient } from "../../deps";
+import { formatMoney } from "../../formatting/money";
+import { useTenantCurrency } from "../../hooks/useTenantCurrency";
 
 // ════════════════════════════════════════════════════════════════
 // OrderItemsField — repeatable menu-item picker for order creation.
@@ -39,6 +41,8 @@ interface MenuItemOption {
 	id: string;
 	name: string;
 	price: number;
+	/** The list could not resolve a price (monetization is down) — show "—". */
+	priceUnavailable: boolean;
 	isAvailable: boolean;
 	isOrderable: boolean;
 }
@@ -88,10 +92,17 @@ function toMenuItemOption(raw: unknown): MenuItemOption | null {
 		return null;
 	}
 	const price = Number(item.price);
+	const priceUnavailable =
+		item.priceUnavailable === true ||
+		item.pricePending === true ||
+		item.price === null ||
+		item.price === undefined ||
+		!Number.isFinite(price);
 	return {
 		id: item.id,
 		name: item.name,
-		price: Number.isFinite(price) ? price : 0,
+		price: priceUnavailable ? 0 : price,
+		priceUnavailable,
 		isAvailable: item.isAvailable !== false,
 		isOrderable: item.isOrderable !== false,
 	};
@@ -121,11 +132,18 @@ function clampQuantity(raw: string): number {
 }
 
 /**
- * Bare amount projection — the menu-items list carries no currency, so no
- * currency formatter is applied. Trims float noise from price × quantity.
+ * Money label for the picker. The menu-items list may carry no currency
+ * (prices live in monetization), so the tenant's display currency is used.
+ * An unresolved price reads "—", never a misleading `0` (E5-07).
  */
-function formatAmount(value: number): string {
-	return Number.isFinite(value) ? String(Number(value.toFixed(2))) : "0";
+function moneyLabel(
+	amount: number,
+	currency: string,
+	unavailable = false,
+): string {
+	if (unavailable) return "—";
+	const rounded = Number.isFinite(amount) ? Number(amount.toFixed(2)) : 0;
+	return formatMoney(rounded, { currency });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -147,6 +165,7 @@ export function OrderItemsField({
 	);
 	const { isSubmitting, submitCount } = useFormikContext();
 	const labels = useOrderItemsLabels();
+	const currency = useTenantCurrency();
 
 	const baseUrl = process.env.NEXT_PUBLIC_ENDPOINT ?? "";
 	const { data, error, isLoading } = useSWR(
@@ -191,6 +210,12 @@ export function OrderItemsField({
 		return item ? sum + item.price * row.quantity : sum;
 	}, 0);
 
+	// One unknown price makes the whole total unknown — showing a partial
+	// sum would under-report what the order costs.
+	const orderPriceUnavailable = rows.some(
+		(row) => itemsById.get(row.menuItemId)?.priceUnavailable === true,
+	);
+
 	/**
 	 * Quantity 2 of one item is TWO items, not one line. The counter used to
 	 * count rows, so one line of two read like a single item.
@@ -232,8 +257,11 @@ export function OrderItemsField({
 				const item = itemsById.get(row.menuItemId) ?? null;
 				const selectedItem: MenuItemOption | null = item ?? {
 					id: row.menuItemId,
-					name: row.menuItemId,
+					// The item is not in the fetched options yet (loading) or was
+					// removed. Never surface its id as the label.
+					name: "—",
 					price: 0,
+					priceUnavailable: true,
 					isAvailable: true,
 					isOrderable: true,
 				};
@@ -271,7 +299,7 @@ export function OrderItemsField({
 										<div className="flex w-full justify-between gap-2">
 											<span>{option.name}</span>
 											<span className="text-sm opacity-60">
-												{formatAmount(option.price)}
+												{moneyLabel(option.price, currency, option.priceUnavailable)}
 											</span>
 										</div>
 									</li>
@@ -282,8 +310,9 @@ export function OrderItemsField({
 							/>
 							{item && (
 								<Typography variant="caption" color="text.secondary">
-									{formatAmount(item.price)} × {row.quantity} ={" "}
-									{formatAmount(lineTotal)}
+									{moneyLabel(item.price, currency, item.priceUnavailable)} ×{" "}
+									{row.quantity} ={" "}
+									{moneyLabel(lineTotal, currency, item.priceUnavailable)}
 								</Typography>
 							)}
 						</Stack>
@@ -353,7 +382,7 @@ export function OrderItemsField({
 				{rows.length > 0 && (
 					<Typography variant="body2" className="font-medium">
 						{labels.quantity}: {totalQuantity} · {labels.total}:{" "}
-						{formatAmount(orderTotal)}
+						{orderPriceUnavailable ? "—" : moneyLabel(orderTotal, currency)}
 					</Typography>
 				)}
 			</Stack>

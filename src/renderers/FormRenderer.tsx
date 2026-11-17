@@ -24,6 +24,7 @@ import { checkComponentPermission } from "../ability/checkComponentPermission";
 import { ComponentRenderer } from "../ComponentRenderer";
 import { ConfirmPrompt } from "../components/common/CopyableTitle";
 import { BaseDialog } from "../components/dialog/BaseDialog";
+import { useDialogDirtyReporter } from "../components/dialog/dialogDirtyContext";
 import { getApiClient, useRenderUser } from "../deps";
 import { buildFormSchema } from "../dynamic-form/buildValidationSchema";
 import {
@@ -345,6 +346,19 @@ function MarkTouchedOnSubmit({ names }: { names: string[] }): null {
 }
 
 // ──────────────────────────────────────────────────────────────────
+// DialogDirtyReporter — tell the enclosing dialog whether this form has
+// unsaved edits, so its Escape/backdrop/close request can ask
+// "Discard changes?" first (UX-7). Outside a dialog the hook is a no-op,
+// which is why the detail-page form mounts it too.
+// ──────────────────────────────────────────────────────────────────
+
+function DialogDirtyReporter(): null {
+	const { dirty } = useFormikContext<Record<string, unknown>>();
+	useDialogDirtyReporter(Boolean(dirty));
+	return null;
+}
+
+// ──────────────────────────────────────────────────────────────────
 // FocusFirstError — put the user on the field that blocked the submit.
 //
 // Field errors are rendered under the field, but in a long form (or a
@@ -579,6 +593,24 @@ export function FormRenderer({
 			allFields
 				.map((field) => field.name)
 				.filter((name): name is string => Boolean(name)),
+		[allFields],
+	);
+
+	/**
+	 * A line editor — a form with a repeatable item-lines field — is unusable
+	 * at the default `sm` width: each row has several columns, and helper text
+	 * collapses to one word per line. The form reports `lg` so the dialog can
+	 * widen itself when the action seed carries no explicit `dialog.size`
+	 * (UX-7).
+	 */
+	const isLineEditor = useMemo(
+		() =>
+			allFields.some((field) => {
+				const type = field.uiComponentId
+					? (UI_TYPE_MAP[field.uiComponentId] ?? field.type ?? "text")
+					: (field.type ?? "text");
+				return type === "order-items";
+			}),
 		[allFields],
 	);
 
@@ -1003,7 +1035,7 @@ export function FormRenderer({
 			if (!(contextName && stateCtx)) {
 				for (const field of allFields) {
 					const name = field.name;
-					if (!name || !isValueOmittedWhenBlank(field)) continue;
+					if (!(name && isValueOmittedWhenBlank(field))) continue;
 					if (getDottedValue(payload, name) === "") {
 						deleteDottedValue(payload, name);
 					}
@@ -1091,9 +1123,13 @@ export function FormRenderer({
 		(a: any) => a.action === "close" || a.action === "cancel",
 	);
 
-	// Resolve action labels for the dialog footer
+	// Resolve action labels for the dialog footer. The secondary is a Cancel
+	// (UX-7) even when the metadata has no `close` action or still labels it
+	// "Close"; a seeded `$trl_cancel` close action wins with its translation.
 	const submitLabel = (primaryApiActions[0] as any)?.label ?? tc("submit");
-	const closeLabel = (closeActions[0] as any)?.label ?? tc("close");
+	const closeLabel =
+		(closeActions[0] as any)?.label ??
+		(tc.has("cancel") ? tc("cancel") : "Cancel");
 
 	// Ref to hold Formik's submitForm for the parent dialog
 	const submitFormRef = useRef<(() => Promise<void>) | null>(null);
@@ -1129,6 +1165,9 @@ export function FormRenderer({
 				submitForm: () => submitFormRef.current!(),
 				submitLabel,
 				closeLabel,
+				// The form's own width recommendation; the action's `dialog.size`
+				// wins when it declares one.
+				...(isLineEditor ? { size: "lg" as const } : {}),
 				...(sendNowAction
 					? {
 							submitNow: {
@@ -1146,6 +1185,7 @@ export function FormRenderer({
 		onFormReady,
 		submitLabel,
 		closeLabel,
+		isLineEditor,
 		primaryApiActions.length,
 		sendNowAction,
 	]);
@@ -1228,6 +1268,7 @@ export function FormRenderer({
 						<Form data-dynamic-form>
 							<FormSideEffects specs={resetSpecs} />
 							<MarkTouchedOnSubmit names={fieldNames} />
+							<DialogDirtyReporter />
 							<FocusFirstError fields={allFields} />
 							{!onFormReady && component.displayName && (
 								// Spacing is `sx`, not Tailwind: this package is built to
@@ -1332,9 +1373,9 @@ export function FormRenderer({
 										// A disabled primary explains itself: the
 										// confirmation is one typed title away.
 										tooltip:
-											sendTyped.trim() !== pendingSend.title
-												? tc("confirmTypeTitle", { title: pendingSend.title })
-												: null,
+											sendTyped.trim() === pendingSend.title
+												? null
+												: tc("confirmTypeTitle", { title: pendingSend.title }),
 									},
 								}}
 							>
