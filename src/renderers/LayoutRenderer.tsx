@@ -195,8 +195,10 @@ export function LayoutRenderer({
 				)}
 				<div
 					className={[
-						"flex min-h-0 flex-1 flex-col rounded-xl border border-border bg-card p-6 text-card-foreground",
-						(config.elevation ?? 1) > 0 ? "shadow-sm" : undefined,
+						// The shell already provides the working surface (an inset
+						// panel); a second card here would nest cards. Screens keep
+						// their own section surfaces instead.
+						"flex min-h-0 flex-1 flex-col",
 						config.maxWidth != null ? "mx-auto w-full" : undefined,
 					]
 						.filter(Boolean)
