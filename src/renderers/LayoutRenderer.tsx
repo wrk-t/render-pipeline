@@ -9,6 +9,7 @@ import { useResolvedParams } from "../hooks/useResolvedParams";
 import type { RenderedComponent } from "../types";
 import { LayoutChildren } from "./layoutChildren";
 import { RecordProvider, type TRecordData } from "./RecordContext";
+import { ScreenContentContext } from "./ScreenContentContext";
 
 // ──────────────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════
@@ -206,8 +207,11 @@ export function LayoutRenderer({
 					style={Object.keys(surfaceStyle).length > 0 ? surfaceStyle : undefined}
 				>
 					{/* The spaced wrapper, not the bare children: a detail page stacks
-					    summary/info/form blocks and they must not touch. */}
-					{contentWithSpacing}
+					    summary/info/form blocks and they must not touch. Children know
+					    the layout already owns the screen title. */}
+					<ScreenContentContext.Provider value={true}>
+						{contentWithSpacing}
+					</ScreenContentContext.Provider>
 				</div>
 			</div>
 		</RecordProvider>

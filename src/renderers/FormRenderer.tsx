@@ -12,11 +12,19 @@ import {
 } from "formik";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
+import {
+	type ReactElement,
+	useContext,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import useSWR from "swr";
 import { checkComponentPermission } from "../ability/checkComponentPermission";
 import { ComponentRenderer } from "../ComponentRenderer";
 import { ConfirmPrompt } from "../components/common/CopyableTitle";
+import { ScreenContentContext } from "./ScreenContentContext";
 import { BaseDialog } from "../components/dialog/BaseDialog";
 import { useDialogDirtyReporter } from "../components/dialog/dialogDirtyContext";
 import { getApiClient, useRenderUser } from "../deps";
@@ -443,6 +451,9 @@ export function FormRenderer({
 	}) => void;
 	pathParams?: Record<string, string>;
 }): ReactElement {
+	// A screen layout already prints the screen title; the form's own heading
+	// would repeat it.
+	const insideScreenLayout = useContext(ScreenContentContext);
 	const snack = useSnack();
 	// Fallbacks for messages Yup generates itself (required/type). The host may
 	// not ship a `validation` namespace, in which case `t("required")` would
@@ -1180,7 +1191,7 @@ export function FormRenderer({
 	if (hasNoFields) {
 		return (
 			<div>
-				{!onFormReady && component.displayName && (
+				{!onFormReady && !insideScreenLayout && component.displayName && (
 					<h2 className="mb-4 text-2xl font-semibold tracking-tight text-foreground">
 						{component.displayName}
 					</h2>
@@ -1252,7 +1263,7 @@ export function FormRenderer({
 							<MarkTouchedOnSubmit names={fieldNames} />
 							<DialogDirtyReporter />
 							<FocusFirstError fields={allFields} />
-							{!onFormReady && component.displayName && (
+							{!onFormReady && !insideScreenLayout && component.displayName && (
 								<div className="mb-6">
 									<h2 className="text-2xl font-semibold tracking-tight text-foreground">
 										{component.displayName}
