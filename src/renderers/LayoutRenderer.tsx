@@ -9,6 +9,7 @@ import { useResolvedParams } from "../hooks/useResolvedParams";
 import type { RenderedComponent } from "../types";
 import { LayoutChildren } from "./layoutChildren";
 import { RecordProvider, type TRecordData } from "./RecordContext";
+import { ScreenContentContext } from "./ScreenContentContext";
 
 // ──────────────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════
@@ -195,8 +196,10 @@ export function LayoutRenderer({
 				)}
 				<div
 					className={[
-						"flex min-h-0 flex-1 flex-col rounded-xl border border-border bg-card p-6 text-card-foreground",
-						(config.elevation ?? 1) > 0 ? "shadow-sm" : undefined,
+						// The shell already provides the working surface (an inset
+						// panel); a second card here would nest cards. Screens keep
+						// their own section surfaces instead.
+						"flex min-h-0 flex-1 flex-col",
 						config.maxWidth != null ? "mx-auto w-full" : undefined,
 					]
 						.filter(Boolean)
@@ -204,8 +207,11 @@ export function LayoutRenderer({
 					style={Object.keys(surfaceStyle).length > 0 ? surfaceStyle : undefined}
 				>
 					{/* The spaced wrapper, not the bare children: a detail page stacks
-					    summary/info/form blocks and they must not touch. */}
-					{contentWithSpacing}
+					    summary/info/form blocks and they must not touch. Children know
+					    the layout already owns the screen title. */}
+					<ScreenContentContext.Provider value={true}>
+						{contentWithSpacing}
+					</ScreenContentContext.Provider>
 				</div>
 			</div>
 		</RecordProvider>

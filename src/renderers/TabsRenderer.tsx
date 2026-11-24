@@ -38,6 +38,12 @@ export function TabsRenderer({
 }): ReactElement {
 	const staticTabs: Array<{ label: string; icon?: string }> =
 		(component.config as any)?.tabs ?? [];
+	// A vertical rail is the settings-style variant: sections on the left,
+	// the active panel on the right.
+	const vertical =
+		(component.meta as { orientation?: string } | null)?.orientation ===
+			"vertical" ||
+		(component.config as { orientation?: string })?.orientation === "vertical";
 	const datasource = (component.config as any)?.datasource;
 
 	const { setSelected, setVersions } = useVersion();
@@ -131,15 +137,23 @@ export function TabsRenderer({
 				window.getComputedStyle(event.currentTarget).direction === "rtl";
 			let next: number | null = null;
 			switch (event.key) {
+				case "ArrowDown":
+					if (vertical) next = (activeIndex + 1) % count;
+					break;
+				case "ArrowUp":
+					if (vertical) next = (activeIndex - 1 + count) % count;
+					break;
 				case "ArrowRight":
-					next = rtl
-						? (activeIndex - 1 + count) % count
-						: (activeIndex + 1) % count;
+					if (!vertical)
+						next = rtl
+							? (activeIndex - 1 + count) % count
+							: (activeIndex + 1) % count;
 					break;
 				case "ArrowLeft":
-					next = rtl
-						? (activeIndex + 1) % count
-						: (activeIndex - 1 + count) % count;
+					if (!vertical)
+						next = rtl
+							? (activeIndex + 1) % count
+							: (activeIndex - 1 + count) % count;
 					break;
 				case "Home":
 					next = 0;
@@ -150,13 +164,14 @@ export function TabsRenderer({
 				default:
 					return;
 			}
+			if (next === null) return;
 			event.preventDefault();
 			handleTabChange(next);
 			const tabs =
 				event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]');
 			tabs[next]?.focus();
 		},
-		[allTabs.length, activeIndex, handleTabChange],
+		[allTabs.length, activeIndex, handleTabChange, vertical],
 	);
 
 	// Get content elements, sorted by displayOrder
@@ -180,15 +195,20 @@ export function TabsRenderer({
 	const activePanelId = `${baseId}-panel-${activeIndex}`;
 
 	return (
-		<div className="flex flex-col gap-4">
+		<div className={vertical ? "flex flex-col gap-6 md:flex-row" : "flex flex-col gap-4"}>
 			<div
 				role="tablist"
+				aria-orientation={vertical ? "vertical" : undefined}
 				// UX-9 — a tablist with no accessible name is announced as just
 				// "tab list": name it after the component the tabs belong to
 				// (customer detail, …), which the backend already translated.
 				aria-label={component.displayName || component.name}
 				onKeyDown={handleTabKeyDown}
-				className="flex w-fit max-w-full items-center gap-1 overflow-x-auto rounded-lg bg-muted p-1 text-muted-foreground"
+				className={
+					vertical
+						? "flex w-full shrink-0 flex-col items-stretch gap-0.5 text-muted-foreground md:w-48"
+						: "flex w-fit max-w-full items-center gap-1 overflow-x-auto rounded-lg bg-muted p-1 text-muted-foreground"
+				}
 			>
 				{allTabs.map((tab: any, idx: number) => {
 					const selected = activeIndex === idx;
@@ -204,7 +224,11 @@ export function TabsRenderer({
 							data-state={selected ? "active" : "inactive"}
 							tabIndex={selected ? 0 : -1}
 							onClick={() => handleTabChange(idx)}
-							className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+							className={
+								vertical
+									? "inline-flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-start text-sm font-medium transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-muted data-[state=active]:text-foreground"
+									: "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+							}
 						>
 							<span>{tab.label}</span>
 							{tab.stage && (
@@ -228,7 +252,7 @@ export function TabsRenderer({
 				id={activePanelId}
 				aria-labelledby={activeTabId}
 				tabIndex={0}
-				className="flex-1 outline-none"
+				className="min-w-0 flex-1 outline-none"
 			>
 				{activeContentEl?.referencedComponent ? (
 					<ComponentRenderer
