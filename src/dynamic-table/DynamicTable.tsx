@@ -1080,19 +1080,25 @@ function ColumnFilterControl({
 	if (meta.filterType === "select" || meta.filterType === "boolean") {
 		const options = meta.filterOptions ?? [];
 		return (
-			<select
-				aria-label={`Filter ${label}`}
-				value={current}
-				onChange={(event) => onChange(event.target.value)}
-				className={FILTER_CONTROL_CLASS}
-			>
-				<option value="">All</option>
-				{options.map((option) => (
-					<option key={option.value} value={option.value}>
-						{option.label}
-					</option>
-				))}
-			</select>
+			<div className="relative">
+				<select
+					aria-label={`Filter ${label}`}
+					value={current}
+					onChange={(event) => onChange(event.target.value)}
+					className={`${FILTER_CONTROL_CLASS} appearance-none pe-9`}
+				>
+					<option value="">All</option>
+					{options.map((option) => (
+						<option key={option.value} value={option.value}>
+							{option.label}
+						</option>
+					))}
+				</select>
+				<ChevronDown
+					aria-hidden="true"
+					className="pointer-events-none absolute end-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+				/>
+			</div>
 		);
 	}
 
@@ -3432,7 +3438,7 @@ export function DynamicTable({
 											key={row.id}
 											data-state={row.getIsSelected() ? "selected" : undefined}
 											tabIndex={detailHref ? 0 : undefined}
-											className={`border-b border-border transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted ${settings.striped ? "even:bg-muted/50" : ""} ${
+											className={`group border-b border-border transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted ${settings.striped ? "even:bg-muted/50" : ""} ${
 												detailHref
 													? "cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
 													: rowOnClick
@@ -3502,7 +3508,11 @@ export function DynamicTable({
 																? "overflow-hidden text-ellipsis whitespace-nowrap"
 																: "whitespace-nowrap"
 														} ${pinningClass(cell.column.id)} ${
-															pinned ? "bg-background" : ""
+															pinned
+																? `bg-background group-hover:bg-muted/50 group-data-[state=selected]:bg-muted ${
+																		settings.striped ? "group-even:bg-muted/50" : ""
+																	}`
+																: ""
 														} ${isActions ? stickyEndShadow : ""}`}
 														style={
 															meta.fixedWidth
@@ -3581,18 +3591,24 @@ export function DynamicTable({
 							>
 								Rows per page
 							</label>
-							<select
-								id="dynamic-table-rows-per-page"
-								value={pagination.pageSize}
-								onChange={(event) => changePageSize(Number(event.target.value))}
-								className="h-9 rounded-md border border-input bg-transparent ps-3 pe-8 text-sm text-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-							>
-								{pageSizeOptions.map((size) => (
-									<option key={size} value={size}>
-										{size}
-									</option>
-								))}
-							</select>
+							<div className="relative">
+								<select
+									id="dynamic-table-rows-per-page"
+									value={pagination.pageSize}
+									onChange={(event) => changePageSize(Number(event.target.value))}
+									className="h-9 appearance-none rounded-md border border-input bg-transparent ps-3 pe-9 text-sm text-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+								>
+									{pageSizeOptions.map((size) => (
+										<option key={size} value={size}>
+											{size}
+										</option>
+									))}
+								</select>
+								<ChevronDown
+									aria-hidden="true"
+									className="pointer-events-none absolute end-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+								/>
+							</div>
 						</div>
 						<div className="flex items-center justify-end gap-4 sm:gap-6">
 							<span className="min-w-[100px] text-center text-muted-foreground">
