@@ -1,7 +1,7 @@
 {
 	"name": "@wrk-t/render-pipeline",
 	"version": "0.1.0",
-	"description": "Metadata-driven client-side rendering pipeline for React/Next.js — blueprint registry, renderers, screen routing, dynamic forms and tables.",
+	"description": "Metadata-driven client-side rendering pipeline for React/Next.js \u2014 blueprint registry, renderers, screen routing, dynamic forms and tables.",
 	"license": "MIT",
 	"author": "emadi68moh@gmail.com",
 	"repository": {
@@ -62,6 +62,7 @@
 		"@tanstack/react-table": "8.20.6",
 		"@uiw/react-color-colorful": "^2.10.3",
 		"axios": "^1.15.2",
+		"cn": "^0.5.2",
 		"formik": "^2.4.9",
 		"lucide-react": "1.73.0",
 		"mapbox-gl": "^3.30.0",

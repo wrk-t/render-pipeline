@@ -65,6 +65,14 @@ import type {
 import { useFeatures } from "../hooks/useFeatures";
 import { useResolvedParams } from "../hooks/useResolvedParams";
 import { useSnack } from "../hooks/useSnack";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "../ui/table";
 import type { QueryParams } from "../query-builder";
 import { resolveUrlTemplate } from "../query-builder";
 import { columnCellRenderers } from "../renderers/columnCellRenderers";
@@ -3216,7 +3224,7 @@ export function DynamicTable({
 							: TABLE_WRAPPER_CLASS
 					} ${fullscreen ? "min-h-0 flex-1 overflow-y-auto" : ""}`}
 				>
-					<table
+					<Table
 						aria-label={tableMetadata.title || tableMetadata.name || "Table"}
 						className="w-full caption-bottom text-sm"
 					>
@@ -3228,9 +3236,9 @@ export function DynamicTable({
 								);
 							})}
 						</colgroup>
-						<thead className="[&_tr]:border-b">
+						<TableHeader className="[&_tr]:border-b">
 							{table.getHeaderGroups().map((headerGroup) => (
-								<tr key={headerGroup.id} className="border-b border-border">
+								<TableRow key={headerGroup.id} className="border-b border-border">
 									{headerGroup.headers.map((header) => {
 										const column = header.column;
 										const meta = columnMeta(column);
@@ -3244,7 +3252,7 @@ export function DynamicTable({
 											header.getContext(),
 										);
 										return (
-											<th
+											<TableHead
 												key={header.id}
 												scope="col"
 												aria-sort={
@@ -3288,15 +3296,15 @@ export function DynamicTable({
 												) : (
 													headerContent
 												)}
-											</th>
+											</TableHead>
 										);
 									})}
-								</tr>
+								</TableRow>
 							))}
 							{showFilterRow ? (
-								<tr className="border-b border-border">
+								<TableRow className="border-b border-border">
 									{visibleLeafColumns.map((column) => (
-										<th
+										<TableHead
 											key={`filter-${column.id}`}
 											scope="col"
 											className={`bg-background p-2 align-middle font-normal ${
@@ -3317,16 +3325,16 @@ export function DynamicTable({
 												}
 												onChange={(value) => setColumnFilter(column.id, value)}
 											/>
-										</th>
+										</TableHead>
 									))}
-								</tr>
+								</TableRow>
 							) : null}
-						</thead>
-						<tbody className="[&_tr:last-child]:border-0">
+						</TableHeader>
+						<TableBody className="[&_tr:last-child]:border-0">
 							{rows.length === 0 ? (
 								emptyNode === null ? null : (
-									<tr>
-										<td
+									<TableRow>
+										<TableCell
 											colSpan={Math.max(visibleLeafColumns.length, 1)}
 											className="p-2"
 										>
@@ -3337,8 +3345,8 @@ export function DynamicTable({
 														: "No records to display"}
 												</p>
 											)}
-										</td>
-									</tr>
+										</TableCell>
+									</TableRow>
 								)
 							) : (
 								rows.map((row) => {
@@ -3350,7 +3358,7 @@ export function DynamicTable({
 									const pinningClass = (columnId: string) =>
 										stickyColumnClass(columnId, false);
 									return (
-										<tr
+										<TableRow
 											key={row.id}
 											data-state={row.getIsSelected() ? "selected" : undefined}
 											tabIndex={detailHref ? 0 : undefined}
@@ -3417,7 +3425,7 @@ export function DynamicTable({
 													editingCell?.rowId === row.id &&
 													editingCell?.columnId === cell.column.id;
 												return (
-													<td
+													<TableCell
 														key={cell.id}
 														className={`align-middle ${bodyCellPadding} ${alignText(meta.align)} ${
 															meta.fixedWidth
@@ -3484,15 +3492,15 @@ export function DynamicTable({
 																cell.getContext(),
 															)
 														)}
-													</td>
+													</TableCell>
 												);
 											})}
-										</tr>
+										</TableRow>
 									);
 								})
 							)}
-						</tbody>
-					</table>
+						</TableBody>
+					</Table>
 				</div>
 				{isSubRow ? null : (
 					<div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
