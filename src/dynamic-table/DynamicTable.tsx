@@ -50,6 +50,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { createPortal } from "react-dom";
 import useSWR, { useSWRConfig } from "swr";
 import { useCan } from "../ability";
 import { checkComponentPermission } from "../ability/checkComponentPermission";
@@ -1179,7 +1180,14 @@ function RowActionsMenu({
 			Math.max(rect.left, 8),
 			Math.max(viewport - ROW_MENU_WIDTH - 8, 8),
 		);
-		setPosition({ top: rect.bottom + 4, left });
+		// Keep the menu inside the viewport: open upwards when the row is
+		// near the bottom edge (e.g. the last row above the pagination).
+		const height = actions.length * 32 + 8;
+		const top =
+			rect.bottom + 4 + height > window.innerHeight
+				? Math.max(8, rect.top - height - 4)
+				: rect.bottom + 4;
+		setPosition({ top, left });
 		setOpen(true);
 	};
 
@@ -1197,13 +1205,14 @@ function RowActionsMenu({
 			>
 				<TableIcon name="MoreHoriz" size={18} />
 			</button>
-			{open && position ? (
-				<div
-					onClick={(event) => event.stopPropagation()}
-					style={{ position: "fixed", top: position.top, left: position.left }}
-					className="z-50 min-w-44 rounded-md border border-border bg-popover p-1 text-start text-popover-foreground shadow-md"
-				>
-					{actions.map((action) => (
+			{open && position
+				? createPortal(
+						<div
+							onClick={(event) => event.stopPropagation()}
+							style={{ position: "fixed", top: position.top, left: position.left }}
+							className="z-50 min-w-44 rounded-md border border-border bg-popover p-1 text-start text-popover-foreground shadow-md"
+						>
+							{actions.map((action) => (
 						<button
 							key={action.id}
 							type="button"
@@ -1224,10 +1233,12 @@ function RowActionsMenu({
 							>
 								{action.label}
 							</span>
-						</button>
-					))}
-				</div>
-			) : null}
+								</button>
+							))}
+						</div>,
+						document.body,
+					)
+				: null}
 		</div>
 	);
 }
