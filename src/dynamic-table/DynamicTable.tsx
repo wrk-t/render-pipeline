@@ -3562,7 +3562,7 @@ export function DynamicTable({
 					</Table>
 				</div>
 				{isSubRow ? null : (
-					<div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
+					<div className="flex w-full flex-col-reverse items-center justify-between gap-4 p-1 text-sm sm:flex-row sm:gap-8">
 						<div className="flex items-center gap-2">
 							<label
 								htmlFor="dynamic-table-rows-per-page"
@@ -3583,8 +3583,8 @@ export function DynamicTable({
 								))}
 							</select>
 						</div>
-						<div className="flex items-center justify-end gap-2">
-							<span className="text-muted-foreground">
+						<div className="flex items-center justify-end gap-4 sm:gap-6">
+							<span className="min-w-[100px] text-center text-muted-foreground">
 								Page {pagination.pageIndex + 1} of {pageCount}
 							</span>
 							<div className="flex items-center gap-2">
