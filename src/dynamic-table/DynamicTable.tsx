@@ -50,6 +50,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { createPortal } from "react-dom";
 import useSWR, { useSWRConfig } from "swr";
 import { useCan } from "../ability";
 import { checkComponentPermission } from "../ability/checkComponentPermission";
@@ -65,6 +66,36 @@ import type {
 import { useFeatures } from "../hooks/useFeatures";
 import { useResolvedParams } from "../hooks/useResolvedParams";
 import { useSnack } from "../hooks/useSnack";
+import { DataTableColumnHeader } from "./DataTableColumnHeader";
+import {
+	ArrowUpDown,
+	ChevronDown,
+	ChevronLeft,
+	ChevronRight,
+	ChevronsLeft,
+	ChevronsRight,
+	ChevronUp,
+	ListFilter,
+	Plus,
+} from "lucide-react";
+import {
+	DropdownMenu,
+	DropdownMenuCheckboxItem,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "../ui/table";
 import type { QueryParams } from "../query-builder";
 import { resolveUrlTemplate } from "../query-builder";
 import { columnCellRenderers } from "../renderers/columnCellRenderers";
@@ -802,8 +833,31 @@ function ActionButton({
 const ICON_BUTTON_CLASS =
 	"inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
 
-/** Pagination's outline icon button — shadcn `variant="outline" size="icon"`. */
-const PAGINATION_BUTTON_CLASS = "border border-input bg-transparent";
+/** Compact ghost pager button — DiceUI/tablecn's 32px pagination controls. */
+function PagerButton({
+	label,
+	disabled,
+	icon,
+	onClick,
+}: {
+	label: string;
+	disabled: boolean;
+	icon: ReactNode;
+	onClick: () => void;
+}): ReactElement {
+	return (
+		<button
+			type="button"
+			title={label}
+			aria-label={label}
+			disabled={disabled}
+			onClick={onClick}
+			className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+		>
+			{icon}
+		</button>
+	);
+}
 
 interface IconActionButtonProps {
 	label: string;
@@ -1059,19 +1113,25 @@ function ColumnFilterControl({
 	if (meta.filterType === "select" || meta.filterType === "boolean") {
 		const options = meta.filterOptions ?? [];
 		return (
-			<select
-				aria-label={`Filter ${label}`}
-				value={current}
-				onChange={(event) => onChange(event.target.value)}
-				className={FILTER_CONTROL_CLASS}
-			>
-				<option value="">All</option>
-				{options.map((option) => (
-					<option key={option.value} value={option.value}>
-						{option.label}
-					</option>
-				))}
-			</select>
+			<div className="relative">
+				<select
+					aria-label={`Filter ${label}`}
+					value={current}
+					onChange={(event) => onChange(event.target.value)}
+					className={`${FILTER_CONTROL_CLASS} appearance-none pe-9`}
+				>
+					<option value="">All</option>
+					{options.map((option) => (
+						<option key={option.value} value={option.value}>
+							{option.label}
+						</option>
+					))}
+				</select>
+				<ChevronDown
+					aria-hidden="true"
+					className="pointer-events-none absolute end-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+				/>
+			</div>
 		);
 	}
 
@@ -1159,7 +1219,14 @@ function RowActionsMenu({
 			Math.max(rect.left, 8),
 			Math.max(viewport - ROW_MENU_WIDTH - 8, 8),
 		);
-		setPosition({ top: rect.bottom + 4, left });
+		// Keep the menu inside the viewport: open upwards when the row is
+		// near the bottom edge (e.g. the last row above the pagination).
+		const height = actions.length * 32 + 8;
+		const top =
+			rect.bottom + 4 + height > window.innerHeight
+				? Math.max(8, rect.top - height - 4)
+				: rect.bottom + 4;
+		setPosition({ top, left });
 		setOpen(true);
 	};
 
@@ -1177,13 +1244,14 @@ function RowActionsMenu({
 			>
 				<TableIcon name="MoreHoriz" size={18} />
 			</button>
-			{open && position ? (
-				<div
-					onClick={(event) => event.stopPropagation()}
-					style={{ position: "fixed", top: position.top, left: position.left }}
-					className="z-50 min-w-44 rounded-md border border-border bg-popover p-1 text-start text-popover-foreground shadow-md"
-				>
-					{actions.map((action) => (
+			{open && position
+				? createPortal(
+						<div
+							onClick={(event) => event.stopPropagation()}
+							style={{ position: "fixed", top: position.top, left: position.left }}
+							className="z-50 min-w-44 rounded-md border border-border bg-popover p-1 text-start text-popover-foreground shadow-md"
+						>
+							{actions.map((action) => (
 						<button
 							key={action.id}
 							type="button"
@@ -1204,10 +1272,12 @@ function RowActionsMenu({
 							>
 								{action.label}
 							</span>
-						</button>
-					))}
-				</div>
-			) : null}
+								</button>
+							))}
+						</div>,
+						document.body,
+					)
+				: null}
 		</div>
 	);
 }
@@ -2750,10 +2820,6 @@ export function DynamicTable({
 
 	// ── Filtering / pagination intent ──────────────────────────
 	const filteringEnabled = !isSubRow && searchable;
-	const showFilterRow =
-		filteringEnabled &&
-		visibleLeafColumns.some((column) => Boolean(columnMeta(column).filterType));
-
 	const setColumnFilter = useCallback((columnId: string, value: string) => {
 		setColumnFilters((previous) => {
 			const next = previous.filter((filter) => filter.id !== columnId);
@@ -3050,6 +3116,14 @@ export function DynamicTable({
 		.getAllLeafColumns()
 		.filter((column) => column.getCanHide());
 
+	const TOOLBAR_BUTTON_CLASS =
+		"inline-flex h-9 items-center gap-2 rounded-md border border-input bg-transparent px-3 text-sm text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&_svg]:shrink-0";
+
+	const columnLabel = (column: Column<TableRow, unknown>): string =>
+		typeof column.columnDef.header === "string"
+			? column.columnDef.header
+			: column.id;
+
 	const toolbar = isSubRow ? null : (
 		<div className="flex flex-col gap-2 p-2">
 			{fetchError ? (
@@ -3113,56 +3187,146 @@ export function DynamicTable({
 							className="h-9 w-44 rounded-md border border-input bg-transparent px-3 text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 						/>
 					) : null}
-					{columnToggle && hideableColumns.length > 0 ? (
-						<details className="relative">
-							<summary
-								aria-label="Toggle columns"
-								title="Toggle columns"
-								className={`${ICON_BUTTON_CLASS} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}
-							>
-								<TableIcon name="ViewColumn" size={18} />
-							</summary>
-							<div className="absolute end-0 z-40 mt-1 min-w-45 rounded-md border border-border bg-popover p-2 text-start text-popover-foreground shadow-md">
-								<p className="mb-1 px-1 text-xs font-medium text-muted-foreground">
-									Columns
-								</p>
-								{hideableColumns.map((column) => (
-									<label
-										key={column.id}
-										className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-sm text-foreground hover:bg-muted"
-									>
-										<input
-											type="checkbox"
-											checked={column.getIsVisible()}
-											onChange={column.getToggleVisibilityHandler()}
-											className="h-4 w-4 accent-primary"
-										/>
-										<span className="truncate">
-											{typeof column.columnDef.header === "string"
-												? column.columnDef.header
-												: column.id}
-										</span>
-									</label>
-								))}
-							</div>
-						</details>
-					) : null}
-					<label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-						<span className="sr-only">Row density</span>
-						<select
-							aria-label="Row density"
-							title="Row density"
-							value={density}
-							onChange={(event) =>
-								setDensity(event.target.value as TableDensity)
-							}
-							className="h-9 rounded-md border border-input bg-transparent ps-3 pe-8 text-sm text-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-						>
-							<option value="compact">Compact</option>
-							<option value="normal">Normal</option>
-							<option value="comfortable">Comfortable</option>
-						</select>
-					</label>
+					{filteringEnabled
+						? visibleLeafColumns
+								.filter((column) => Boolean(columnMeta(column).filterType))
+								.map((column) => {
+									const meta = columnMeta(column);
+									const label = columnLabel(column);
+									const value = columnFilters.find(
+										(filter) => filter.id === column.id,
+									)?.value;
+									const hasValue = value !== undefined && value !== "";
+									const display =
+										meta.filterType === "select" ||
+										meta.filterType === "boolean"
+											? ((meta.filterOptions ?? []).find(
+													(option) => option.value === String(value),
+												)?.label ?? String(value))
+											: String(value ?? "");
+									return (
+										<Popover key={column.id}>
+											<PopoverTrigger asChild>
+												<button
+													type="button"
+													className={`inline-flex h-9 max-w-56 items-center gap-2 rounded-md border px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+														hasValue
+															? "border-primary/40 bg-accent text-foreground"
+															: "border-input bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
+													}`}
+												>
+													<ListFilter className="size-4 shrink-0" />
+													<span className="truncate">{label}</span>
+													{hasValue ? (
+														<span className="truncate text-xs text-muted-foreground">
+															{display}
+														</span>
+													) : (
+														<Plus className="size-3.5 shrink-0" />
+													)}
+												</button>
+											</PopoverTrigger>
+											<PopoverContent align="start" className="w-64 p-3">
+												<div className="mb-2 flex items-center justify-between gap-2">
+													<p className="text-sm font-medium">{label}</p>
+													{hasValue ? (
+														<button
+															type="button"
+															onClick={() => setColumnFilter(column.id, "")}
+															className="text-xs text-muted-foreground hover:text-foreground"
+														>
+															Clear
+														</button>
+													) : null}
+												</div>
+												<ColumnFilterControl
+													label={label}
+													meta={meta}
+													value={value}
+													onChange={(next) => setColumnFilter(column.id, next)}
+												/>
+											</PopoverContent>
+										</Popover>
+									);
+								})
+						: null}
+					<DropdownMenu>
+						<DropdownMenuTrigger className={TOOLBAR_BUTTON_CLASS}>
+							<TableIcon name="ViewColumn" size={16} />
+							View
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" className="w-52">
+							<DropdownMenuLabel>Columns</DropdownMenuLabel>
+							{hideableColumns.map((column) => (
+								<DropdownMenuCheckboxItem
+									key={column.id}
+									checked={column.getIsVisible()}
+									onCheckedChange={() => column.toggleVisibility()}
+								>
+									{columnLabel(column)}
+								</DropdownMenuCheckboxItem>
+							))}
+							<DropdownMenuSeparator />
+							<DropdownMenuLabel>Density</DropdownMenuLabel>
+							{(["compact", "normal", "comfortable"] as const).map((option) => (
+								<DropdownMenuCheckboxItem
+									key={option}
+									checked={density === option}
+									onCheckedChange={() => setDensity(option)}
+								>
+									{option.charAt(0).toUpperCase() + option.slice(1)}
+								</DropdownMenuCheckboxItem>
+							))}
+						</DropdownMenuContent>
+					</DropdownMenu>
+					<DropdownMenu>
+						<DropdownMenuTrigger className={TOOLBAR_BUTTON_CLASS}>
+							<ArrowUpDown size={16} />
+							Sort
+							{sorting.length > 0 ? (
+								<span className="rounded-full bg-primary px-1.5 text-[10px] leading-4 text-primary-foreground">
+									{sorting.length}
+								</span>
+							) : null}
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" className="w-56">
+							{visibleLeafColumns
+								.filter(
+									(column) =>
+										column.getCanSort() && !column.id.startsWith("__"),
+								)
+								.map((column) => {
+									const direction = column.getIsSorted();
+									return (
+										<DropdownMenuItem
+											key={column.id}
+											onClick={() => {
+												if (direction === "asc") column.toggleSorting(true);
+												else if (direction === "desc") column.clearSorting();
+												else column.toggleSorting(false);
+											}}
+										>
+											<span className="flex-1 truncate">
+												{columnLabel(column)}
+											</span>
+											{direction === "asc" ? (
+												<ChevronUp className="size-4" />
+											) : direction === "desc" ? (
+												<ChevronDown className="size-4" />
+											) : null}
+										</DropdownMenuItem>
+									);
+								})}
+							{sorting.length > 0 ? (
+								<>
+									<DropdownMenuSeparator />
+									<DropdownMenuItem onClick={() => table.resetSorting()}>
+										Clear sort
+									</DropdownMenuItem>
+								</>
+							) : null}
+						</DropdownMenuContent>
+					</DropdownMenu>
 					<IconActionButton
 						label={fullscreen ? "Exit full screen" : "Full screen"}
 						pressed={fullscreen}
@@ -3216,7 +3380,7 @@ export function DynamicTable({
 							: TABLE_WRAPPER_CLASS
 					} ${fullscreen ? "min-h-0 flex-1 overflow-y-auto" : ""}`}
 				>
-					<table
+					<Table
 						aria-label={tableMetadata.title || tableMetadata.name || "Table"}
 						className="w-full caption-bottom text-sm"
 					>
@@ -3228,9 +3392,9 @@ export function DynamicTable({
 								);
 							})}
 						</colgroup>
-						<thead className="[&_tr]:border-b">
+						<TableHeader className="[&_tr]:border-b">
 							{table.getHeaderGroups().map((headerGroup) => (
-								<tr key={headerGroup.id} className="border-b border-border">
+								<TableRow key={headerGroup.id} className="border-b border-border hover:bg-transparent">
 									{headerGroup.headers.map((header) => {
 										const column = header.column;
 										const meta = columnMeta(column);
@@ -3244,7 +3408,7 @@ export function DynamicTable({
 											header.getContext(),
 										);
 										return (
-											<th
+											<TableHead
 												key={header.id}
 												scope="col"
 												aria-sort={
@@ -3264,69 +3428,22 @@ export function DynamicTable({
 													column.id === SELECT_COLUMN_ID ? "w-10 min-w-10" : ""
 												}`}
 											>
-												{canSort ? (
-													<button
-														type="button"
-														onClick={
-															column.getToggleSortingHandler() ?? undefined
-														}
-														className={`inline-flex w-full items-center gap-1 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${alignFlex(meta.align)}`}
-													>
-														<span className="truncate">{headerContent}</span>
-														<TableIcon
-															name={
-																sorted === "asc"
-																	? "ArrowDropUp"
-																	: sorted === "desc"
-																		? "ArrowDropDown"
-																		: "Sort"
-															}
-															size={14}
-															className={sorted ? "opacity-100" : "opacity-50"}
-														/>
-													</button>
-												) : (
-													headerContent
-												)}
-											</th>
+												<DataTableColumnHeader
+													column={column}
+													label={headerContent}
+													className={`${alignText(meta.align)} ${alignFlex(meta.align)}`}
+												/>
+											</TableHead>
 										);
 									})}
-								</tr>
+								</TableRow>
 							))}
-							{showFilterRow ? (
-								<tr className="border-b border-border">
-									{visibleLeafColumns.map((column) => (
-										<th
-											key={`filter-${column.id}`}
-											scope="col"
-											className={`bg-background p-2 align-middle font-normal ${
-												headerSticky ? "sticky top-10 z-20" : ""
-											} ${stickyColumnClass(column.id, true)}`}
-										>
-											<ColumnFilterControl
-												label={
-													typeof column.columnDef.header === "string"
-														? column.columnDef.header
-														: column.id
-												}
-												meta={columnMeta(column)}
-												value={
-													columnFilters.find(
-														(filter) => filter.id === column.id,
-													)?.value
-												}
-												onChange={(value) => setColumnFilter(column.id, value)}
-											/>
-										</th>
-									))}
-								</tr>
-							) : null}
-						</thead>
-						<tbody className="[&_tr:last-child]:border-0">
+						</TableHeader>
+						<TableBody className="[&_tr:last-child]:border-0">
 							{rows.length === 0 ? (
 								emptyNode === null ? null : (
-									<tr>
-										<td
+									<TableRow>
+										<TableCell
 											colSpan={Math.max(visibleLeafColumns.length, 1)}
 											className="p-2"
 										>
@@ -3337,8 +3454,8 @@ export function DynamicTable({
 														: "No records to display"}
 												</p>
 											)}
-										</td>
-									</tr>
+										</TableCell>
+									</TableRow>
 								)
 							) : (
 								rows.map((row) => {
@@ -3350,11 +3467,11 @@ export function DynamicTable({
 									const pinningClass = (columnId: string) =>
 										stickyColumnClass(columnId, false);
 									return (
-										<tr
+										<TableRow
 											key={row.id}
 											data-state={row.getIsSelected() ? "selected" : undefined}
 											tabIndex={detailHref ? 0 : undefined}
-											className={`border-b border-border transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted ${settings.striped ? "even:bg-muted/50" : ""} ${
+											className={`group border-b border-border transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted ${settings.striped ? "even:bg-muted/50" : ""} ${
 												detailHref
 													? "cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
 													: rowOnClick
@@ -3417,14 +3534,18 @@ export function DynamicTable({
 													editingCell?.rowId === row.id &&
 													editingCell?.columnId === cell.column.id;
 												return (
-													<td
+													<TableCell
 														key={cell.id}
 														className={`align-middle ${bodyCellPadding} ${alignText(meta.align)} ${
 															meta.fixedWidth
 																? "overflow-hidden text-ellipsis whitespace-nowrap"
 																: "whitespace-nowrap"
 														} ${pinningClass(cell.column.id)} ${
-															pinned ? "bg-background" : ""
+															pinned
+																? `bg-background group-hover:bg-muted/50 group-data-[state=selected]:bg-muted ${
+																		settings.striped ? "group-even:bg-muted/50" : ""
+																	}`
+																: ""
 														} ${isActions ? stickyEndShadow : ""}`}
 														style={
 															meta.fixedWidth
@@ -3484,93 +3605,78 @@ export function DynamicTable({
 																cell.getContext(),
 															)
 														)}
-													</td>
+													</TableCell>
 												);
 											})}
-										</tr>
+										</TableRow>
 									);
 								})
 							)}
-						</tbody>
-					</table>
+						</TableBody>
+					</Table>
 				</div>
 				{isSubRow ? null : (
-					<div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
-						<div className="flex items-center gap-2">
-							<label
-								htmlFor="dynamic-table-rows-per-page"
-								className="font-medium text-muted-foreground"
-							>
-								Rows per page
-							</label>
-							<select
-								id="dynamic-table-rows-per-page"
-								value={pagination.pageSize}
-								onChange={(event) => changePageSize(Number(event.target.value))}
-								className="h-9 rounded-md border border-input bg-transparent ps-3 pe-8 text-sm text-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-							>
-								{pageSizeOptions.map((size) => (
-									<option key={size} value={size}>
-										{size}
-									</option>
-								))}
-							</select>
+					<div className="flex w-full flex-col-reverse items-center justify-between gap-4 py-2 text-sm sm:flex-row sm:gap-8">
+						<div className="flex-1 whitespace-nowrap text-muted-foreground">
+							{hasRowSelection
+								? `${selectionCount} ${selectionCount === 1 ? "row" : "rows"} selected.`
+								: null}
 						</div>
-						<div className="flex items-center justify-end gap-2">
-							<span className="text-muted-foreground">
-								Page {pagination.pageIndex + 1} of {pageCount}
-							</span>
+						<div className="flex flex-col-reverse items-center gap-4 sm:flex-row sm:gap-6">
 							<div className="flex items-center gap-2">
-								<IconActionButton
+								<label
+									htmlFor="dynamic-table-rows-per-page"
+									className="whitespace-nowrap font-medium"
+								>
+									Rows per page
+								</label>
+								<div className="relative">
+									<select
+										id="dynamic-table-rows-per-page"
+										value={pagination.pageSize}
+										onChange={(event) =>
+											changePageSize(Number(event.target.value))
+										}
+										className="h-8 appearance-none rounded-md border border-input bg-transparent ps-2.5 pe-7 text-sm text-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+									>
+										{pageSizeOptions.map((size) => (
+											<option key={size} value={size}>
+												{size}
+											</option>
+										))}
+									</select>
+									<ChevronDown
+										aria-hidden="true"
+										className="pointer-events-none absolute end-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+									/>
+								</div>
+							</div>
+							<div className="flex w-[100px] items-center justify-center font-medium">
+								Page {pagination.pageIndex + 1} of {pageCount}
+							</div>
+							<div className="flex items-center gap-1">
+								<PagerButton
 									label="Go to first page"
 									disabled={pagination.pageIndex <= 0}
-									className={PAGINATION_BUTTON_CLASS}
-									icon={
-										<TableIcon
-											name="ArrowBack"
-											size={18}
-											className="rtl:rotate-180"
-										/>
-									}
+									icon={<ChevronsLeft className="size-4 rtl:rotate-180" />}
 									onClick={() => goToPage(0)}
 								/>
-								<IconActionButton
+								<PagerButton
 									label="Go to previous page"
 									disabled={pagination.pageIndex <= 0}
-									className={PAGINATION_BUTTON_CLASS}
-									icon={
-										<TableIcon
-											name="ChevronLeft"
-											size={18}
-											className="rtl:rotate-180"
-										/>
-									}
+									icon={<ChevronLeft className="size-4 rtl:rotate-180" />}
 									onClick={() => goToPage(pagination.pageIndex - 1)}
 								/>
-								<IconActionButton
+								<PagerButton
 									label="Go to next page"
 									disabled={pagination.pageIndex + 1 >= pageCount}
-									className={PAGINATION_BUTTON_CLASS}
-									icon={
-										<TableIcon
-											name="ChevronRight"
-											size={18}
-											className="rtl:rotate-180"
-										/>
-									}
+									icon={<ChevronRight className="size-4 rtl:rotate-180" />}
 									onClick={() => goToPage(pagination.pageIndex + 1)}
 								/>
-								<IconActionButton
+								<PagerButton
 									label="Go to last page"
 									disabled={pagination.pageIndex + 1 >= pageCount}
-									className={PAGINATION_BUTTON_CLASS}
-									icon={
-										<TableIcon
-											name="ArrowForward"
-											size={18}
-											className="rtl:rotate-180"
-										/>
-									}
+									icon={<ChevronsRight className="size-4 rtl:rotate-180" />}
 									onClick={() => goToPage(pageCount - 1)}
 								/>
 							</div>
