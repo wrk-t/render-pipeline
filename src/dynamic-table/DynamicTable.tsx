@@ -67,7 +67,17 @@ import { useFeatures } from "../hooks/useFeatures";
 import { useResolvedParams } from "../hooks/useResolvedParams";
 import { useSnack } from "../hooks/useSnack";
 import { DataTableColumnHeader } from "./DataTableColumnHeader";
-import { ArrowUpDown, ChevronDown, ChevronUp, ListFilter, Plus } from "lucide-react";
+import {
+	ArrowUpDown,
+	ChevronDown,
+	ChevronLeft,
+	ChevronRight,
+	ChevronsLeft,
+	ChevronsRight,
+	ChevronUp,
+	ListFilter,
+	Plus,
+} from "lucide-react";
 import {
 	DropdownMenu,
 	DropdownMenuCheckboxItem,
@@ -823,8 +833,31 @@ function ActionButton({
 const ICON_BUTTON_CLASS =
 	"inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
 
-/** Pagination's outline icon button — shadcn `variant="outline" size="icon"`. */
-const PAGINATION_BUTTON_CLASS = "border border-input bg-transparent";
+/** Compact ghost pager button — DiceUI/tablecn's 32px pagination controls. */
+function PagerButton({
+	label,
+	disabled,
+	icon,
+	onClick,
+}: {
+	label: string;
+	disabled: boolean;
+	icon: ReactNode;
+	onClick: () => void;
+}): ReactElement {
+	return (
+		<button
+			type="button"
+			title={label}
+			aria-label={label}
+			disabled={disabled}
+			onClick={onClick}
+			className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+		>
+			{icon}
+		</button>
+	);
+}
 
 interface IconActionButtonProps {
 	label: string;
@@ -3583,88 +3616,67 @@ export function DynamicTable({
 					</Table>
 				</div>
 				{isSubRow ? null : (
-					<div className="flex w-full flex-col-reverse items-center justify-between gap-4 p-1 text-sm sm:flex-row sm:gap-8">
-						<div className="flex items-center gap-2">
-							<label
-								htmlFor="dynamic-table-rows-per-page"
-								className="font-medium text-muted-foreground"
-							>
-								Rows per page
-							</label>
-							<div className="relative">
-								<select
-									id="dynamic-table-rows-per-page"
-									value={pagination.pageSize}
-									onChange={(event) => changePageSize(Number(event.target.value))}
-									className="h-9 appearance-none rounded-md border border-input bg-transparent ps-3 pe-9 text-sm text-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-								>
-									{pageSizeOptions.map((size) => (
-										<option key={size} value={size}>
-											{size}
-										</option>
-									))}
-								</select>
-								<ChevronDown
-									aria-hidden="true"
-									className="pointer-events-none absolute end-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-								/>
-							</div>
+					<div className="flex w-full flex-col-reverse items-center justify-between gap-4 py-2 text-sm sm:flex-row sm:gap-8">
+						<div className="flex-1 whitespace-nowrap text-muted-foreground">
+							{hasRowSelection
+								? `${selectionCount} ${selectionCount === 1 ? "row" : "rows"} selected.`
+								: null}
 						</div>
-						<div className="flex items-center justify-end gap-4 sm:gap-6">
-							<span className="min-w-[100px] text-center text-muted-foreground">
-								Page {pagination.pageIndex + 1} of {pageCount}
-							</span>
+						<div className="flex flex-col-reverse items-center gap-4 sm:flex-row sm:gap-6">
 							<div className="flex items-center gap-2">
-								<IconActionButton
+								<label
+									htmlFor="dynamic-table-rows-per-page"
+									className="whitespace-nowrap font-medium"
+								>
+									Rows per page
+								</label>
+								<div className="relative">
+									<select
+										id="dynamic-table-rows-per-page"
+										value={pagination.pageSize}
+										onChange={(event) =>
+											changePageSize(Number(event.target.value))
+										}
+										className="h-8 appearance-none rounded-md border border-input bg-transparent ps-2.5 pe-7 text-sm text-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+									>
+										{pageSizeOptions.map((size) => (
+											<option key={size} value={size}>
+												{size}
+											</option>
+										))}
+									</select>
+									<ChevronDown
+										aria-hidden="true"
+										className="pointer-events-none absolute end-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+									/>
+								</div>
+							</div>
+							<div className="flex w-[100px] items-center justify-center font-medium">
+								Page {pagination.pageIndex + 1} of {pageCount}
+							</div>
+							<div className="flex items-center gap-1">
+								<PagerButton
 									label="Go to first page"
 									disabled={pagination.pageIndex <= 0}
-									className={PAGINATION_BUTTON_CLASS}
-									icon={
-										<TableIcon
-											name="ArrowBack"
-											size={18}
-											className="rtl:rotate-180"
-										/>
-									}
+									icon={<ChevronsLeft className="size-4 rtl:rotate-180" />}
 									onClick={() => goToPage(0)}
 								/>
-								<IconActionButton
+								<PagerButton
 									label="Go to previous page"
 									disabled={pagination.pageIndex <= 0}
-									className={PAGINATION_BUTTON_CLASS}
-									icon={
-										<TableIcon
-											name="ChevronLeft"
-											size={18}
-											className="rtl:rotate-180"
-										/>
-									}
+									icon={<ChevronLeft className="size-4 rtl:rotate-180" />}
 									onClick={() => goToPage(pagination.pageIndex - 1)}
 								/>
-								<IconActionButton
+								<PagerButton
 									label="Go to next page"
 									disabled={pagination.pageIndex + 1 >= pageCount}
-									className={PAGINATION_BUTTON_CLASS}
-									icon={
-										<TableIcon
-											name="ChevronRight"
-											size={18}
-											className="rtl:rotate-180"
-										/>
-									}
+									icon={<ChevronRight className="size-4 rtl:rotate-180" />}
 									onClick={() => goToPage(pagination.pageIndex + 1)}
 								/>
-								<IconActionButton
+								<PagerButton
 									label="Go to last page"
 									disabled={pagination.pageIndex + 1 >= pageCount}
-									className={PAGINATION_BUTTON_CLASS}
-									icon={
-										<TableIcon
-											name="ArrowForward"
-											size={18}
-											className="rtl:rotate-180"
-										/>
-									}
+									icon={<ChevronsRight className="size-4 rtl:rotate-180" />}
 									onClick={() => goToPage(pageCount - 1)}
 								/>
 							</div>
