@@ -66,6 +66,17 @@ import { useFeatures } from "../hooks/useFeatures";
 import { useResolvedParams } from "../hooks/useResolvedParams";
 import { useSnack } from "../hooks/useSnack";
 import { DataTableColumnHeader } from "./DataTableColumnHeader";
+import { ArrowUpDown, ChevronDown, ChevronUp, ListFilter, Plus } from "lucide-react";
+import {
+	DropdownMenu,
+	DropdownMenuCheckboxItem,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import {
 	Table,
 	TableBody,
@@ -2759,10 +2770,6 @@ export function DynamicTable({
 
 	// ── Filtering / pagination intent ──────────────────────────
 	const filteringEnabled = !isSubRow && searchable;
-	const showFilterRow =
-		filteringEnabled &&
-		visibleLeafColumns.some((column) => Boolean(columnMeta(column).filterType));
-
 	const setColumnFilter = useCallback((columnId: string, value: string) => {
 		setColumnFilters((previous) => {
 			const next = previous.filter((filter) => filter.id !== columnId);
@@ -3059,6 +3066,14 @@ export function DynamicTable({
 		.getAllLeafColumns()
 		.filter((column) => column.getCanHide());
 
+	const TOOLBAR_BUTTON_CLASS =
+		"inline-flex h-9 items-center gap-2 rounded-md border border-input bg-transparent px-3 text-sm text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&_svg]:shrink-0";
+
+	const columnLabel = (column: Column<TableRow, unknown>): string =>
+		typeof column.columnDef.header === "string"
+			? column.columnDef.header
+			: column.id;
+
 	const toolbar = isSubRow ? null : (
 		<div className="flex flex-col gap-2 p-2">
 			{fetchError ? (
@@ -3122,56 +3137,146 @@ export function DynamicTable({
 							className="h-9 w-44 rounded-md border border-input bg-transparent px-3 text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 						/>
 					) : null}
-					{columnToggle && hideableColumns.length > 0 ? (
-						<details className="relative">
-							<summary
-								aria-label="Toggle columns"
-								title="Toggle columns"
-								className={`${ICON_BUTTON_CLASS} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}
-							>
-								<TableIcon name="ViewColumn" size={18} />
-							</summary>
-							<div className="absolute end-0 z-40 mt-1 min-w-45 rounded-md border border-border bg-popover p-2 text-start text-popover-foreground shadow-md">
-								<p className="mb-1 px-1 text-xs font-medium text-muted-foreground">
-									Columns
-								</p>
-								{hideableColumns.map((column) => (
-									<label
-										key={column.id}
-										className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-sm text-foreground hover:bg-muted"
-									>
-										<input
-											type="checkbox"
-											checked={column.getIsVisible()}
-											onChange={column.getToggleVisibilityHandler()}
-											className="h-4 w-4 accent-primary"
-										/>
-										<span className="truncate">
-											{typeof column.columnDef.header === "string"
-												? column.columnDef.header
-												: column.id}
-										</span>
-									</label>
-								))}
-							</div>
-						</details>
-					) : null}
-					<label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-						<span className="sr-only">Row density</span>
-						<select
-							aria-label="Row density"
-							title="Row density"
-							value={density}
-							onChange={(event) =>
-								setDensity(event.target.value as TableDensity)
-							}
-							className="h-9 rounded-md border border-input bg-transparent ps-3 pe-8 text-sm text-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-						>
-							<option value="compact">Compact</option>
-							<option value="normal">Normal</option>
-							<option value="comfortable">Comfortable</option>
-						</select>
-					</label>
+					{filteringEnabled
+						? visibleLeafColumns
+								.filter((column) => Boolean(columnMeta(column).filterType))
+								.map((column) => {
+									const meta = columnMeta(column);
+									const label = columnLabel(column);
+									const value = columnFilters.find(
+										(filter) => filter.id === column.id,
+									)?.value;
+									const hasValue = value !== undefined && value !== "";
+									const display =
+										meta.filterType === "select" ||
+										meta.filterType === "boolean"
+											? ((meta.filterOptions ?? []).find(
+													(option) => option.value === String(value),
+												)?.label ?? String(value))
+											: String(value ?? "");
+									return (
+										<Popover key={column.id}>
+											<PopoverTrigger asChild>
+												<button
+													type="button"
+													className={`inline-flex h-9 max-w-56 items-center gap-2 rounded-md border px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+														hasValue
+															? "border-primary/40 bg-accent text-foreground"
+															: "border-input bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
+													}`}
+												>
+													<ListFilter className="size-4 shrink-0" />
+													<span className="truncate">{label}</span>
+													{hasValue ? (
+														<span className="truncate text-xs text-muted-foreground">
+															{display}
+														</span>
+													) : (
+														<Plus className="size-3.5 shrink-0" />
+													)}
+												</button>
+											</PopoverTrigger>
+											<PopoverContent align="start" className="w-64 p-3">
+												<div className="mb-2 flex items-center justify-between gap-2">
+													<p className="text-sm font-medium">{label}</p>
+													{hasValue ? (
+														<button
+															type="button"
+															onClick={() => setColumnFilter(column.id, "")}
+															className="text-xs text-muted-foreground hover:text-foreground"
+														>
+															Clear
+														</button>
+													) : null}
+												</div>
+												<ColumnFilterControl
+													label={label}
+													meta={meta}
+													value={value}
+													onChange={(next) => setColumnFilter(column.id, next)}
+												/>
+											</PopoverContent>
+										</Popover>
+									);
+								})
+						: null}
+					<DropdownMenu>
+						<DropdownMenuTrigger className={TOOLBAR_BUTTON_CLASS}>
+							<TableIcon name="ViewColumn" size={16} />
+							View
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" className="w-52">
+							<DropdownMenuLabel>Columns</DropdownMenuLabel>
+							{hideableColumns.map((column) => (
+								<DropdownMenuCheckboxItem
+									key={column.id}
+									checked={column.getIsVisible()}
+									onCheckedChange={() => column.toggleVisibility()}
+								>
+									{columnLabel(column)}
+								</DropdownMenuCheckboxItem>
+							))}
+							<DropdownMenuSeparator />
+							<DropdownMenuLabel>Density</DropdownMenuLabel>
+							{(["compact", "normal", "comfortable"] as const).map((option) => (
+								<DropdownMenuCheckboxItem
+									key={option}
+									checked={density === option}
+									onCheckedChange={() => setDensity(option)}
+								>
+									{option.charAt(0).toUpperCase() + option.slice(1)}
+								</DropdownMenuCheckboxItem>
+							))}
+						</DropdownMenuContent>
+					</DropdownMenu>
+					<DropdownMenu>
+						<DropdownMenuTrigger className={TOOLBAR_BUTTON_CLASS}>
+							<ArrowUpDown size={16} />
+							Sort
+							{sorting.length > 0 ? (
+								<span className="rounded-full bg-primary px-1.5 text-[10px] leading-4 text-primary-foreground">
+									{sorting.length}
+								</span>
+							) : null}
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" className="w-56">
+							{visibleLeafColumns
+								.filter(
+									(column) =>
+										column.getCanSort() && !column.id.startsWith("__"),
+								)
+								.map((column) => {
+									const direction = column.getIsSorted();
+									return (
+										<DropdownMenuItem
+											key={column.id}
+											onClick={() => {
+												if (direction === "asc") column.toggleSorting(true);
+												else if (direction === "desc") column.clearSorting();
+												else column.toggleSorting(false);
+											}}
+										>
+											<span className="flex-1 truncate">
+												{columnLabel(column)}
+											</span>
+											{direction === "asc" ? (
+												<ChevronUp className="size-4" />
+											) : direction === "desc" ? (
+												<ChevronDown className="size-4" />
+											) : null}
+										</DropdownMenuItem>
+									);
+								})}
+							{sorting.length > 0 ? (
+								<>
+									<DropdownMenuSeparator />
+									<DropdownMenuItem onClick={() => table.resetSorting()}>
+										Clear sort
+									</DropdownMenuItem>
+								</>
+							) : null}
+						</DropdownMenuContent>
+					</DropdownMenu>
 					<IconActionButton
 						label={fullscreen ? "Exit full screen" : "Full screen"}
 						pressed={fullscreen}
@@ -3283,34 +3388,6 @@ export function DynamicTable({
 									})}
 								</TableRow>
 							))}
-							{showFilterRow ? (
-								<TableRow className="border-b border-border hover:bg-transparent">
-									{visibleLeafColumns.map((column) => (
-										<TableHead
-											key={`filter-${column.id}`}
-											scope="col"
-											className={`bg-background p-2 align-middle font-normal ${
-												headerSticky ? "sticky top-10 z-20" : ""
-											} ${stickyColumnClass(column.id, true)}`}
-										>
-											<ColumnFilterControl
-												label={
-													typeof column.columnDef.header === "string"
-														? column.columnDef.header
-														: column.id
-												}
-												meta={columnMeta(column)}
-												value={
-													columnFilters.find(
-														(filter) => filter.id === column.id,
-													)?.value
-												}
-												onChange={(value) => setColumnFilter(column.id, value)}
-											/>
-										</TableHead>
-									))}
-								</TableRow>
-							) : null}
 						</TableHeader>
 						<TableBody className="[&_tr:last-child]:border-0">
 							{rows.length === 0 ? (
