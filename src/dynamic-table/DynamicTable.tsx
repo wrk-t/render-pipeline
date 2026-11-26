@@ -65,6 +65,7 @@ import type {
 import { useFeatures } from "../hooks/useFeatures";
 import { useResolvedParams } from "../hooks/useResolvedParams";
 import { useSnack } from "../hooks/useSnack";
+import { DataTableColumnHeader } from "./DataTableColumnHeader";
 import {
 	Table,
 	TableBody,
@@ -3238,7 +3239,7 @@ export function DynamicTable({
 						</colgroup>
 						<TableHeader className="[&_tr]:border-b">
 							{table.getHeaderGroups().map((headerGroup) => (
-								<TableRow key={headerGroup.id} className="border-b border-border">
+								<TableRow key={headerGroup.id} className="border-b border-border hover:bg-transparent">
 									{headerGroup.headers.map((header) => {
 										const column = header.column;
 										const meta = columnMeta(column);
@@ -3272,37 +3273,18 @@ export function DynamicTable({
 													column.id === SELECT_COLUMN_ID ? "w-10 min-w-10" : ""
 												}`}
 											>
-												{canSort ? (
-													<button
-														type="button"
-														onClick={
-															column.getToggleSortingHandler() ?? undefined
-														}
-														className={`inline-flex w-full items-center gap-1 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${alignFlex(meta.align)}`}
-													>
-														<span className="truncate">{headerContent}</span>
-														<TableIcon
-															name={
-																sorted === "asc"
-																	? "ArrowDropUp"
-																	: sorted === "desc"
-																		? "ArrowDropDown"
-																		: "Sort"
-															}
-															size={14}
-															className={sorted ? "opacity-100" : "opacity-50"}
-														/>
-													</button>
-												) : (
-													headerContent
-												)}
+												<DataTableColumnHeader
+													column={column}
+													label={headerContent}
+													className={`${alignText(meta.align)} ${alignFlex(meta.align)}`}
+												/>
 											</TableHead>
 										);
 									})}
 								</TableRow>
 							))}
 							{showFilterRow ? (
-								<TableRow className="border-b border-border">
+								<TableRow className="border-b border-border hover:bg-transparent">
 									{visibleLeafColumns.map((column) => (
 										<TableHead
 											key={`filter-${column.id}`}
