@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { enqueueSnackbar } from "notistack";
+import { toast } from "sonner";
 import { extractErrorMessage } from "./extractErrorMessage";
 
 export type TSnack = ReturnType<typeof useSnack>;
@@ -12,18 +12,17 @@ export const useSnack = () => {
 	const snackError = async (error: unknown, fallback?: string) => {
 		const message = extractErrorMessage(error, t, fallback);
 
-		enqueueSnackbar(message, {
-			variant: "error",
-			preventDuplicate: true,
-			autoHideDuration: 5000,
+		// A message id makes repeats update the visible toast instead of stacking.
+		toast.error(message, {
+			id: `snack-error:${message}`,
+			duration: 5000,
 		});
 	};
 
 	const snackSuccess = async (message: string) => {
-		enqueueSnackbar(message, {
-			variant: "success",
-			preventDuplicate: true,
-			autoHideDuration: 5000,
+		toast.success(message, {
+			id: `snack-success:${message}`,
+			duration: 5000,
 		});
 	};
 
