@@ -8,6 +8,7 @@ import { useField } from "formik";
 import { type ReactElement, useId, useState } from "react";
 import { Unicon } from "../../components/common/icon/Unicon";
 import type { PasswordField } from "../types";
+import { FieldLabel } from "./FieldLabel";
 
 export function FormPasswordField({
 	field,
@@ -32,19 +33,13 @@ export function FormPasswordField({
 
 	return (
 		<div className="flex flex-col gap-2">
-			<label
+			<FieldLabel
 				htmlFor={inputId}
-				className={`text-sm font-medium leading-none ${
-					isError ? "text-destructive" : "text-foreground"
-				}`}
-			>
-				{field.label}
-				{field.isRequired ? (
-					<span aria-hidden="true" className="ms-0.5 text-destructive">
-						*
-					</span>
-				) : null}
-			</label>
+				label={field.label}
+				required={field.isRequired}
+				isError={isError}
+				description={description}
+			/>
 			<div className="relative">
 				<input
 					{...formikField}
@@ -79,7 +74,7 @@ export function FormPasswordField({
 				</p>
 			) : null}
 			{description ? (
-				<p id={descriptionId} className="text-sm text-muted-foreground">
+				<p id={descriptionId} className="sr-only">
 					{description}
 				</p>
 			) : null}
