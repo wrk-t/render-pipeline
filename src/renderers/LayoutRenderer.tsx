@@ -29,6 +29,8 @@ const CONTAINER_MAX: Record<string, string> = {
 	md: "max-w-md",
 	lg: "max-w-lg",
 	xl: "max-w-xl",
+	"2xl": "max-w-2xl",
+	"3xl": "max-w-3xl",
 };
 
 /** MUI `spacing` units (8px each) → Tailwind gap steps (4px each). */
@@ -77,8 +79,8 @@ export function LayoutRenderer({
 		fullBleed?: boolean;
 		/** Vertical gap between content children. */
 		spacing?: number;
-		/** Narrow, centered screen column (settings forms). */
-		container?: "sm" | "md" | "lg" | "xl";
+		/** Centered screen column (settings forms). */
+		container?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl";
 		/**
 		 * The row this detail page is about. Fetched once and provided through
 		 * `RecordContext`, so the header's action buttons evaluate their
