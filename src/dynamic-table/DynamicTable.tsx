@@ -1182,13 +1182,23 @@ function RowActionsMenu({
 		left: number;
 	} | null>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
+	const menuRef = useRef<HTMLDivElement>(null);
 	const buttonRef = useRef<HTMLButtonElement>(null);
 
 	useEffect(() => {
 		if (!open) return;
 		const close = () => setOpen(false);
 		const onPointerDown = (event: PointerEvent) => {
-			if (containerRef.current?.contains(event.target as Node)) return;
+			const target = event.target as Node;
+			// The menu is portaled to <body>, so it is not a child of the
+			// trigger container — test it separately or the pointerdown
+			// closes the menu before the item's click fires.
+			if (
+				containerRef.current?.contains(target) ||
+				menuRef.current?.contains(target)
+			) {
+				return;
+			}
 			close();
 		};
 		const onKeyDown = (event: KeyboardEvent) => {
@@ -1247,6 +1257,7 @@ function RowActionsMenu({
 			{open && position
 				? createPortal(
 						<div
+							ref={menuRef}
 							onClick={(event) => event.stopPropagation()}
 							style={{ position: "fixed", top: position.top, left: position.left }}
 							className="z-50 min-w-44 rounded-md border border-border bg-popover p-1 text-start text-popover-foreground shadow-md"
@@ -3542,8 +3553,10 @@ export function DynamicTable({
 																: "whitespace-nowrap"
 														} ${pinningClass(cell.column.id)} ${
 															pinned
-																? `bg-background group-hover:bg-muted/50 group-data-[state=selected]:bg-muted ${
-																		settings.striped ? "group-even:bg-muted/50" : ""
+																? `bg-background group-hover:bg-[color-mix(in_oklab,var(--muted)_50%,var(--background))] group-data-[state=selected]:bg-muted ${
+																		settings.striped
+																			? "group-even:bg-[color-mix(in_oklab,var(--muted)_50%,var(--background))]"
+																			: ""
 																	}`
 																: ""
 														} ${isActions ? stickyEndShadow : ""}`}
