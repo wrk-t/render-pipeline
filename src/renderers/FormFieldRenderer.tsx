@@ -88,7 +88,11 @@ export function adaptField(
 		datasource: (ov as any)?.datasource ?? null,
 		creatable: (ov as any)?.creatable ?? false,
 		uiOverrides: {
-			behavior: { placeholder: (ov as any)?.placeholder, autoFocus: false },
+			behavior: {
+				placeholder: (ov as any)?.placeholder,
+				autoFocus: false,
+				rows: (ov as any)?.rows,
+			},
 			layout: {},
 		},
 		fieldDefinitionId: el.fieldDefinitionId,

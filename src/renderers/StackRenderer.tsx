@@ -81,7 +81,7 @@ export function StackRenderer({
 	const isGrid = config.grid === true;
 	const className = isGrid
 		? [
-				"grid grid-cols-1 sm:grid-cols-12",
+				"grid max-w-3xl grid-cols-1 sm:grid-cols-12",
 				config.alignItems ? ALIGN_ITEMS[config.alignItems] : undefined,
 				config.justifyContent
 					? JUSTIFY_CONTENT[config.justifyContent]
