@@ -3553,7 +3553,7 @@ export function DynamicTable({
 																: "whitespace-nowrap"
 														} ${pinningClass(cell.column.id)} ${
 															pinned
-																? `bg-background group-hover:bg-[color-mix(in_oklab,var(--muted)_50%,var(--background))] group-data-[state=selected]:bg-muted ${
+																? `bg-background transition-colors group-hover:bg-[color-mix(in_oklab,var(--muted)_50%,var(--background))] group-data-[state=selected]:bg-muted ${
 																		settings.striped
 																			? "group-even:bg-[color-mix(in_oklab,var(--muted)_50%,var(--background))]"
 																			: ""
