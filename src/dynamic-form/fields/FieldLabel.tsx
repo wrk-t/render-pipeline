@@ -1,7 +1,7 @@
 "use client";
 
 import { CircleHelp } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import {
 	Tooltip,
 	TooltipContent,
@@ -17,11 +17,26 @@ import {
  * visually hidden description for screen readers.
  */
 export function FieldHelp({ text }: { text: string }) {
+	const buttonRef = useRef<HTMLButtonElement>(null);
+	// A native <dialog> lives in the browser's top layer, above every
+	// z-index in the document. Portal the help INTO the open dialog so it
+	// paints above the modal instead of behind it.
+	const [container, setContainer] = useState<HTMLElement | null>(null);
+
 	return (
 		<TooltipProvider delayDuration={150}>
-			<Tooltip>
+			<Tooltip
+				onOpenChange={(open) => {
+					setContainer(
+						open
+							? (buttonRef.current?.closest("dialog[open]") as HTMLElement | null)
+							: null,
+					);
+				}}
+			>
 				<TooltipTrigger asChild>
 					<button
+						ref={buttonRef}
 						type="button"
 						aria-label={text}
 						className="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-primary/80 transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -29,7 +44,12 @@ export function FieldHelp({ text }: { text: string }) {
 						<CircleHelp className="size-3.5" aria-hidden="true" />
 					</button>
 				</TooltipTrigger>
-				<TooltipContent side="top" sideOffset={4} className="max-w-64 leading-relaxed">
+				<TooltipContent
+					container={container}
+					side="top"
+					sideOffset={4}
+					className="max-w-64 leading-relaxed"
+				>
 					{text}
 				</TooltipContent>
 			</Tooltip>

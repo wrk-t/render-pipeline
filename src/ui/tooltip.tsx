@@ -31,10 +31,14 @@ function TooltipContent({
 	className,
 	sideOffset = 0,
 	children,
+	container,
 	...props
-}: ComponentProps<typeof TooltipPrimitive.Content>) {
+}: ComponentProps<typeof TooltipPrimitive.Content> & {
+	/** Portal target; pass the open <dialog> so help paints inside its top layer. */
+	container?: HTMLElement | null;
+}) {
 	return (
-		<TooltipPrimitive.Portal>
+		<TooltipPrimitive.Portal container={container ?? undefined}>
 			<TooltipPrimitive.Content
 				data-slot="tooltip-content"
 				sideOffset={sideOffset}
