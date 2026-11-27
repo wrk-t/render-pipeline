@@ -7,6 +7,7 @@
 import { useField } from "formik";
 import { type ReactElement, useId } from "react";
 import type { EmailField } from "../types";
+import { FieldLabel } from "./FieldLabel";
 
 export function FormEmailField({ field }: { field: EmailField }): ReactElement {
 	const [formikField, meta] = useField(field.name);
@@ -22,19 +23,13 @@ export function FormEmailField({ field }: { field: EmailField }): ReactElement {
 
 	return (
 		<div className="flex flex-col gap-2">
-			<label
+			<FieldLabel
 				htmlFor={inputId}
-				className={`text-sm font-medium leading-none ${
-					isError ? "text-destructive" : "text-foreground"
-				}`}
-			>
-				{field.label}
-				{field.isRequired ? (
-					<span aria-hidden="true" className="ms-0.5 text-destructive">
-						*
-					</span>
-				) : null}
-			</label>
+				label={field.label}
+				required={field.isRequired}
+				isError={isError}
+				description={description}
+			/>
 			<input
 				{...formikField}
 				value={formikField.value ?? ""}
@@ -58,7 +53,7 @@ export function FormEmailField({ field }: { field: EmailField }): ReactElement {
 				</p>
 			) : null}
 			{description ? (
-				<p id={descriptionId} className="text-sm text-muted-foreground">
+				<p id={descriptionId} className="sr-only">
 					{description}
 				</p>
 			) : null}

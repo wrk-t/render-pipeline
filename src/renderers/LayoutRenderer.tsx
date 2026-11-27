@@ -69,6 +69,8 @@ export function LayoutRenderer({
 		fullBleed?: boolean;
 		/** Vertical gap between content children. */
 		spacing?: number;
+		/** The container wrapper: a centered max-w-3xl column (settings). */
+		container?: boolean;
 		/**
 		 * The row this detail page is about. Fetched once and provided through
 		 * `RecordContext`, so the header's action buttons evaluate their
@@ -159,8 +161,16 @@ export function LayoutRenderer({
 		surfaceStyle.maxWidth = sizingStyle(config.maxWidth);
 	}
 
+	// Two screen wrappers: the regular full-width layout, or the centered
+	// container for settings screens. The container has one fixed width so
+	// every settings screen shares the same page width.
+	const containerClass = config.container
+		? "mx-auto w-full max-w-3xl"
+		: "w-full";
+
 	return (
 		<RecordProvider value={record ?? null}>
+			<div className={containerClass}>
 			<div className="flex h-full flex-col gap-3">
 				{hasHeader && (
 					/* One row from 768px; a wrapped column on phones. */
@@ -213,6 +223,7 @@ export function LayoutRenderer({
 						{contentWithSpacing}
 					</ScreenContentContext.Provider>
 				</div>
+			</div>
 			</div>
 		</RecordProvider>
 	);

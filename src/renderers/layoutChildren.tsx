@@ -35,15 +35,43 @@ function useOptionalFormikContext():
 		| undefined;
 }
 
+/** Static `sm:col-span-*` classes — Tailwind must see every literal. */
+const GRID_SPAN: Record<number, string> = {
+	1: "sm:col-span-1",
+	2: "sm:col-span-2",
+	3: "sm:col-span-3",
+	4: "sm:col-span-4",
+	5: "sm:col-span-5",
+	6: "sm:col-span-6",
+	7: "sm:col-span-7",
+	8: "sm:col-span-8",
+	9: "sm:col-span-9",
+	10: "sm:col-span-10",
+	11: "sm:col-span-11",
+	12: "sm:col-span-12",
+};
+
+/** A field's `colSpan` (1–12) → its grid span; 12 when unspecified. */
+function gridSpanClass(el: RenderedElement): string {
+	const raw = Number((el.overrides as { colSpan?: number } | undefined)?.colSpan);
+	const span = Number.isFinite(raw)
+		? Math.min(12, Math.max(1, Math.round(raw)))
+		: 12;
+	return GRID_SPAN[span] ?? "sm:col-span-12";
+}
+
 export function LayoutChildren({
 	elements,
 	pathParams,
 	context,
+	grid = false,
 }: {
 	elements: RenderedElement[];
 	pathParams?: Record<string, string>;
 	/** Dialog context — flows to fields (visibleWhen/readOnlyWhen) and children. */
 	context?: string;
+	/** When true, each child is a grid item: fields use their colSpan (1–12). */
+	grid?: boolean;
 }): ReactElement | null {
 	const formik = useOptionalFormikContext();
 	const { features } = useFeatures();
@@ -51,8 +79,21 @@ export function LayoutChildren({
 	return (
 		<>
 			{elements.map((el) => {
+				const itemClass = grid ? gridSpanClass(el) : undefined;
 				if (el.elementType === "component_ref" && el.referencedComponent) {
-					return (
+					const node = (
+						<ComponentRenderer
+							component={el.referencedComponent}
+							pathParams={pathParams}
+							paramBindings={el.paramBindings}
+							context={context}
+						/>
+					);
+					return grid ? (
+						<div key={el.id} className={itemClass}>
+							{node}
+						</div>
+					) : (
 						<ComponentRenderer
 							key={el.id}
 							component={el.referencedComponent}
@@ -77,7 +118,7 @@ export function LayoutChildren({
 						(el.overrides as any)?.displayName ?? el.label ?? name;
 					if (formik) {
 						return (
-							<div key={el.id}>
+							<div key={el.id} className={itemClass}>
 								<FormFieldRenderer element={el} context={context} />
 							</div>
 						);
@@ -85,7 +126,12 @@ export function LayoutChildren({
 					return (
 						<div
 							key={el.id}
-							className="flex items-center justify-between gap-4 py-1 text-sm"
+							className={[
+								"flex items-center justify-between gap-4 py-1 text-sm",
+								itemClass,
+							]
+								.filter(Boolean)
+								.join(" ")}
 						>
 							<span className="text-muted-foreground">{displayName}</span>
 							<span className="font-medium text-foreground">

@@ -184,11 +184,23 @@ export function buildFieldSchema(
 
 			// ── Format validators ────────────────────────────────
 			case "IsEmail": {
-				schema = (schema as yup.StringSchema).email(message);
+				const formatMessage = message ?? "Invalid email";
+				const emailSchema = yup.string().email(formatMessage);
+				schema = (schema as yup.StringSchema).test(
+					"is-email",
+					formatMessage,
+					(value) => !value || emailSchema.isValidSync(value),
+				);
 				break;
 			}
 			case "IsUrl": {
-				schema = (schema as yup.StringSchema).url(message);
+				const formatMessage = message ?? "Invalid URL";
+				const urlSchema = yup.string().url(formatMessage);
+				schema = (schema as yup.StringSchema).test(
+					"is-url",
+					formatMessage,
+					(value) => !value || urlSchema.isValidSync(value),
+				);
 				break;
 			}
 

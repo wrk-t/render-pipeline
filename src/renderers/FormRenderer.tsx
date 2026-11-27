@@ -1282,7 +1282,7 @@ export function FormRenderer({
 							    the gap belongs to the form, not to each section. It is
 							    wider than a section's inner spacing (3) so a title reads
 							    as a new group, not as another field. */}
-							<div className="flex flex-col gap-8">
+							<div className="flex flex-col gap-12">
 								{contentElements
 									.filter(
 										(el) =>

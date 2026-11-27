@@ -7,6 +7,7 @@ import { useField } from "formik";
 import { type ReactElement, useId } from "react";
 import type { TextareaField } from "../types";
 import { AudienceRuleAssistantField } from "./AudienceRuleAssistantField";
+import { FieldLabel } from "./FieldLabel";
 import { VariableSuggestField } from "./VariableSuggestField";
 
 export function FormTextareaField({
@@ -37,19 +38,13 @@ export function FormTextareaField({
 
 	return (
 		<div className="flex flex-col gap-2">
-			<label
+			<FieldLabel
 				htmlFor={inputId}
-				className={`text-sm font-medium leading-none ${
-					isError ? "text-destructive" : "text-foreground"
-				}`}
-			>
-				{field.label}
-				{field.isRequired ? (
-					<span aria-hidden="true" className="ms-0.5 text-destructive">
-						*
-					</span>
-				) : null}
-			</label>
+				label={field.label}
+				required={field.isRequired}
+				isError={isError}
+				description={description}
+			/>
 			<textarea
 				{...formikField}
 				value={formikField.value ?? ""}
@@ -72,7 +67,7 @@ export function FormTextareaField({
 				</p>
 			) : null}
 			{description ? (
-				<p id={descriptionId} className="text-sm text-muted-foreground">
+				<p id={descriptionId} className="sr-only">
 					{description}
 				</p>
 			) : null}

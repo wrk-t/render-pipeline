@@ -54,6 +54,8 @@ export function StackRenderer({
 	context?: string;
 }): ReactElement {
 	const config = (component.config ?? {}) as {
+		/** Form sections: a responsive 12-column grid for their fields. */
+		grid?: boolean;
 		direction?: "row" | "column";
 		spacing?: number;
 		alignItems?: "flex-start" | "center" | "flex-end" | "stretch" | "baseline";
@@ -76,21 +78,38 @@ export function StackRenderer({
 		? undefined
 		: { gap: `${spacing * 8}px` };
 
-	const className = [
-		"flex",
-		config.direction === "row" ? "flex-row" : "flex-col",
-		config.alignItems ? ALIGN_ITEMS[config.alignItems] : undefined,
-		config.justifyContent
-			? JUSTIFY_CONTENT[config.justifyContent]
-			: undefined,
-		gapClass,
-	]
-		.filter(Boolean)
-		.join(" ");
+	const isGrid = config.grid === true;
+	const className = isGrid
+		? [
+				"grid max-w-3xl grid-cols-1 sm:grid-cols-12",
+				config.alignItems ? ALIGN_ITEMS[config.alignItems] : undefined,
+				config.justifyContent
+					? JUSTIFY_CONTENT[config.justifyContent]
+					: undefined,
+				gapClass,
+			]
+				.filter(Boolean)
+				.join(" ")
+		: [
+				"flex",
+				config.direction === "row" ? "flex-row" : "flex-col",
+				config.alignItems ? ALIGN_ITEMS[config.alignItems] : undefined,
+				config.justifyContent
+					? JUSTIFY_CONTENT[config.justifyContent]
+					: undefined,
+				gapClass,
+			]
+				.filter(Boolean)
+				.join(" ");
 
 	return (
 		<div className={className} style={style}>
-			<LayoutChildren elements={elements} pathParams={pathParams} context={context} />
+			<LayoutChildren
+				elements={elements}
+				pathParams={pathParams}
+				context={context}
+				grid={isGrid}
+			/>
 		</div>
 	);
 }
