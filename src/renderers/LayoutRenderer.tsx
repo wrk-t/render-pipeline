@@ -23,6 +23,14 @@ import { ScreenContentContext } from "./ScreenContentContext";
 // the card wraps just the components on the screen.
 // ══════════════════════════════════════════════════════════════
 
+/** Named screen containers — centered, narrow working columns. */
+const CONTAINER_MAX: Record<string, string> = {
+	sm: "max-w-sm",
+	md: "max-w-md",
+	lg: "max-w-lg",
+	xl: "max-w-xl",
+};
+
 /** MUI `spacing` units (8px each) → Tailwind gap steps (4px each). */
 const GAP: Record<number, string> = {
 	0: "gap-0",
@@ -69,6 +77,8 @@ export function LayoutRenderer({
 		fullBleed?: boolean;
 		/** Vertical gap between content children. */
 		spacing?: number;
+		/** Narrow, centered screen column (settings forms). */
+		container?: "sm" | "md" | "lg" | "xl";
 		/**
 		 * The row this detail page is about. Fetched once and provided through
 		 * `RecordContext`, so the header's action buttons evaluate their
@@ -159,8 +169,13 @@ export function LayoutRenderer({
 		surfaceStyle.maxWidth = sizingStyle(config.maxWidth);
 	}
 
+	const containerClass = config.container
+		? `mx-auto w-full ${CONTAINER_MAX[config.container] ?? "max-w-md"}`
+		: "w-full";
+
 	return (
 		<RecordProvider value={record ?? null}>
+			<div className={containerClass}>
 			<div className="flex h-full flex-col gap-3">
 				{hasHeader && (
 					/* One row from 768px; a wrapped column on phones. */
@@ -213,6 +228,7 @@ export function LayoutRenderer({
 						{contentWithSpacing}
 					</ScreenContentContext.Provider>
 				</div>
+			</div>
 			</div>
 		</RecordProvider>
 	);
