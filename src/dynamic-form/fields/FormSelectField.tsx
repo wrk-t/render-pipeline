@@ -19,6 +19,7 @@ import { checkComponentPermission } from "../../ability/checkComponentPermission
 import { Unicon } from "../../components/common/icon/Unicon";
 import { getApiClient, useRenderUser } from "../../deps";
 import { fieldAccessibleName } from "../fieldHelpers";
+import { FieldLabel } from "./FieldLabel";
 import type {
 	EntityMeta,
 	FieldDatasource,
@@ -143,25 +144,25 @@ export function FormSelectField({
 	// A select with no resolvable label was announced by its id (a CUID) —
 	// bind the label (and a fallback name) explicitly so every screen is named.
 	const inputId = `field-select-${field.name}`;
+	const errorId = `${inputId}-error`;
+	const descriptionId = `${inputId}-description`;
+	const description = field.fieldOverrides?.description;
 	const accessibleName = fieldAccessibleName(field);
 	const placeholder = field.uiOverrides?.behavior?.placeholder ?? "Select…";
+	const describedBy =
+		[isError ? errorId : undefined, description ? descriptionId : undefined]
+			.filter(Boolean)
+			.join(" ") || undefined;
 
 	return (
 		<div className="flex flex-col gap-2">
-			<label
+			<FieldLabel
 				htmlFor={inputId}
-				className={`text-sm font-medium leading-none ${
-					isError ? "text-destructive" : "text-foreground"
-				}`}
-			>
-				{field.label}
-				{field.isRequired ? (
-					<span className="text-destructive" aria-hidden="true">
-						{" "}
-						*
-					</span>
-				) : null}
-			</label>
+				label={field.label}
+				required={field.isRequired}
+				isError={isError}
+				description={description}
+			/>
 			<div className="relative w-full">
 				<select
 					id={inputId}
@@ -169,6 +170,7 @@ export function FormSelectField({
 					aria-label={accessibleName}
 					aria-invalid={isError || undefined}
 					aria-required={field.isRequired || undefined}
+					aria-describedby={describedBy}
 					value={value ?? ""}
 					disabled={field.isReadOnly}
 					onChange={(event) => {
@@ -204,10 +206,14 @@ export function FormSelectField({
 					className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground"
 				/>
 			</div>
-			{isError && <p className="text-sm text-destructive">{meta.error}</p>}
-			{field.fieldOverrides?.description ? (
-				<p className="text-sm text-muted-foreground">
-					{field.fieldOverrides.description}
+			{isError ? (
+				<p id={errorId} className="text-sm text-destructive">
+					{meta.error}
+				</p>
+			) : null}
+			{description ? (
+				<p id={descriptionId} className="sr-only">
+					{description}
 				</p>
 			) : null}
 		</div>
