@@ -23,16 +23,6 @@ import { ScreenContentContext } from "./ScreenContentContext";
 // the card wraps just the components on the screen.
 // ══════════════════════════════════════════════════════════════
 
-/** Named screen containers — centered, narrow working columns. */
-const CONTAINER_MAX: Record<string, string> = {
-	sm: "max-w-sm",
-	md: "max-w-md",
-	lg: "max-w-lg",
-	xl: "max-w-xl",
-	"2xl": "max-w-2xl",
-	"3xl": "max-w-3xl",
-};
-
 /** MUI `spacing` units (8px each) → Tailwind gap steps (4px each). */
 const GAP: Record<number, string> = {
 	0: "gap-0",
@@ -79,8 +69,8 @@ export function LayoutRenderer({
 		fullBleed?: boolean;
 		/** Vertical gap between content children. */
 		spacing?: number;
-		/** Centered screen column (settings forms). */
-		container?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl";
+		/** The container wrapper: a centered max-w-3xl column (settings). */
+		container?: boolean;
 		/**
 		 * The row this detail page is about. Fetched once and provided through
 		 * `RecordContext`, so the header's action buttons evaluate their
@@ -171,8 +161,11 @@ export function LayoutRenderer({
 		surfaceStyle.maxWidth = sizingStyle(config.maxWidth);
 	}
 
+	// Two screen wrappers: the regular full-width layout, or the centered
+	// container for settings screens. The container has one fixed width so
+	// every settings screen shares the same page width.
 	const containerClass = config.container
-		? `mx-auto w-full ${CONTAINER_MAX[config.container] ?? "max-w-md"}`
+		? "mx-auto w-full max-w-3xl"
 		: "w-full";
 
 	return (
