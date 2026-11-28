@@ -68,6 +68,8 @@ function actionFromComponent(ref: RenderedComponent): TableAction {
 			rowFields?: string[] | Record<string, string>;
 			/** Static/row-templated form prefill (CRM-27/29). */
 			extra?: Record<string, unknown>;
+			/** Post-submit result panel (ADMIN-15). */
+			success?: FormSuccessConfig;
 		};
 		confirm?: TableActionConfirm;
 		condition?: TableActionConditions;
@@ -115,6 +117,7 @@ function actionFromComponent(ref: RenderedComponent): TableAction {
 								>,
 							}
 						: {}),
+					...(cfg.dialog?.success ? { success: cfg.dialog.success } : {}),
 				},
 			};
 		case "navigate":
@@ -161,6 +164,42 @@ function slotActions(
 		.sort((a, b) => a.displayOrder - b.displayOrder)
 		.map((el) => actionFromComponent(el.referencedComponent!));
 }
+
+// ──────────────────────────────────────────────────────────────────
+// Post-submit success panel (ADMIN-15)
+//
+// `dialog.success` turns a create dialog into a small result screen after the
+// submit: the response is walked by dotted path, interpolated into the
+// (already translated) title/description, and a `copyable` field gets a Copy
+// button. The tenant-owner invite link is the reason it exists: the raw token
+// is shown once and must be copyable, not hidden behind a transient toast.
+// ──────────────────────────────────────────────────────────────────
+
+interface FormSuccessConfig {
+	title?: string;
+	description?: string;
+	fields?: Array<{ label?: string; path: string; copyable?: boolean }>;
+}
+
+/** Read a dotted path (`ownerInvite.inviteUrl`) out of an unknown object. */
+function readPath(source: unknown, path: string): unknown {
+	let current: unknown = source;
+	for (const key of path.split(".")) {
+		if (current == null || typeof current !== "object") return undefined;
+		current = (current as Record<string, unknown>)[key];
+	}
+	return current;
+}
+
+/** Replace `{dotted.path}` tokens with values from the response. */
+function interpolate(template: string | undefined, source: unknown): string {
+	if (!template) return "";
+	return template.replace(/\{([\w.]+)\}/g, (_match, path: string) => {
+		const value = readPath(source, path);
+		return value == null ? "" : String(value);
+	});
+}
+
 
 export function TableRenderer({
 	component,
@@ -242,6 +281,19 @@ export function TableRenderer({
 	/** The footer's primary spins for the whole submit promise. */
 	const [formSubmitting, setFormSubmitting] = useState(false);
 	const [formExtra, setFormExtra] = useState("");
+	/**
+	 * Post-submit result panel (ADMIN-15): set when the ACTION that opened the
+	 * form declared `dialog.success`. Kept separately from the form state
+	 * because the form dialog closes before the panel is useful.
+	 */
+	const [formSuccess, setFormSuccess] = useState<{
+		config: FormSuccessConfig;
+		data: unknown;
+	} | null>(null);
+	/** The success config of the action that opened the current form. */
+	const formSuccessConfigRef = useRef<FormSuccessConfig | undefined>(undefined);
+	/** Which copyable field was just copied (its path), for the button state. */
+	const [copiedFieldPath, setCopiedFieldPath] = useState<string | null>(null);
 
 	const formApiRef = useRef<{
 		submitForm: () => Promise<void>;
@@ -299,10 +351,40 @@ export function TableRenderer({
 		mutate(() => true);
 	}, [mutate]);
 
-	const handleFormSuccess = useCallback(async () => {
-		await mutate(() => true);
-		handleFormClose();
-	}, [mutate, handleFormClose]);
+	const handleFormSuccess = useCallback(
+		async (response?: unknown) => {
+			await mutate(() => true);
+			const config = formSuccessConfigRef.current;
+			if (config) {
+				// The render pipeline hands FormRenderer's `res.data` here:
+				// `{ statusCode, message, data: <created record> }`. The paths in
+				// the config address the record, so unwrap the envelope.
+				const payload =
+					(response as { data?: unknown } | undefined)?.data ?? response;
+				setCopiedFieldPath(null);
+				setFormSuccess({ config, data: payload ?? {} });
+			}
+			formSuccessConfigRef.current = undefined;
+			handleFormClose();
+		},
+		[mutate, handleFormClose],
+	);
+
+	/** Copy one success-panel value; clipboard errors leave it selectable. */
+	const copySuccessField = useCallback(
+		async (path: string) => {
+			const value = readPath(formSuccess?.data, path);
+			if (value == null || value === "") return;
+			try {
+				await navigator.clipboard.writeText(String(value));
+				setCopiedFieldPath(path);
+				await snack.success(tc("copied"));
+			} catch {
+				/* the input still selects the value */
+			}
+		},
+		[formSuccess?.data, snack, tc],
+	);
 
 	// ── QR preview dialog (custom row action: viewQr) ──
 	const [showQrDialog, setShowQrDialog] = useState(false);
@@ -540,7 +622,11 @@ export function TableRenderer({
 				const componentId = (action as any)?.dialog?.componentId || formId;
 				if (componentId) {
 					const dialog = (action as any)?.dialog as
-						| { title?: string; size?: DialogSize }
+						| {
+								title?: string;
+								size?: DialogSize;
+								success?: FormSuccessConfig;
+						  }
 						| undefined;
 					// The title names the ACTION — never the table's plural entity
 					// name. `dialog.title` wins, then the action's own label, so the
@@ -562,6 +648,8 @@ export function TableRenderer({
 						formCloseTimer.current = null;
 					}
 					formDialogOpenRef.current = true;
+					formSuccessConfigRef.current = dialog?.success;
+					setFormSuccess(null);
 					setFormComponentId(componentId);
 					// Use "edit" context for actual form rendering so FormRenderer can
 					// find edit actions (GET endpoints) to fetch record data.
@@ -923,6 +1011,76 @@ export function TableRenderer({
 						);
 					})()}
 				</>
+			)}
+			{/* Post-submit result panel (ADMIN-15): the invite link is copyable */}
+			{formSuccess && (
+				<BaseDialog
+					isOpen
+					title={
+						interpolate(formSuccess.config.title, formSuccess.data) ||
+						component.displayName
+					}
+					onClose={() => setFormSuccess(null)}
+					slotProps={{
+						submitButton: { show: false },
+						closeButton: {
+							show: true,
+							props: { children: tc("close") },
+						},
+					}}
+				>
+					<div className="flex flex-col gap-4">
+						{interpolate(formSuccess.config.description, formSuccess.data) && (
+							<p className="text-sm text-foreground">
+								{interpolate(formSuccess.config.description, formSuccess.data)}
+							</p>
+						)}
+						{(formSuccess.config.fields ?? []).map((field) => {
+							const value = readPath(formSuccess.data, field.path);
+							if (value == null || value === "") return null;
+							const label = field.label ?? field.path;
+							return (
+								<div key={field.path} className="flex flex-col gap-1">
+									<span className="text-sm font-medium text-foreground">
+										{label}
+									</span>
+									{field.copyable ? (
+										<div className="flex items-center gap-2">
+											<input
+												type="text"
+												readOnly
+												value={String(value)}
+												aria-label={label}
+												onFocus={(event) => event.currentTarget.select()}
+												className="block h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 font-mono text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+											/>
+											<button
+												type="button"
+												title={
+													copiedFieldPath === field.path
+														? tc("copied")
+														: tc("copyToClipboard")
+												}
+												aria-label={tc("copyToClipboard")}
+												className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-input text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+												onClick={() => void copySuccessField(field.path)}
+											>
+												<Unicon
+													name={copiedFieldPath === field.path ? "Done" : "Copy"}
+													size={16}
+												/>
+											</button>
+										</div>
+									) : (
+										<span className="select-all break-all text-sm text-muted-foreground">
+											{String(value)}
+										</span>
+									)}
+								</div>
+							);
+						})}
+					</div>
+				</BaseDialog>
 			)}
 			{/* QR preview dialog (viewQr custom row action) */}
 			{showQrDialog && qrInfo && (

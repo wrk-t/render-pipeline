@@ -1145,6 +1145,27 @@ interface TableActionOpenDialog extends TableActionBase {
 		 * may hold a row placeholder; a **dotted** key sets a nested form value.
 		 */
 		extra?: Record<string, string | number | boolean>;
+		/**
+		 * What to show AFTER a successful submit, instead of closing silently
+		 * (ADMIN-15: the tenant-owner invite link must be copyable — a toast
+		 * with a one-time URL is not).
+		 *
+		 * Values are resolved from the response's `data`; a field `path` is a
+		 * dotted path into it, and `title`/`description`/`label` may contain
+		 * `{path}` placeholders. The keys/labels are ordinary `$trl_` metadata
+		 * keys, resolved by the seed render before they reach the client.
+		 */
+		success?: {
+			title?: string;
+			description?: string;
+			fields?: Array<{
+				label?: string;
+				/** Dotted path into the response `data`, e.g. `ownerInvite.inviteUrl`. */
+				path: string;
+				/** Render a read-only input plus a Copy button. */
+				copyable?: boolean;
+			}>;
+		};
 	};
 }
 
