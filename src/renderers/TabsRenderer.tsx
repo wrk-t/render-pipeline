@@ -25,6 +25,25 @@ const STAGE_CLASSES: Record<string, string> = {
 	deprecated: "border-transparent bg-destructive text-white",
 };
 
+/**
+ * A stable, locale-independent URL slug for a tab.
+ *
+ * An explicit `name` on the tab descriptor wins: the backend resolves
+ * `$trl_` labels before they reach the client, so the visible label changes
+ * with the locale and must never be the URL identity. The fallback keeps
+ * every existing Tabs working unchanged (a slug of the resolved label).
+ */
+function tabSlug(tab: { label?: string; name?: string }, index: number): string {
+	const explicit = tab.name?.trim();
+	if (explicit) return explicit;
+	const slug = String(tab.label ?? "")
+		.replace(/^\$trl_/, "")
+		.replace(/[^a-zA-Z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "")
+		.toLowerCase();
+	return slug || `tab-${index}`;
+}
+
 export function TabsRenderer({
 	component,
 	pathParams,
@@ -36,8 +55,15 @@ export function TabsRenderer({
 	 * `visibleWhen`/`readOnlyWhen` context rules still apply there. */
 	context?: string;
 }): ReactElement {
-	const staticTabs: Array<{ label: string; icon?: string }> =
-		(component.config as any)?.tabs ?? [];
+	// A stable reference: the URL-sync effect keys off the tabs, and the tabs
+	// config is the same object on every render of a given component.
+	const staticTabs: Array<{ label: string; name?: string; icon?: string }> =
+		useMemo(
+			() =>
+				((component.config as { tabs?: Array<{ label: string; name?: string; icon?: string }> })
+					?.tabs ?? []),
+			[component.config],
+		);
 	// A vertical rail is the settings-style variant: sections on the left,
 	// the active panel on the right.
 	const vertical =
@@ -106,11 +132,62 @@ export function TabsRenderer({
 
 	const allTabs = staticTabs.length > 0 ? staticTabs : dynamicTabs;
 
+	// ── URL-addressable tabs (opt-in) ─────────────────────────────
+	// A Tabs node can carry `meta: { urlParam: "tab" }`; the active tab is
+	// then mirrored into `?tab=<slug>` so a deep link opens that tab and
+	// Playwright can assert the URL. The slug is explicit per tab (`name`)
+	// because the label is already translated when it reaches the client.
+	// Opt-in on purpose: dialog tab sets share the page URL and must not
+	// hijack it.
+	const urlParam =
+		typeof (component.meta as { urlParam?: unknown } | null)?.urlParam ===
+		"string"
+			? ((component.meta as { urlParam: string }).urlParam)
+			: null;
+
+	const slugs = useMemo(() => {
+		const key = allTabs
+			.map((tab: any, index: number) => tabSlug(tab, index))
+			.join("|");
+		return key ? key.split("|") : [];
+	}, [allTabs]);
+
 	const [activeIndex, setActiveIndex] = useState(0);
+
+	const applyUrl = useCallback(
+		(index: number) => {
+			if (!urlParam || typeof window === "undefined") return;
+			const url = new URL(window.location.href);
+			url.searchParams.set(urlParam, slugs[index] ?? `tab-${index}`);
+			// `replaceState` keeps tab clicks out of the back history; Next
+			// picks the change up so a later `useSearchParams` read is current.
+			window.history.replaceState(window.history.state, "", url.toString());
+		},
+		[slugs, urlParam],
+	);
+
+	// Deep link → initial tab, and browser back/forward → keep the tab in
+	// sync. Runs after mount so SSR and the first client render agree (a
+	// state initializer reading `window` would hydrate a different tab).
+	useEffect(() => {
+		if (!urlParam) return;
+		const select = () => {
+			const requested = new URLSearchParams(window.location.search).get(
+				urlParam,
+			);
+			if (!requested) return;
+			const index = slugs.indexOf(requested);
+			if (index >= 0) setActiveIndex(index);
+		};
+		select();
+		window.addEventListener("popstate", select);
+		return () => window.removeEventListener("popstate", select);
+	}, [slugs, urlParam]);
 
 	const handleTabChange = useCallback(
 		(newIndex: number) => {
 			setActiveIndex(newIndex);
+			applyUrl(newIndex);
 			// Update version context when switching dynamic tabs
 			if (dynamicTabs[newIndex]) {
 				setSelected({
@@ -122,7 +199,7 @@ export function TabsRenderer({
 				});
 			}
 		},
-		[dynamicTabs, setSelected],
+		[dynamicTabs, setSelected, applyUrl],
 	);
 
 	// ── Keyboard navigation (the roving-tabindex ARIA tablist pattern) ──
